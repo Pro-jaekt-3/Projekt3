@@ -28,7 +28,30 @@ const createQuestion = async (req, res) => {
   }
 };
 
+const deleteQuestion = async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    await prisma.question.delete({
+      where: {
+        id: Number(id),
+      },
+    });
+
+    res.json({
+      message: "Question deleted",
+    });
+  } catch (error) {
+    console.log(error);
+
+    res.status(500).json({
+      error: "Something went wrong",
+    });
+  }
+};
+
 module.exports = {
   getQuestions,
   createQuestion,
+  deleteQuestion,
 };

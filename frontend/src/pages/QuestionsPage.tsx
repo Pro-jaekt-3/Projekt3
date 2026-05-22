@@ -33,6 +33,11 @@ function QuestionsPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    if (!title || !description) {
+      alert("Please fill all fields");
+      return;
+    }
+
     try {
       await fetch("http://localhost:3000/questions", {
         method: "POST",
@@ -49,6 +54,18 @@ function QuestionsPage() {
       setTitle("");
       setDescription("");
       setDifficulty(1);
+
+      fetchQuestions();
+    } catch (error) {
+      console.error(error);
+    }
+  };
+
+  const handleDelete = async (id: number) => {
+    try {
+      await fetch(`http://localhost:3000/questions/${id}`, {
+        method: "DELETE",
+      });
 
       fetchQuestions();
     } catch (error) {
@@ -85,6 +102,8 @@ function QuestionsPage() {
 
         <input
           type="number"
+          min="1"
+          max="5"
           placeholder="Difficulty"
           value={difficulty}
           onChange={(e) => setDifficulty(Number(e.target.value))}
@@ -107,6 +126,10 @@ function QuestionsPage() {
           <p>{question.description}</p>
 
           <p>Difficulty: {question.difficulty}</p>
+
+          <button onClick={() => handleDelete(question.id)}>
+            Delete
+          </button>
         </div>
       ))}
     </div>
