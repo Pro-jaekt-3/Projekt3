@@ -1,6 +1,8 @@
 const express = require("express");
 const cors = require("cors");
 
+const questionRoutes = require("./routes/questionRoutes");
+
 const app = express();
 
 app.use(cors());
@@ -11,6 +13,8 @@ app.get("/", (req, res) => {
     message: "Backend dela!",
   });
 });
+
+app.use("/questions", questionRoutes);
 
 const PORT = 3000;
 
