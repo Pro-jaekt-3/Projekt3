@@ -2,7 +2,11 @@ const prisma = require("../prisma/client");
 
 const getQuestions = async (req, res) => {
   try {
-    const questions = await prisma.question.findMany();
+    const questions = await prisma.question.findMany({
+      include: {
+        topic: true,
+      },
+    });
 
     res.json(questions);
   } catch (error) {
@@ -12,13 +16,22 @@ const getQuestions = async (req, res) => {
 
 const createQuestion = async (req, res) => {
   try {
-    const { title, description, difficulty } = req.body;
+    const {
+      title,
+      description,
+      difficulty,
+      topicId,
+    } = req.body;
 
     const question = await prisma.question.create({
       data: {
         title,
         description,
         difficulty,
+        topicId,
+      },
+      include: {
+        topic: true,
       },
     });
 

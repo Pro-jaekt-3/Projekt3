@@ -2,6 +2,7 @@ const express = require("express");
 const cors = require("cors");
 
 const questionRoutes = require("./routes/questionRoutes");
+const topicRoutes = require("./routes/topicRoutes");
 
 const app = express();
 
@@ -15,6 +16,7 @@ app.get("/", (req, res) => {
 });
 
 app.use("/questions", questionRoutes);
+app.use("/topics", topicRoutes);
 
 const PORT = 3000;
 

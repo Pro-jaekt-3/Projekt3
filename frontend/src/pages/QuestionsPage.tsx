@@ -7,12 +7,19 @@ type Question = {
   difficulty: number;
 };
 
+type Topic = {
+  id: number;
+  name: string;
+};
+
 function QuestionsPage() {
   const [questions, setQuestions] = useState<Question[]>([]);
+  const [topics, setTopics] = useState<Topic[]>([]);
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [difficulty, setDifficulty] = useState(1);
+  const [topicId, setTopicId] = useState("");
 
   const fetchQuestions = async () => {
     try {
@@ -26,14 +33,27 @@ function QuestionsPage() {
     }
   };
 
+  const fetchTopics = async () => {
+    try {
+      const response = await fetch("http://localhost:3000/topics");
+
+      const data = await response.json();
+
+      setTopics(data);
+    } catch (error) {
+      console.error(error);
+    }
+  };
+
   useEffect(() => {
     fetchQuestions();
+    fetchTopics();
   }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!title || !description) {
+    if (!title || !description || !topicId) {
       alert("Please fill all fields");
       return;
     }
@@ -48,12 +68,14 @@ function QuestionsPage() {
           title,
           description,
           difficulty,
+          topicId: Number(topicId),
         }),
       });
 
       setTitle("");
       setDescription("");
       setDifficulty(1);
+      setTopicId("");
 
       fetchQuestions();
     } catch (error) {
@@ -108,6 +130,19 @@ function QuestionsPage() {
           value={difficulty}
           onChange={(e) => setDifficulty(Number(e.target.value))}
         />
+
+        <select
+          value={topicId}
+          onChange={(e) => setTopicId(e.target.value)}
+        >
+          <option value="">Select Topic</option>
+
+          {topics.map((topic) => (
+            <option key={topic.id} value={topic.id}>
+              {topic.name}
+            </option>
+          ))}
+        </select>
 
         <button type="submit">Add Question</button>
       </form>

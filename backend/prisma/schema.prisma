@@ -13,9 +13,18 @@ model User {
   name  String
 }
 
+model Topic {
+  id        Int        @id @default(autoincrement())
+  name      String
+  questions Question[]
+}
+
 model Question {
   id          Int    @id @default(autoincrement())
   title       String
   description String
   difficulty  Int
+
+  topicId Int
+  topic   Topic @relation(fields: [topicId], references: [id])
 }
