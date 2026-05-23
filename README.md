@@ -82,8 +82,6 @@ http://localhost:3000
 
 ---
 
-# Ustvari `.env` datoteke
-
 ## Backend
 
 V `backend/` ustvari:
