@@ -30,7 +30,28 @@ const createTopic = async (req, res) => {
   }
 };
 
+const deleteTopic = async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    await prisma.topic.delete({
+      where: {
+        id: Number(id),
+      },
+    });
+
+    res.json({
+      message: "Topic deleted",
+    });
+  } catch (error) {
+    res.status(500).json({
+      error: error.message,
+    });
+  }
+};
+
 module.exports = {
   getTopics,
   createTopic,
+  deleteTopic,
 };
