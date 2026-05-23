@@ -3,6 +3,7 @@ const cors = require("cors");
 
 const questionRoutes = require("./routes/questionRoutes");
 const topicRoutes = require("./routes/topicRoutes");
+const learningObjectiveRoutes = require("./routes/learningObjectiveRoutes");
 
 const app = express();
 
@@ -17,7 +18,7 @@ app.get("/", (req, res) => {
 
 app.use("/questions", questionRoutes);
 app.use("/topics", topicRoutes);
-
+app.use("/learning-objectives", learningObjectiveRoutes);
 const PORT = 3000;
 
 app.listen(PORT, () => {

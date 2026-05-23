@@ -1,0 +1,2 @@
+-- AlterTable
+ALTER TABLE `question` ADD COLUMN `type` ENUM('OPEN', 'MULTIPLE_CHOICE', 'CODE') NOT NULL DEFAULT 'OPEN';

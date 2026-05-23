@@ -1,5 +1,11 @@
 import { useEffect, useState } from "react";
 
+import {
+  getTopics,
+  createTopic,
+  deleteTopic,
+} from "../services/topicService";
+
 type Topic = {
   id: number;
   name: string;
@@ -9,11 +15,9 @@ function TopicsPage() {
   const [topics, setTopics] = useState<Topic[]>([]);
   const [name, setName] = useState("");
 
-  const fetchTopics = async () => {
+  const loadTopics = async () => {
     try {
-      const response = await fetch("http://localhost:3000/topics");
-
-      const data = await response.json();
+      const data = await getTopics();
 
       setTopics(data);
     } catch (error) {
@@ -22,7 +26,7 @@ function TopicsPage() {
   };
 
   useEffect(() => {
-    fetchTopics();
+    loadTopics();
   }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -34,19 +38,11 @@ function TopicsPage() {
     }
 
     try {
-      await fetch("http://localhost:3000/topics", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          name,
-        }),
-      });
+      await createTopic(name);
 
       setName("");
 
-      fetchTopics();
+      loadTopics();
     } catch (error) {
       console.error(error);
     }
@@ -54,11 +50,9 @@ function TopicsPage() {
 
   const handleDelete = async (id: number) => {
     try {
-      await fetch(`http://localhost:3000/topics/${id}`, {
-        method: "DELETE",
-      });
+      await deleteTopic(id);
 
-      fetchTopics();
+      loadTopics();
     } catch (error) {
       console.error(error);
     }

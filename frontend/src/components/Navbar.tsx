@@ -15,6 +15,8 @@ function Navbar() {
       <Link to="/questions">Questions</Link>
 
       <Link to="/topics">Topics</Link>
+
+      <Link to="/learning-objectives">Learning Objectives</Link>
     </nav>
   );
 }

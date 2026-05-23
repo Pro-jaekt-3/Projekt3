@@ -25,6 +25,27 @@ model Question {
   description String
   difficulty  Int
 
+  type QuestionType @default(OPEN)
+
   topicId Int
   topic   Topic @relation(fields: [topicId], references: [id])
+
+  learningObjectiveId Int?
+
+  learningObjective LearningObjective? @relation(fields: [learningObjectiveId], references: [id])
+  
+}
+
+model LearningObjective {
+  id          Int    @id @default(autoincrement())
+  title       String
+  description String?
+
+  questions Question[]
+}
+
+enum QuestionType {
+  OPEN
+  MULTIPLE_CHOICE
+  CODE
 }

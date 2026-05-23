@@ -5,6 +5,7 @@ import Navbar from "./components/Navbar";
 import HomePage from "./pages/HomePage";
 import QuestionsPage from "./pages/QuestionsPage";
 import TopicsPage from "./pages/TopicsPage";
+import LearningObjectivesPage from "./pages/LearningObjectivesPage";
 
 function App() {
   return (
@@ -17,6 +18,8 @@ function App() {
         <Route path="/questions" element={<QuestionsPage />} />
 
         <Route path="/topics" element={<TopicsPage />} />
+
+        <Route path="/learning-objectives" element={<LearningObjectivesPage />} />
       </Routes>
     </BrowserRouter>
   );

@@ -1,3 +1,9 @@
+import {
+  getQuestions,
+  createQuestion,
+  deleteQuestion,
+} from "../services/questionService";
+
 import { useEffect, useState } from "react";
 
 type Question = {
@@ -5,6 +11,7 @@ type Question = {
   title: string;
   description: string;
   difficulty: number;
+  type: string;
 };
 
 type Topic = {
@@ -20,12 +27,11 @@ function QuestionsPage() {
   const [description, setDescription] = useState("");
   const [difficulty, setDifficulty] = useState(1);
   const [topicId, setTopicId] = useState("");
+  const [type, setType] = useState("OPEN");
 
-  const fetchQuestions = async () => {
+  const loadQuestions = async () => {
     try {
-      const response = await fetch("http://localhost:3000/questions");
-
-      const data = await response.json();
+      const data = await getQuestions();
 
       setQuestions(data);
     } catch (error) {
@@ -46,7 +52,7 @@ function QuestionsPage() {
   };
 
   useEffect(() => {
-    fetchQuestions();
+    loadQuestions();
     fetchTopics();
   }, []);
 
@@ -59,25 +65,21 @@ function QuestionsPage() {
     }
 
     try {
-      await fetch("http://localhost:3000/questions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          title,
-          description,
-          difficulty,
-          topicId: Number(topicId),
-        }),
+      await createQuestion({
+        title,
+        description,
+        difficulty,
+        topicId: Number(topicId),
+        type,
       });
 
       setTitle("");
       setDescription("");
       setDifficulty(1);
       setTopicId("");
+      setType("OPEN");
 
-      fetchQuestions();
+      loadQuestions();
     } catch (error) {
       console.error(error);
     }
@@ -85,11 +87,9 @@ function QuestionsPage() {
 
   const handleDelete = async (id: number) => {
     try {
-      await fetch(`http://localhost:3000/questions/${id}`, {
-        method: "DELETE",
-      });
+      await deleteQuestion(id);
 
-      fetchQuestions();
+      loadQuestions();
     } catch (error) {
       console.error(error);
     }
@@ -132,6 +132,23 @@ function QuestionsPage() {
         />
 
         <select
+          value={type}
+          onChange={(e) => setType(e.target.value)}
+          >
+          <option value="OPEN">
+            Open Question
+          </option>
+
+          <option value="MULTIPLE_CHOICE">
+            Multiple Choice
+          </option>
+
+          <option value="CODE">
+            Code Question
+          </option>
+        </select>
+
+        <select
           value={topicId}
           onChange={(e) => setTopicId(e.target.value)}
         >
@@ -161,6 +178,8 @@ function QuestionsPage() {
           <p>{question.description}</p>
 
           <p>Difficulty: {question.difficulty}</p>
+
+          <p>Type: {question.type}</p>
 
           <button onClick={() => handleDelete(question.id)}>
             Delete

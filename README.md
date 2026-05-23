@@ -50,6 +50,22 @@ http://localhost:5173
 
 ---
 
+## Frontend
+
+V `frontend/` ustvari:
+
+```txt
+.env
+```
+
+Dodaj:
+
+```env
+VITE_API_URL=http://localhost:3000
+```
+
+---
+
 # Backend setup
 
 ```bash
@@ -65,6 +81,33 @@ http://localhost:3000
 ```
 
 ---
+
+# Ustvari `.env` datoteke
+
+## Backend
+
+V `backend/` ustvari:
+
+```txt
+.env
+```
+
+Dodaj:
+
+```env
+DATABASE_URL="mysql://root:GESLO@localhost:3306/projekt3"
+PORT=3000
+```
+
+Če MySQL nima gesla:
+
+```env
+DATABASE_URL="mysql://root:@localhost:3306/projekt3"
+PORT=3000
+```
+
+---
+
 
 # Database setup
 
@@ -97,40 +140,3 @@ npx prisma migrate dev --name init
 ```
 
 ---
-
-# Test API
-
-GET vprašanja:
-
-```txt
-http://localhost:3000/questions
-```
-
----
-
-# Trenutno implementirano
-
-- React frontend setup
-- Express backend setup
-- MySQL database
-- Prisma ORM
-- Question API
-- GET questions
-- POST questions
-
----
-
-# Struktura projekta
-
-```txt
-Projekt3/
-│
-├── frontend/
-├── backend/
-│   ├── controllers/
-│   ├── routes/
-│   ├── prisma/
-│   └── server.js
-│
-└── docs/
-```

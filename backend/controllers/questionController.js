@@ -21,6 +21,7 @@ const createQuestion = async (req, res) => {
       description,
       difficulty,
       topicId,
+      type,
     } = req.body;
 
     const question = await prisma.question.create({
@@ -29,6 +30,7 @@ const createQuestion = async (req, res) => {
         description,
         difficulty,
         topicId,
+        type,
       },
       include: {
         topic: true,
