@@ -1,7 +1,5 @@
 # Projekt3
 
-# Projekt3
-
 AI podprt sistem za generiranje, upravljanje in analizo vprašanj/testov za področje informatike.
 
 ## Tech Stack
@@ -94,13 +92,6 @@ Dodaj:
 
 ```env
 DATABASE_URL="mysql://root:GESLO@localhost:3306/projekt3"
-PORT=3000
-```
-
-Če MySQL nima gesla:
-
-```env
-DATABASE_URL="mysql://root:@localhost:3306/projekt3"
 PORT=3000
 ```
 
