@@ -41,7 +41,9 @@ function QuestionsPage() {
 
   const fetchTopics = async () => {
     try {
-      const response = await fetch("http://localhost:3000/topics");
+      const response = await fetch(
+        "http://localhost:3000/topics"
+      );
 
       const data = await response.json();
 
@@ -56,7 +58,9 @@ function QuestionsPage() {
     fetchTopics();
   }, []);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (
+    e: React.FormEvent
+  ) => {
     e.preventDefault();
 
     if (!title || !description || !topicId) {
@@ -96,30 +100,32 @@ function QuestionsPage() {
   };
 
   return (
-    <div style={{ padding: "20px" }}>
-      <h1>Questions</h1>
+    <div className="max-w-7xl mx-auto px-8 py-10">
+      <h1 className="text-6xl font-bold text-center mb-12">
+        Questions
+      </h1>
 
       <form
         onSubmit={handleSubmit}
-        style={{
-          marginBottom: "30px",
-          display: "flex",
-          flexDirection: "column",
-          gap: "10px",
-          maxWidth: "400px",
-        }}
+        className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 flex flex-col gap-4 max-w-xl mb-10"
       >
         <input
           type="text"
           placeholder="Title"
           value={title}
-          onChange={(e) => setTitle(e.target.value)}
+          onChange={(e) =>
+            setTitle(e.target.value)
+          }
+          className="border border-gray-300 rounded-lg px-4 py-3"
         />
 
         <textarea
           placeholder="Description"
           value={description}
-          onChange={(e) => setDescription(e.target.value)}
+          onChange={(e) =>
+            setDescription(e.target.value)
+          }
+          className="border border-gray-300 rounded-lg px-4 py-3"
         />
 
         <input
@@ -128,13 +134,19 @@ function QuestionsPage() {
           max="5"
           placeholder="Difficulty"
           value={difficulty}
-          onChange={(e) => setDifficulty(Number(e.target.value))}
+          onChange={(e) =>
+            setDifficulty(Number(e.target.value))
+          }
+          className="border border-gray-300 rounded-lg px-4 py-3"
         />
 
         <select
           value={type}
-          onChange={(e) => setType(e.target.value)}
-          >
+          onChange={(e) =>
+            setType(e.target.value)
+          }
+          className="border border-gray-300 rounded-lg px-4 py-3"
+        >
           <option value="OPEN">
             Open Question
           </option>
@@ -150,42 +162,71 @@ function QuestionsPage() {
 
         <select
           value={topicId}
-          onChange={(e) => setTopicId(e.target.value)}
+          onChange={(e) =>
+            setTopicId(e.target.value)
+          }
+          className="border border-gray-300 rounded-lg px-4 py-3"
         >
-          <option value="">Select Topic</option>
+          <option value="">
+            Select Topic
+          </option>
 
           {topics.map((topic) => (
-            <option key={topic.id} value={topic.id}>
+            <option
+              key={topic.id}
+              value={topic.id}
+            >
               {topic.name}
             </option>
           ))}
         </select>
 
-        <button type="submit">Add Question</button>
+        <button
+          type="submit"
+          className="bg-blue-600 hover:bg-blue-700 text-white rounded-lg py-3 font-medium transition"
+        >
+          Add Question
+        </button>
       </form>
 
-      {questions.map((question) => (
-        <div
-          key={question.id}
-          style={{
-            border: "1px solid gray",
-            padding: "10px",
-            marginBottom: "10px",
-          }}
-        >
-          <h3>{question.title}</h3>
+      <div className="grid gap-6">
+        {questions.map((question) => (
+          <div
+            key={question.id}
+            className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6"
+          >
+            <div className="flex justify-between items-start mb-4">
+              <h3 className="text-2xl font-semibold">
+                {question.title}
+              </h3>
 
-          <p>{question.description}</p>
+              <span className="bg-blue-100 text-blue-700 text-sm px-3 py-1 rounded-full">
+                {question.type}
+              </span>
+            </div>
 
-          <p>Difficulty: {question.difficulty}</p>
+            <p className="text-gray-600 mb-4">
+              {question.description}
+            </p>
 
-          <p>Type: {question.type}</p>
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-gray-500">
+                Difficulty:{" "}
+                {question.difficulty}
+              </span>
 
-          <button onClick={() => handleDelete(question.id)}>
-            Delete
-          </button>
-        </div>
-      ))}
+              <button
+                onClick={() =>
+                  handleDelete(question.id)
+                }
+                className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg transition"
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

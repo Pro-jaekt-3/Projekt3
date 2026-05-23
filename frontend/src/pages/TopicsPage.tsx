@@ -29,7 +29,9 @@ function TopicsPage() {
     loadTopics();
   }, []);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (
+    e: React.FormEvent
+  ) => {
     e.preventDefault();
 
     if (!name) {
@@ -59,45 +61,54 @@ function TopicsPage() {
   };
 
   return (
-    <div style={{ padding: "20px" }}>
-      <h1>Topics</h1>
+    <div className="max-w-7xl mx-auto px-8 py-10">
+      <h1 className="text-6xl font-bold text-center mb-12">
+        Topics
+      </h1>
 
       <form
         onSubmit={handleSubmit}
-        style={{
-          marginBottom: "30px",
-          display: "flex",
-          flexDirection: "column",
-          gap: "10px",
-          maxWidth: "400px",
-        }}
+        className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 flex flex-col gap-4 max-w-xl mb-10"
       >
         <input
           type="text"
           placeholder="Topic name"
           value={name}
-          onChange={(e) => setName(e.target.value)}
+          onChange={(e) =>
+            setName(e.target.value)
+          }
+          className="border border-gray-300 rounded-lg px-4 py-3"
         />
 
-        <button type="submit">Add Topic</button>
+        <button
+          type="submit"
+          className="bg-blue-600 hover:bg-blue-700 text-white rounded-lg py-3 font-medium transition"
+        >
+          Add Topic
+        </button>
       </form>
 
-      {topics.map((topic) => (
-        <div
-          key={topic.id}
-          style={{
-            border: "1px solid gray",
-            padding: "10px",
-            marginBottom: "10px",
-          }}
-        >
-          <h3>{topic.name}</h3>
+      <div className="grid gap-6">
+        {topics.map((topic) => (
+          <div
+            key={topic.id}
+            className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 flex items-center justify-between"
+          >
+            <h3 className="text-2xl font-semibold">
+              {topic.name}
+            </h3>
 
-          <button onClick={() => handleDelete(topic.id)}>
-            Delete
-          </button>
-        </div>
-      ))}
+            <button
+              onClick={() =>
+                handleDelete(topic.id)
+              }
+              className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg transition"
+            >
+              Delete
+            </button>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

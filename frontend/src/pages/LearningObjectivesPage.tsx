@@ -21,7 +21,8 @@ function LearningObjectivesPage() {
 
   const loadLearningObjectives = async () => {
     try {
-      const data = await getLearningObjectives();
+      const data =
+        await getLearningObjectives();
 
       setLearningObjectives(data);
     } catch (error) {
@@ -33,7 +34,9 @@ function LearningObjectivesPage() {
     loadLearningObjectives();
   }, []);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (
+    e: React.FormEvent
+  ) => {
     e.preventDefault();
 
     if (!title) {
@@ -67,24 +70,23 @@ function LearningObjectivesPage() {
   };
 
   return (
-    <div style={{ padding: "20px" }}>
-      <h1>Learning Objectives</h1>
+    <div className="max-w-7xl mx-auto px-8 py-10">
+      <h1 className="text-6xl font-bold text-center mb-12">
+        Learning Objectives
+      </h1>
 
       <form
         onSubmit={handleSubmit}
-        style={{
-          marginBottom: "30px",
-          display: "flex",
-          flexDirection: "column",
-          gap: "10px",
-          maxWidth: "400px",
-        }}
+        className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 flex flex-col gap-4 max-w-xl mb-10"
       >
         <input
           type="text"
           placeholder="Title"
           value={title}
-          onChange={(e) => setTitle(e.target.value)}
+          onChange={(e) =>
+            setTitle(e.target.value)
+          }
+          className="border border-gray-300 rounded-lg px-4 py-3"
         />
 
         <textarea
@@ -93,35 +95,50 @@ function LearningObjectivesPage() {
           onChange={(e) =>
             setDescription(e.target.value)
           }
+          className="border border-gray-300 rounded-lg px-4 py-3"
         />
 
-        <button type="submit">
+        <button
+          type="submit"
+          className="bg-blue-600 hover:bg-blue-700 text-white rounded-lg py-3 font-medium transition"
+        >
           Add Learning Objective
         </button>
       </form>
 
-      {learningObjectives.map((objective) => (
-        <div
-          key={objective.id}
-          style={{
-            border: "1px solid gray",
-            padding: "10px",
-            marginBottom: "10px",
-          }}
-        >
-          <h3>{objective.title}</h3>
+      <div className="grid gap-6">
+        {learningObjectives.map(
+          (objective) => (
+            <div
+              key={objective.id}
+              className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6"
+            >
+              <div className="flex items-start justify-between mb-4">
+                <div>
+                  <h3 className="text-2xl font-semibold mb-2">
+                    {objective.title}
+                  </h3>
 
-          <p>{objective.description}</p>
+                  <p className="text-gray-600">
+                    {objective.description}
+                  </p>
+                </div>
 
-          <button
-            onClick={() =>
-              handleDelete(objective.id)
-            }
-          >
-            Delete
-          </button>
-        </div>
-      ))}
+                <button
+                  onClick={() =>
+                    handleDelete(
+                      objective.id
+                    )
+                  }
+                  className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg transition"
+                >
+                  Delete
+                </button>
+              </div>
+            </div>
+          )
+        )}
+      </div>
     </div>
   );
 }
