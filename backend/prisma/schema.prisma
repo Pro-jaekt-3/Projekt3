@@ -16,11 +16,12 @@ model User {
 }
 
 model Topic {
-  id         Int        @id @default(autoincrement())
-  name       String
-  trainingId Int
-  training   Training   @relation(fields: [trainingId], references: [id])
-  questions  Question[]
+  id                 Int                 @id @default(autoincrement())
+  name               String
+  trainingId         Int
+  training           Training            @relation(fields: [trainingId], references: [id])
+  learningObjectives LearningObjective[]
+  questions          Question[]
 }
 
 model Training {
@@ -52,6 +53,8 @@ model LearningObjective {
   id          Int     @id @default(autoincrement())
   title       String
   description String?
+  topicId     Int
+  topic       Topic   @relation(fields: [topicId], references: [id])
 
   questions Question[]
 }
