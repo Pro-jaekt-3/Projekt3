@@ -16,9 +16,20 @@ model User {
 }
 
 model Topic {
-  id        Int        @id @default(autoincrement())
-  name      String
-  questions Question[]
+  id         Int        @id @default(autoincrement())
+  name       String
+  trainingId Int
+  training   Training   @relation(fields: [trainingId], references: [id])
+  questions  Question[]
+}
+
+model Training {
+  id          Int      @id @default(autoincrement())
+  title       String
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  topics      Topic[]
 }
 
 model Question {

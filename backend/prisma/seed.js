@@ -55,22 +55,41 @@ async function main() {
     },
   });
 
+  // TRAININGS
+  let training = await prisma.training.findFirst({
+    where: {
+      title: "Osnove informatike",
+    },
+  });
+
+  if (!training) {
+    training = await prisma.training.create({
+      data: {
+        title: "Osnove informatike",
+        description: "Demo izobraževanje za MVP testne podatke",
+      },
+    });
+  }
+
   // TOPICS
   const uml = await prisma.topic.create({
     data: {
       name: "UML",
+      trainingId: training.id,
     },
   });
 
   const sql = await prisma.topic.create({
     data: {
       name: "SQL",
+      trainingId: training.id,
     },
   });
 
   const networking = await prisma.topic.create({
     data: {
       name: "Networking",
+      trainingId: training.id,
     },
   });
 
