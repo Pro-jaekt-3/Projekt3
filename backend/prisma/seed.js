@@ -3,6 +3,58 @@ const { PrismaClient } = require("@prisma/client");
 const prisma = new PrismaClient();
 
 async function main() {
+  // USERS
+  await prisma.user.upsert({
+    where: {
+      email: "admin@example.com",
+    },
+    update: {
+      name: "Demo Admin",
+      externalAuthId: "demo-admin-auth-id",
+      role: "ADMIN",
+    },
+    create: {
+      email: "admin@example.com",
+      name: "Demo Admin",
+      externalAuthId: "demo-admin-auth-id",
+      role: "ADMIN",
+    },
+  });
+
+  await prisma.user.upsert({
+    where: {
+      email: "instructor@example.com",
+    },
+    update: {
+      name: "Demo Instructor",
+      externalAuthId: "demo-instructor-auth-id",
+      role: "INSTRUCTOR",
+    },
+    create: {
+      email: "instructor@example.com",
+      name: "Demo Instructor",
+      externalAuthId: "demo-instructor-auth-id",
+      role: "INSTRUCTOR",
+    },
+  });
+
+  await prisma.user.upsert({
+    where: {
+      email: "participant@example.com",
+    },
+    update: {
+      name: "Demo Participant",
+      externalAuthId: "demo-participant-auth-id",
+      role: "PARTICIPANT",
+    },
+    create: {
+      email: "participant@example.com",
+      name: "Demo Participant",
+      externalAuthId: "demo-participant-auth-id",
+      role: "PARTICIPANT",
+    },
+  });
+
   // TOPICS
   const uml = await prisma.topic.create({
     data: {
