@@ -7,9 +7,8 @@ function Navbar() {
         <Link to="/">Home</Link>
         <Link to="/questions">Questions</Link>
         <Link to="/topics">Topics</Link>
-        <Link to="/learning-objectives">
-          Learning Objectives
-        </Link>
+        <Link to="/learning-objectives">Learning Objectives</Link>
+        <Link to="/trainings">Trainings</Link>
       </div>
     </nav>
   );
