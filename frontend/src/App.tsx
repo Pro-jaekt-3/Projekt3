@@ -6,6 +6,7 @@ import HomePage from "./pages/HomePage";
 import QuestionsPage from "./pages/QuestionsPage";
 import TopicsPage from "./pages/TopicsPage";
 import LearningObjectivesPage from "./pages/LearningObjectivesPage";
+import TrainingsPage from "./pages/TrainingsPage";
 
 function App() {
   return (
@@ -20,6 +21,8 @@ function App() {
         <Route path="/topics" element={<TopicsPage />} />
 
         <Route path="/learning-objectives" element={<LearningObjectivesPage />} />
+
+        <Route path="/trainings" element={<TrainingsPage />} />
       </Routes>
     </BrowserRouter>
   );
