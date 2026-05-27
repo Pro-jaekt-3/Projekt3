@@ -3,6 +3,59 @@ const { PrismaClient } = require("@prisma/client");
 const prisma = new PrismaClient();
 
 async function main() {
+  const findOrCreateTopic = async (name, trainingId) => {
+    const existingTopic = await prisma.topic.findFirst({
+      where: {
+        name,
+        trainingId,
+      },
+    });
+
+    if (existingTopic) {
+      return existingTopic;
+    }
+
+    return prisma.topic.create({
+      data: {
+        name,
+        trainingId,
+      },
+    });
+  };
+
+  const findOrCreateLearningObjective = async (
+    title,
+    description,
+    topicId
+  ) => {
+    const existingLearningObjective =
+      await prisma.learningObjective.findFirst({
+        where: {
+          title,
+        },
+      });
+
+    if (existingLearningObjective) {
+      return prisma.learningObjective.update({
+        where: {
+          id: existingLearningObjective.id,
+        },
+        data: {
+          description,
+          topicId,
+        },
+      });
+    }
+
+    return prisma.learningObjective.create({
+      data: {
+        title,
+        description,
+        topicId,
+      },
+    });
+  };
+
   // USERS
   await prisma.user.upsert({
     where: {
@@ -72,41 +125,27 @@ async function main() {
   }
 
   // TOPICS
-  const uml = await prisma.topic.create({
-    data: {
-      name: "UML",
-      trainingId: training.id,
-    },
-  });
+  const uml = await findOrCreateTopic("UML", training.id);
 
-  const sql = await prisma.topic.create({
-    data: {
-      name: "SQL",
-      trainingId: training.id,
-    },
-  });
+  const sql = await findOrCreateTopic("SQL", training.id);
 
-  const networking = await prisma.topic.create({
-    data: {
-      name: "Networking",
-      trainingId: training.id,
-    },
-  });
+  const networking = await findOrCreateTopic(
+    "Networking",
+    training.id
+  );
 
   // LEARNING OBJECTIVES
-  const lo1 = await prisma.learningObjective.create({
-    data: {
-      title: "Understand UML diagrams",
-      description: "Student understands UML class diagrams.",
-    },
-  });
+  const lo1 = await findOrCreateLearningObjective(
+    "Understand UML diagrams",
+    "Student understands UML class diagrams.",
+    uml.id
+  );
 
-  const lo2 = await prisma.learningObjective.create({
-    data: {
-      title: "Write SQL queries",
-      description: "Student can write basic SQL queries.",
-    },
-  });
+  const lo2 = await findOrCreateLearningObjective(
+    "Write SQL queries",
+    "Student can write basic SQL queries.",
+    sql.id
+  );
 
   // QUESTIONS
   await prisma.question.createMany({
