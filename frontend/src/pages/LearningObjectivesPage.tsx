@@ -12,12 +12,25 @@ type LearningObjective = {
   description: string;
 };
 
+type Topic = {
+  id: number;
+  name: string;
+};
+
 function LearningObjectivesPage() {
   const [learningObjectives, setLearningObjectives] =
     useState<LearningObjective[]>([]);
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
+
+  const [topics] = useState<Topic[]>([
+    { id: 1, name: "UML" },
+    { id: 2, name: "SQL" },
+  ]);
+
+  const [topicId, setTopicId] =
+    useState("");
 
   const loadLearningObjectives = async () => {
     try {
@@ -39,8 +52,10 @@ function LearningObjectivesPage() {
   ) => {
     e.preventDefault();
 
-    if (!title) {
-      alert("Please enter title");
+    if (!title || !topicId) {
+      alert(
+        "Please enter title and select topic"
+      );
       return;
     }
 
@@ -52,6 +67,7 @@ function LearningObjectivesPage() {
 
       setTitle("");
       setDescription("");
+      setTopicId("");
 
       loadLearningObjectives();
     } catch (error) {
@@ -98,6 +114,27 @@ function LearningObjectivesPage() {
           className="border border-gray-300 rounded-lg px-4 py-3"
         />
 
+        <select
+          value={topicId}
+          onChange={(e) =>
+            setTopicId(e.target.value)
+          }
+          className="border border-gray-300 rounded-lg px-4 py-3"
+        >
+          <option value="">
+            Select Topic
+          </option>
+
+          {topics.map((topic) => (
+            <option
+              key={topic.id}
+              value={topic.id}
+            >
+              {topic.name}
+            </option>
+          ))}
+        </select>
+
         <button
           type="submit"
           className="bg-blue-600 hover:bg-blue-700 text-white rounded-lg py-3 font-medium transition"
@@ -121,6 +158,10 @@ function LearningObjectivesPage() {
 
                   <p className="text-gray-600">
                     {objective.description}
+                  </p>
+
+                  <p className="text-gray-500 text-sm mt-2">
+                    Topic support ready
                   </p>
                 </div>
 
