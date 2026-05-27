@@ -8,9 +8,11 @@ datasource db {
 }
 
 model User {
-  id    Int    @id @default(autoincrement())
-  email String @unique
-  name  String
+  id             Int      @id @default(autoincrement())
+  email          String   @unique
+  name           String
+  externalAuthId String?  @unique
+  role           UserRole @default(PARTICIPANT)
 }
 
 model Topic {
@@ -33,11 +35,10 @@ model Question {
   learningObjectiveId Int?
 
   learningObjective LearningObjective? @relation(fields: [learningObjectiveId], references: [id])
-  
 }
 
 model LearningObjective {
-  id          Int    @id @default(autoincrement())
+  id          Int     @id @default(autoincrement())
   title       String
   description String?
 
@@ -48,4 +49,10 @@ enum QuestionType {
   OPEN
   MULTIPLE_CHOICE
   CODE
+}
+
+enum UserRole {
+  ADMIN
+  INSTRUCTOR
+  PARTICIPANT
 }
