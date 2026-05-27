@@ -2,7 +2,11 @@ const prisma = require("../prisma/client");
 
 const getTopics = async (req, res) => {
   try {
-    const topics = await prisma.topic.findMany();
+    const topics = await prisma.topic.findMany({
+      include: {
+        training: true,
+      },
+    });
 
     res.json(topics);
   } catch (error) {
@@ -12,13 +16,71 @@ const getTopics = async (req, res) => {
   }
 };
 
+const getTopic = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const topic = await prisma.topic.findUnique({
+      where: {
+        id: Number(id),
+      },
+      include: {
+        training: true,
+      },
+    });
+
+    if (!topic) {
+      return res.status(404).json({
+        error: "Topic not found",
+      });
+    }
+
+    res.json(topic);
+  } catch (error) {
+    res.status(500).json({
+      error: error.message,
+    });
+  }
+};
+
 const createTopic = async (req, res) => {
   try {
-    const { name } = req.body;
+    const { name, trainingId } = req.body;
+
+    // Validate name
+    if (!name || name.trim() === "") {
+      return res.status(400).json({
+        error: "Topic name is required",
+      });
+    }
+
+    // Validate trainingId
+    if (!trainingId) {
+      return res.status(400).json({
+        error: "trainingId is required",
+      });
+    }
+
+    // Check if training exists
+    const training = await prisma.training.findUnique({
+      where: {
+        id: Number(trainingId),
+      },
+    });
+
+    if (!training) {
+      return res.status(404).json({
+        error: "Training not found",
+      });
+    }
 
     const topic = await prisma.topic.create({
       data: {
         name,
+        trainingId: Number(trainingId),
+      },
+      include: {
+        training: true,
       },
     });
 
@@ -30,19 +92,90 @@ const createTopic = async (req, res) => {
   }
 };
 
+const updateTopic = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { name, trainingId } = req.body;
+
+    // Check if topic exists
+    const topic = await prisma.topic.findUnique({
+      where: {
+        id: Number(id),
+      },
+    });
+
+    if (!topic) {
+      return res.status(404).json({
+        error: "Topic not found",
+      });
+    }
+
+    // If trainingId is provided, validate it
+    if (trainingId) {
+      const training = await prisma.training.findUnique({
+        where: {
+          id: Number(trainingId),
+        },
+      });
+
+      if (!training) {
+        return res.status(404).json({
+          error: "Training not found",
+        });
+      }
+    }
+
+    // Validate name if provided
+    if (name !== undefined && name.trim() === "") {
+      return res.status(400).json({
+        error: "Topic name cannot be empty",
+      });
+    }
+
+    const updatedTopic = await prisma.topic.update({
+      where: {
+        id: Number(id),
+      },
+      data: {
+        ...(name && { name }),
+        ...(trainingId && { trainingId: Number(trainingId) }),
+      },
+      include: {
+        training: true,
+      },
+    });
+
+    res.json(updatedTopic);
+  } catch (error) {
+    res.status(500).json({
+      error: error.message,
+    });
+  }
+};
+
 const deleteTopic = async (req, res) => {
   const { id } = req.params;
 
   try {
+    const topic = await prisma.topic.findUnique({
+      where: {
+        id: Number(id),
+      },
+    });
+
+    if (!topic) {
+      return res.status(404).json({
+        error: "Topic not found",
+      });
+    }
+
     await prisma.topic.delete({
       where: {
         id: Number(id),
       },
     });
 
-    res.json({
-      message: "Topic deleted",
-    });
+    res.status(204).send();
   } catch (error) {
     res.status(500).json({
       error: error.message,
@@ -52,6 +185,8 @@ const deleteTopic = async (req, res) => {
 
 module.exports = {
   getTopics,
+  getTopic,
   createTopic,
+  updateTopic,
   deleteTopic,
 };
