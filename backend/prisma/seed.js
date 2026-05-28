@@ -56,6 +56,76 @@ async function main() {
     });
   };
 
+  const findOrCreateQuestion = async ({
+    title,
+    description,
+    difficulty,
+    type,
+    status,
+    topicId,
+    learningObjectiveId,
+    createdById,
+    reviewedById,
+    reviewedAt,
+  }) => {
+    const existingQuestion = await prisma.question.findFirst({
+      where: {
+        title,
+      },
+    });
+
+    const data = {
+      description,
+      difficulty,
+      type,
+      status,
+      topicId,
+      learningObjectiveId,
+      createdById,
+      reviewedById,
+      reviewedAt,
+    };
+
+    if (existingQuestion) {
+      return prisma.question.update({
+        where: {
+          id: existingQuestion.id,
+        },
+        data,
+      });
+    }
+
+    return prisma.question.create({
+      data: {
+        title,
+        ...data,
+      },
+    });
+  };
+
+  const upsertAnswerOptions = async (questionId, options) => {
+    for (const option of options) {
+      await prisma.answerOption.upsert({
+        where: {
+          questionId_orderIndex: {
+            questionId,
+            orderIndex: option.orderIndex,
+          },
+        },
+        update: {
+          text: option.text,
+          isCorrect: option.isCorrect,
+        },
+        create: {
+          questionId,
+          text: option.text,
+          isCorrect: option.isCorrect,
+          orderIndex: option.orderIndex,
+        },
+      });
+    }
+  };
+
   // USERS
   const admin = await prisma.user.upsert({
     where: {
@@ -150,69 +220,143 @@ async function main() {
   // QUESTIONS
   const reviewedAt = new Date("2026-05-28T00:00:00.000Z");
 
-  await prisma.question.createMany({
-    data: [
-      {
-        title: "What is UML?",
-        description: "Explain UML and its purpose.",
-        difficulty: 2,
-        type: "OPEN",
-        status: "APPROVED",
-        topicId: uml.id,
-        learningObjectiveId: lo1.id,
-        createdById: instructor.id,
-        reviewedById: admin.id,
-        reviewedAt,
-      },
-      {
-        title: "What is a class diagram?",
-        description: "Describe UML class diagrams.",
-        difficulty: 3,
-        type: "OPEN",
-        status: "APPROVED",
-        topicId: uml.id,
-        learningObjectiveId: lo1.id,
-        createdById: instructor.id,
-        reviewedById: admin.id,
-        reviewedAt,
-      },
-      {
-        title: "SQL SELECT",
-        description: "Write a SELECT query.",
-        difficulty: 2,
-        type: "CODE",
-        status: "APPROVED",
-        topicId: sql.id,
-        learningObjectiveId: lo2.id,
-        createdById: instructor.id,
-        reviewedById: admin.id,
-        reviewedAt,
-      },
-      {
-        title: "Primary Key",
-        description: "Explain primary keys in SQL.",
-        difficulty: 1,
-        type: "OPEN",
-        status: "APPROVED",
-        topicId: sql.id,
-        learningObjectiveId: lo2.id,
-        createdById: instructor.id,
-        reviewedById: admin.id,
-        reviewedAt,
-      },
-      {
-        title: "What is TCP/IP?",
-        description: "Explain TCP/IP protocol.",
-        difficulty: 3,
-        type: "OPEN",
-        status: "APPROVED",
-        topicId: networking.id,
-        createdById: instructor.id,
-        reviewedById: admin.id,
-        reviewedAt,
-      },
-    ],
+  await findOrCreateQuestion({
+    title: "What is UML?",
+    description: "Explain UML and its purpose.",
+    difficulty: 2,
+    type: "OPEN",
+    status: "APPROVED",
+    topicId: uml.id,
+    learningObjectiveId: lo1.id,
+    createdById: instructor.id,
+    reviewedById: admin.id,
+    reviewedAt,
   });
+
+  await findOrCreateQuestion({
+    title: "What is a class diagram?",
+    description: "Describe UML class diagrams.",
+    difficulty: 3,
+    type: "OPEN",
+    status: "APPROVED",
+    topicId: uml.id,
+    learningObjectiveId: lo1.id,
+    createdById: instructor.id,
+    reviewedById: admin.id,
+    reviewedAt,
+  });
+
+  await findOrCreateQuestion({
+    title: "SQL SELECT",
+    description: "Write a SELECT query.",
+    difficulty: 2,
+    type: "CODE",
+    status: "APPROVED",
+    topicId: sql.id,
+    learningObjectiveId: lo2.id,
+    createdById: instructor.id,
+    reviewedById: admin.id,
+    reviewedAt,
+  });
+
+  await findOrCreateQuestion({
+    title: "Primary Key",
+    description: "Explain primary keys in SQL.",
+    difficulty: 1,
+    type: "OPEN",
+    status: "APPROVED",
+    topicId: sql.id,
+    learningObjectiveId: lo2.id,
+    createdById: instructor.id,
+    reviewedById: admin.id,
+    reviewedAt,
+  });
+
+  await findOrCreateQuestion({
+    title: "What is TCP/IP?",
+    description: "Explain TCP/IP protocol.",
+    difficulty: 3,
+    type: "OPEN",
+    status: "APPROVED",
+    topicId: networking.id,
+    createdById: instructor.id,
+    reviewedById: admin.id,
+    reviewedAt,
+  });
+
+  const sqlMultipleChoice = await findOrCreateQuestion({
+    title: "Which SQL statement is used to read data from a table?",
+    description: "Select the SQL statement used to read data from a table.",
+    difficulty: 1,
+    type: "MULTIPLE_CHOICE",
+    status: "APPROVED",
+    topicId: sql.id,
+    learningObjectiveId: lo2.id,
+    createdById: instructor.id,
+    reviewedById: admin.id,
+    reviewedAt,
+  });
+
+  await upsertAnswerOptions(sqlMultipleChoice.id, [
+    {
+      text: "SELECT",
+      isCorrect: true,
+      orderIndex: 1,
+    },
+    {
+      text: "INSERT",
+      isCorrect: false,
+      orderIndex: 2,
+    },
+    {
+      text: "UPDATE",
+      isCorrect: false,
+      orderIndex: 3,
+    },
+    {
+      text: "DELETE",
+      isCorrect: false,
+      orderIndex: 4,
+    },
+  ]);
+
+  const umlMultipleChoice = await findOrCreateQuestion({
+    title:
+      "Which UML diagram is commonly used to show classes and their relationships?",
+    description:
+      "Select the UML diagram commonly used to show classes and their relationships.",
+    difficulty: 2,
+    type: "MULTIPLE_CHOICE",
+    status: "APPROVED",
+    topicId: uml.id,
+    learningObjectiveId: lo1.id,
+    createdById: instructor.id,
+    reviewedById: admin.id,
+    reviewedAt,
+  });
+
+  await upsertAnswerOptions(umlMultipleChoice.id, [
+    {
+      text: "Class diagram",
+      isCorrect: true,
+      orderIndex: 1,
+    },
+    {
+      text: "Sequence diagram",
+      isCorrect: false,
+      orderIndex: 2,
+    },
+    {
+      text: "Deployment diagram",
+      isCorrect: false,
+      orderIndex: 3,
+    },
+    {
+      text: "Activity diagram",
+      isCorrect: false,
+      orderIndex: 4,
+    },
+  ]);
 
   console.log("Seed data inserted.");
 }
