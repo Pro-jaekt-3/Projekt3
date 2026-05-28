@@ -57,6 +57,20 @@ model Question {
   reviewedById Int?
   reviewedBy   User?     @relation("QuestionReviewedBy", fields: [reviewedById], references: [id])
   reviewedAt   DateTime?
+
+  answerOptions AnswerOption[]
+}
+
+model AnswerOption {
+  id         Int      @id @default(autoincrement())
+  questionId Int
+  question   Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  text       String
+  isCorrect  Boolean  @default(false)
+  orderIndex Int
+
+  @@unique([questionId, orderIndex])
+  @@index([questionId])
 }
 
 model LearningObjective {
