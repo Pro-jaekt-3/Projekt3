@@ -19,6 +19,11 @@ type Topic = {
   name: string;
 };
 
+type QuestionOption = {
+  text: string;
+  isCorrect: boolean;
+};
+
 function QuestionsPage() {
   const [questions, setQuestions] = useState<Question[]>([]);
   const [topics, setTopics] = useState<Topic[]>([]);
@@ -28,6 +33,15 @@ function QuestionsPage() {
   const [difficulty, setDifficulty] = useState(1);
   const [topicId, setTopicId] = useState("");
   const [type, setType] = useState("OPEN");
+
+  const [options, setOptions] = useState<
+  QuestionOption[]
+  >([
+    {
+      text: "",
+      isCorrect: false,
+    },
+  ]);
 
   const loadQuestions = async () => {
     try {
@@ -58,6 +72,40 @@ function QuestionsPage() {
     fetchTopics();
   }, []);
 
+  const addOption = () => {
+  setOptions([
+    ...options,
+    {
+      text: "",
+      isCorrect: false,
+    },
+  ]);
+};
+
+  const removeOption = (index: number) => {
+    setOptions(
+      options.filter((_, i) => i !== index)
+    );
+  };
+
+  const updateOptionText = (
+    index: number,
+    value: string
+  ) => {
+    const updated = [...options];
+    updated[index].text = value;
+    setOptions(updated);
+  };
+
+  const updateOptionCorrect = (
+    index: number,
+    checked: boolean
+  ) => {
+    const updated = [...options];
+    updated[index].isCorrect = checked;
+    setOptions(updated);
+  };
+
   const handleSubmit = async (
     e: React.FormEvent
   ) => {
@@ -75,6 +123,7 @@ function QuestionsPage() {
         difficulty,
         topicId: Number(topicId),
         type,
+        options,
       });
 
       setTitle("");
@@ -82,6 +131,13 @@ function QuestionsPage() {
       setDifficulty(1);
       setTopicId("");
       setType("OPEN");
+
+      setOptions([
+        {
+          text: "",
+          isCorrect: false,
+        },
+      ]);
 
       loadQuestions();
     } catch (error) {
@@ -180,6 +236,66 @@ function QuestionsPage() {
             </option>
           ))}
         </select>
+
+        {type === "MULTIPLE_CHOICE" && (
+  <div className="flex flex-col gap-3">
+    <h3 className="font-semibold">
+      Answer Options
+    </h3>
+
+    {options.map((option, index) => (
+      <div
+        key={index}
+        className="flex items-center gap-3"
+      >
+        <input
+          type="text"
+          placeholder="Option text"
+          value={option.text}
+          onChange={(e) =>
+            updateOptionText(
+              index,
+              e.target.value
+            )
+          }
+          className="border border-gray-300 rounded-lg px-4 py-2 flex-1"
+        />
+
+        <label className="flex items-center gap-2">
+          <input
+            type="checkbox"
+            checked={option.isCorrect}
+            onChange={(e) =>
+              updateOptionCorrect(
+                index,
+                e.target.checked
+              )
+            }
+          />
+          Correct
+        </label>
+
+        <button
+          type="button"
+          onClick={() =>
+            removeOption(index)
+          }
+          className="bg-red-500 text-white px-3 py-2 rounded-lg"
+        >
+          Remove
+        </button>
+      </div>
+    ))}
+
+        <button
+          type="button"
+          onClick={addOption}
+          className="bg-gray-200 px-4 py-2 rounded-lg"
+        >
+          Add Option
+        </button>
+      </div>
+    )}
 
         <button
           type="submit"
