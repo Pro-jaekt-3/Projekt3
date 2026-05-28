@@ -8,13 +8,19 @@ export const getTopics = async () => {
   return response.json();
 };
 
-export const createTopic = async (name: string) => {
+export const createTopic = async (
+  name: string,
+  trainingId: number
+) => {
   const response = await fetch(API_URL, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({ name }),
+    body: JSON.stringify({
+      name,
+      trainingId,
+    }),
   });
 
   return response.json();
