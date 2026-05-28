@@ -6,10 +6,17 @@ import {
   deleteLearningObjective,
 } from "../services/learningObjectiveService";
 
+import { getTopics } from "../services/topicService";
+
 type LearningObjective = {
   id: number;
   title: string;
   description: string;
+  topicId: number;
+  topic?: {
+    id: number;
+    name: string;
+  };
 };
 
 type Topic = {
@@ -21,16 +28,11 @@ function LearningObjectivesPage() {
   const [learningObjectives, setLearningObjectives] =
     useState<LearningObjective[]>([]);
 
+  const [topics, setTopics] = useState<Topic[]>([]);
+
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
-
-  const [topics] = useState<Topic[]>([
-    { id: 1, name: "UML" },
-    { id: 2, name: "SQL" },
-  ]);
-
-  const [topicId, setTopicId] =
-    useState("");
+  const [topicId, setTopicId] = useState("");
 
   const loadLearningObjectives = async () => {
     try {
@@ -43,8 +45,19 @@ function LearningObjectivesPage() {
     }
   };
 
+  const loadTopics = async () => {
+    try {
+      const data = await getTopics();
+
+      setTopics(data);
+    } catch (error) {
+      console.error(error);
+    }
+  };
+
   useEffect(() => {
     loadLearningObjectives();
+    loadTopics();
   }, []);
 
   const handleSubmit = async (
@@ -63,6 +76,7 @@ function LearningObjectivesPage() {
       await createLearningObjective({
         title,
         description,
+        topicId: Number(topicId),
       });
 
       setTitle("");
@@ -161,7 +175,8 @@ function LearningObjectivesPage() {
                   </p>
 
                   <p className="text-gray-500 text-sm mt-2">
-                    Topic support ready
+                    Topic:{" "}
+                    {objective.topic?.name}
                   </p>
                 </div>
 
