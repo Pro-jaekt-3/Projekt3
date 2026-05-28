@@ -14,6 +14,10 @@ export const createQuestion = async (questionData: {
   difficulty: number;
   topicId: number;
   type: string;
+  options?: {
+    text: string;
+    isCorrect: boolean;
+  }[];
 }) => {
   const response = await fetch(API_URL, {
     method: "POST",
