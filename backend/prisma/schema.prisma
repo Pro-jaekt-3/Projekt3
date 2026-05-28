@@ -8,18 +8,20 @@ datasource db {
 }
 
 model User {
-  id             Int      @id @default(autoincrement())
-  email          String   @unique
-  name           String
-  externalAuthId String?  @unique
-  role           UserRole @default(PARTICIPANT)
+  id                Int        @id @default(autoincrement())
+  email             String     @unique
+  name              String
+  externalAuthId    String?    @unique
+  role              UserRole   @default(PARTICIPANT)
+  createdQuestions  Question[] @relation("QuestionCreatedBy")
+  reviewedQuestions Question[] @relation("QuestionReviewedBy")
 }
 
 model Topic {
   id                 Int                 @id @default(autoincrement())
   name               String
-  trainingId         Int?
-  training           Training?           @relation(fields: [trainingId], references: [id])
+  trainingId         Int
+  training           Training            @relation(fields: [trainingId], references: [id])
   learningObjectives LearningObjective[]
   questions          Question[]
 }
@@ -39,7 +41,8 @@ model Question {
   description String
   difficulty  Int
 
-  type QuestionType @default(OPEN)
+  type   QuestionType   @default(OPEN)
+  status QuestionStatus @default(DRAFT)
 
   topicId Int
   topic   Topic @relation(fields: [topicId], references: [id])
@@ -47,23 +50,36 @@ model Question {
   learningObjectiveId Int?
 
   learningObjective LearningObjective? @relation(fields: [learningObjectiveId], references: [id])
+
+  createdById Int
+  createdBy   User @relation("QuestionCreatedBy", fields: [createdById], references: [id])
+
+  reviewedById Int?
+  reviewedBy   User?     @relation("QuestionReviewedBy", fields: [reviewedById], references: [id])
+  reviewedAt   DateTime?
 }
 
 model LearningObjective {
   id          Int     @id @default(autoincrement())
   title       String
   description String?
-  topicId     Int?
-  topic       Topic?  @relation(fields: [topicId], references: [id])
+  topicId     Int
+  topic       Topic   @relation(fields: [topicId], references: [id])
 
   questions Question[]
 }
-
 
 enum QuestionType {
   OPEN
   MULTIPLE_CHOICE
   CODE
+}
+
+enum QuestionStatus {
+  DRAFT
+  NEEDS_REVIEW
+  APPROVED
+  ARCHIVED
 }
 
 enum UserRole {

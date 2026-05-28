@@ -57,7 +57,7 @@ async function main() {
   };
 
   // USERS
-  await prisma.user.upsert({
+  const admin = await prisma.user.upsert({
     where: {
       email: "admin@example.com",
     },
@@ -74,7 +74,7 @@ async function main() {
     },
   });
 
-  await prisma.user.upsert({
+  const instructor = await prisma.user.upsert({
     where: {
       email: "instructor@example.com",
     },
@@ -148,6 +148,8 @@ async function main() {
   );
 
   // QUESTIONS
+  const reviewedAt = new Date("2026-05-28T00:00:00.000Z");
+
   await prisma.question.createMany({
     data: [
       {
@@ -155,39 +157,59 @@ async function main() {
         description: "Explain UML and its purpose.",
         difficulty: 2,
         type: "OPEN",
+        status: "APPROVED",
         topicId: uml.id,
         learningObjectiveId: lo1.id,
+        createdById: instructor.id,
+        reviewedById: admin.id,
+        reviewedAt,
       },
       {
         title: "What is a class diagram?",
         description: "Describe UML class diagrams.",
         difficulty: 3,
         type: "OPEN",
+        status: "APPROVED",
         topicId: uml.id,
         learningObjectiveId: lo1.id,
+        createdById: instructor.id,
+        reviewedById: admin.id,
+        reviewedAt,
       },
       {
         title: "SQL SELECT",
         description: "Write a SELECT query.",
         difficulty: 2,
         type: "CODE",
+        status: "APPROVED",
         topicId: sql.id,
         learningObjectiveId: lo2.id,
+        createdById: instructor.id,
+        reviewedById: admin.id,
+        reviewedAt,
       },
       {
         title: "Primary Key",
         description: "Explain primary keys in SQL.",
         difficulty: 1,
         type: "OPEN",
+        status: "APPROVED",
         topicId: sql.id,
         learningObjectiveId: lo2.id,
+        createdById: instructor.id,
+        reviewedById: admin.id,
+        reviewedAt,
       },
       {
         title: "What is TCP/IP?",
         description: "Explain TCP/IP protocol.",
         difficulty: 3,
         type: "OPEN",
+        status: "APPROVED",
         topicId: networking.id,
+        createdById: instructor.id,
+        reviewedById: admin.id,
+        reviewedAt,
       },
     ],
   });
