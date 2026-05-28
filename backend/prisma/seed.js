@@ -67,6 +67,7 @@ async function main() {
     createdById,
     reviewedById,
     reviewedAt,
+    equivalentGroupId,
   }) => {
     const existingQuestion = await prisma.question.findFirst({
       where: {
@@ -84,6 +85,7 @@ async function main() {
       createdById,
       reviewedById,
       reviewedAt,
+      equivalentGroupId,
     };
 
     if (existingQuestion) {
@@ -124,6 +126,36 @@ async function main() {
         },
       });
     }
+  };
+
+  const findOrCreateEquivalentQuestionGroup = async (
+    name,
+    description
+  ) => {
+    const existingGroup =
+      await prisma.equivalentQuestionGroup.findFirst({
+        where: {
+          name,
+        },
+      });
+
+    if (existingGroup) {
+      return prisma.equivalentQuestionGroup.update({
+        where: {
+          id: existingGroup.id,
+        },
+        data: {
+          description,
+        },
+      });
+    }
+
+    return prisma.equivalentQuestionGroup.create({
+      data: {
+        name,
+        description,
+      },
+    });
   };
 
   // USERS
@@ -220,6 +252,11 @@ async function main() {
   // QUESTIONS
   const reviewedAt = new Date("2026-05-28T00:00:00.000Z");
 
+  const sqlSelectGroup = await findOrCreateEquivalentQuestionGroup(
+    "SQL SELECT osnovne variante",
+    "Primerljive variante vprasanj za preverjanje osnovnega razumevanja stavka SELECT."
+  );
+
   await findOrCreateQuestion({
     title: "What is UML?",
     description: "Explain UML and its purpose.",
@@ -257,6 +294,7 @@ async function main() {
     createdById: instructor.id,
     reviewedById: admin.id,
     reviewedAt,
+    equivalentGroupId: sqlSelectGroup.id,
   });
 
   await findOrCreateQuestion({
@@ -295,6 +333,7 @@ async function main() {
     createdById: instructor.id,
     reviewedById: admin.id,
     reviewedAt,
+    equivalentGroupId: sqlSelectGroup.id,
   });
 
   await upsertAnswerOptions(sqlMultipleChoice.id, [
@@ -319,6 +358,20 @@ async function main() {
       orderIndex: 4,
     },
   ]);
+
+  await findOrCreateQuestion({
+    title: "SQL SELECT basic variant",
+    description: "Write a query that returns all columns from a table named Students.",
+    difficulty: 2,
+    type: "CODE",
+    status: "APPROVED",
+    topicId: sql.id,
+    learningObjectiveId: lo2.id,
+    createdById: instructor.id,
+    reviewedById: admin.id,
+    reviewedAt,
+    equivalentGroupId: sqlSelectGroup.id,
+  });
 
   const umlMultipleChoice = await findOrCreateQuestion({
     title:

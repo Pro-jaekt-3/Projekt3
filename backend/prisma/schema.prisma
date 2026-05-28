@@ -59,6 +59,11 @@ model Question {
   reviewedAt   DateTime?
 
   answerOptions AnswerOption[]
+
+  equivalentGroupId Int?
+  equivalentGroup   EquivalentQuestionGroup? @relation(fields: [equivalentGroupId], references: [id], onDelete: SetNull)
+
+  @@index([equivalentGroupId])
 }
 
 model AnswerOption {
@@ -71,6 +76,15 @@ model AnswerOption {
 
   @@unique([questionId, orderIndex])
   @@index([questionId])
+}
+
+model EquivalentQuestionGroup {
+  id          Int        @id @default(autoincrement())
+  name        String
+  description String?
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  questions   Question[]
 }
 
 model LearningObjective {
