@@ -1,34 +1,74 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+
+import {
+  getTrainings,
+  createTraining,
+  deleteTraining,
+} from "../services/trainingService";
+
+type Training = {
+  id: number;
+  title: string;
+  description?: string | null;
+};
 
 function TrainingsPage() {
-  const [trainings, setTrainings] = useState([
-    { id: 1, name: "Programiranje" },
-    { id: 2, name: "Podatkovne baze" },
-  ]);
+  const [trainings, setTrainings] = useState<
+    Training[]
+  >([]);
 
-  const [name, setName] = useState("");
+  const [title, setTitle] = useState("");
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
+  const [description, setDescription] =
+  useState("");
 
-    if (!name) return;
+  const loadTrainings = async () => {
+    try {
+      const data = await getTrainings();
 
-    setTrainings([
-      ...trainings,
-      {
-        id: Date.now(),
-        name,
-      },
-    ]);
-
-    setName("");
+      setTrainings(data);
+    } catch (error) {
+      console.error(error);
+    }
   };
 
-  const handleDelete = (id: number) => {
-  setTrainings(
-    trainings.filter((training) => training.id !== id)
-  );
-};
+  useEffect(() => {
+    loadTrainings();
+  }, []);
+
+  const handleSubmit = async (
+    e: React.FormEvent
+  ) => {
+    e.preventDefault();
+
+    if (!title) return;
+
+    try {
+      await createTraining(
+      title,
+      description
+      );
+
+      setTitle("");
+      setDescription("");
+
+      loadTrainings();
+    } catch (error) {
+      console.error(error);
+    }
+  };
+
+  const handleDelete = async (
+    id: number
+  ) => {
+    try {
+      await deleteTraining(id);
+
+      loadTrainings();
+    } catch (error) {
+      console.error(error);
+    }
+  };
 
   return (
     <div style={{ padding: "20px" }}>
@@ -46,9 +86,22 @@ function TrainingsPage() {
       >
         <input
           type="text"
-          placeholder="Training name"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
+          placeholder="Training title"
+          value={title}
+          onChange={(e) =>
+            setTitle(e.target.value)
+          }
+        />
+
+        <textarea
+          placeholder="Training description"
+          value={description}
+          onChange={(e) =>
+            setDescription(e.target.value)
+          }
+          style={{
+            minHeight: "100px",
+          }}
         />
 
         <button type="submit">
@@ -65,13 +118,19 @@ function TrainingsPage() {
             marginBottom: "10px",
           }}
         >
-          <h3>{training.name}</h3>
+          <h3>{training.title}</h3>
 
-        <button
-        onClick={() => handleDelete(training.id)}
-        >
-        Delete
-        </button>
+          {training.description && (
+            <p>{training.description}</p>
+          )}
+
+          <button
+            onClick={() =>
+              handleDelete(training.id)
+            }
+          >
+            Delete
+          </button>
         </div>
       ))}
     </div>
