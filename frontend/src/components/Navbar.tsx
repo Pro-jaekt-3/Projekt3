@@ -9,6 +9,7 @@ function Navbar() {
         <Link to="/topics">Topics</Link>
         <Link to="/learning-objectives">Learning Objectives</Link>
         <Link to="/trainings">Trainings</Link>
+        <Link to="/equivalent-groups">Equivalent Groups</Link>
       </div>
     </nav>
   );
