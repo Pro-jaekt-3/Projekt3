@@ -12,6 +12,7 @@ export const createLearningObjective = async (
   learningObjectiveData: {
     title: string;
     description: string;
+    topicId: number;
   }
 ) => {
   const response = await fetch(API_URL, {
