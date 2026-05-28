@@ -5,14 +5,28 @@ export const getTrainings = async () => {
   return response.json();
 };
 
-export const createTraining = async (name: string) => {
+export const createTraining = async (
+  title: string,
+  description = ""
+) => {
   const response = await fetch(API_URL, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({ name }),
+    body: JSON.stringify({
+      title,
+      description,
+    }),
   });
 
   return response.json();
+};
+
+export const deleteTraining = async (
+  id: number
+) => {
+  await fetch(`${API_URL}/${id}`, {
+    method: "DELETE",
+  });
 };
