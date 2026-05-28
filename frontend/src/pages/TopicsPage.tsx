@@ -6,25 +6,31 @@ import {
   deleteTopic,
 } from "../services/topicService";
 
+import { getTrainings } from "../services/trainingService";
+
 type Topic = {
   id: number;
   name: string;
+  trainingId: number;
+  training?: {
+    id: number;
+    title: string;
+  };
 };
 
 type Training = {
   id: number;
-  name: string;
+  title: string;
+  description?: string | null;
 };
 
 function TopicsPage() {
   const [topics, setTopics] = useState<Topic[]>([]);
+  const [trainings, setTrainings] = useState<
+    Training[]
+  >([]);
+
   const [name, setName] = useState("");
-
-  const [trainings] = useState<Training[]>([
-    { id: 1, name: "Programiranje" },
-    { id: 2, name: "Podatkovne baze" },
-  ]);
-
   const [trainingId, setTrainingId] =
     useState("");
 
@@ -38,8 +44,19 @@ function TopicsPage() {
     }
   };
 
+  const loadTrainings = async () => {
+    try {
+      const data = await getTrainings();
+
+      setTrainings(data);
+    } catch (error) {
+      console.error(error);
+    }
+  };
+
   useEffect(() => {
     loadTopics();
+    loadTrainings();
   }, []);
 
   const handleSubmit = async (
@@ -55,8 +72,10 @@ function TopicsPage() {
     }
 
     try {
-      // Zaenkrat backend še ne podpira trainingId
-      await createTopic(name);
+      await createTopic(
+        name,
+        Number(trainingId)
+      );
 
       setName("");
       setTrainingId("");
@@ -113,7 +132,7 @@ function TopicsPage() {
               key={training.id}
               value={training.id}
             >
-              {training.name}
+              {training.title}
             </option>
           ))}
         </select>
@@ -138,7 +157,7 @@ function TopicsPage() {
               </h3>
 
               <p className="text-gray-500 text-sm mt-1">
-                Training support ready
+                Training: {topic.training?.title}
               </p>
             </div>
 
