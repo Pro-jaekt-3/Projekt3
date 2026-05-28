@@ -7,6 +7,7 @@ import QuestionsPage from "./pages/QuestionsPage";
 import TopicsPage from "./pages/TopicsPage";
 import LearningObjectivesPage from "./pages/LearningObjectivesPage";
 import TrainingsPage from "./pages/TrainingsPage";
+import EquivalentGroupsPage from "./pages/EquivalentGroupsPage";
 
 function App() {
   return (
@@ -23,6 +24,8 @@ function App() {
         <Route path="/learning-objectives" element={<LearningObjectivesPage />} />
 
         <Route path="/trainings" element={<TrainingsPage />} />
+
+        <Route path="/equivalent-groups" element={<EquivalentGroupsPage />} />
       </Routes>
     </BrowserRouter>
   );

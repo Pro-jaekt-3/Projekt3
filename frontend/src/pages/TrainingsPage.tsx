@@ -18,9 +18,8 @@ function TrainingsPage() {
   >([]);
 
   const [title, setTitle] = useState("");
-
   const [description, setDescription] =
-  useState("");
+    useState("");
 
   const loadTrainings = async () => {
     try {
@@ -41,12 +40,15 @@ function TrainingsPage() {
   ) => {
     e.preventDefault();
 
-    if (!title) return;
+    if (!title) {
+      alert("Please enter title");
+      return;
+    }
 
     try {
       await createTraining(
-      title,
-      description
+        title,
+        description
       );
 
       setTitle("");
@@ -71,18 +73,14 @@ function TrainingsPage() {
   };
 
   return (
-    <div style={{ padding: "20px" }}>
-      <h1>Trainings</h1>
+    <div className="max-w-7xl mx-auto px-8 py-10">
+      <h1 className="text-6xl font-bold text-center mb-12">
+        Trainings
+      </h1>
 
       <form
         onSubmit={handleSubmit}
-        style={{
-          marginBottom: "30px",
-          display: "flex",
-          flexDirection: "column",
-          gap: "10px",
-          maxWidth: "400px",
-        }}
+        className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 flex flex-col gap-4 max-w-xl mb-10"
       >
         <input
           type="text"
@@ -91,6 +89,7 @@ function TrainingsPage() {
           onChange={(e) =>
             setTitle(e.target.value)
           }
+          className="border border-gray-300 rounded-lg px-4 py-3"
         />
 
         <textarea
@@ -99,40 +98,48 @@ function TrainingsPage() {
           onChange={(e) =>
             setDescription(e.target.value)
           }
-          style={{
-            minHeight: "100px",
-          }}
+          className="border border-gray-300 rounded-lg px-4 py-3 min-h-[120px]"
         />
 
-        <button type="submit">
+        <button
+          type="submit"
+          className="bg-blue-600 hover:bg-blue-700 text-white rounded-lg py-3 font-medium transition"
+        >
           Add Training
         </button>
       </form>
 
-      {trainings.map((training) => (
-        <div
-          key={training.id}
-          style={{
-            border: "1px solid gray",
-            padding: "10px",
-            marginBottom: "10px",
-          }}
-        >
-          <h3>{training.title}</h3>
-
-          {training.description && (
-            <p>{training.description}</p>
-          )}
-
-          <button
-            onClick={() =>
-              handleDelete(training.id)
-            }
+      <div className="grid gap-6">
+        {trainings.map((training) => (
+          <div
+            key={training.id}
+            className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6"
           >
-            Delete
-          </button>
-        </div>
-      ))}
+            <div className="flex items-start justify-between">
+              <div>
+                <h3 className="text-2xl font-semibold mb-2">
+                  {training.title}
+                </h3>
+
+                {training.description && (
+                  <p className="text-gray-600">
+                    {training.description}
+                  </p>
+                )}
+              </div>
+
+              <button
+                onClick={() =>
+                  handleDelete(training.id)
+                }
+                className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg transition"
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

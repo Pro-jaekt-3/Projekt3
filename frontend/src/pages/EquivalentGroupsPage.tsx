@@ -1,0 +1,122 @@
+import { useEffect, useState } from "react";
+
+import {
+  getEquivalentGroups,
+  createEquivalentGroup,
+} from "../services/equivalentGroupService";
+
+type EquivalentGroup = {
+  id: number;
+  name: string;
+  description?: string | null;
+};
+
+function EquivalentGroupsPage() {
+  const [groups, setGroups] = useState<
+    EquivalentGroup[]
+  >([]);
+
+  const [name, setName] = useState("");
+  const [description, setDescription] =
+    useState("");
+
+  const loadGroups = async () => {
+    try {
+      const data =
+        await getEquivalentGroups();
+
+      setGroups(data);
+    } catch (error) {
+      console.error(error);
+    }
+  };
+
+  useEffect(() => {
+    loadGroups();
+  }, []);
+
+  const handleSubmit = async (
+    e: React.FormEvent
+  ) => {
+    e.preventDefault();
+
+    if (!name) {
+      alert("Please enter group name");
+      return;
+    }
+
+    try {
+      await createEquivalentGroup(
+        name,
+        description
+      );
+
+      setName("");
+      setDescription("");
+
+      loadGroups();
+    } catch (error) {
+      console.error(error);
+    }
+  };
+
+  return (
+    <div className="max-w-7xl mx-auto px-8 py-10">
+      <h1 className="text-6xl font-bold text-center mb-12">
+        Equivalent Groups
+      </h1>
+
+      <form
+        onSubmit={handleSubmit}
+        className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 flex flex-col gap-4 max-w-xl mb-10"
+      >
+        <input
+          type="text"
+          placeholder="Group name"
+          value={name}
+          onChange={(e) =>
+            setName(e.target.value)
+          }
+          className="border border-gray-300 rounded-lg px-4 py-3"
+        />
+
+        <textarea
+          placeholder="Description"
+          value={description}
+          onChange={(e) =>
+            setDescription(e.target.value)
+          }
+          className="border border-gray-300 rounded-lg px-4 py-3"
+        />
+
+        <button
+          type="submit"
+          className="bg-blue-600 hover:bg-blue-700 text-white rounded-lg py-3 font-medium transition"
+        >
+          Create Group
+        </button>
+      </form>
+
+      <div className="grid gap-6">
+        {groups.map((group) => (
+          <div
+            key={group.id}
+            className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6"
+          >
+            <h3 className="text-2xl font-semibold mb-2">
+              {group.name}
+            </h3>
+
+            {group.description && (
+              <p className="text-gray-600">
+                {group.description}
+              </p>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+export default EquivalentGroupsPage;
