@@ -8,13 +8,14 @@ datasource db {
 }
 
 model User {
-  id                Int        @id @default(autoincrement())
-  email             String     @unique
-  name              String
-  externalAuthId    String?    @unique
-  role              UserRole   @default(PARTICIPANT)
-  createdQuestions  Question[] @relation("QuestionCreatedBy")
-  reviewedQuestions Question[] @relation("QuestionReviewedBy")
+  id                 Int                 @id @default(autoincrement())
+  email              String              @unique
+  name               String
+  externalAuthId     String?             @unique
+  role               UserRole            @default(PARTICIPANT)
+  createdQuestions   Question[]          @relation("QuestionCreatedBy")
+  reviewedQuestions  Question[]          @relation("QuestionReviewedBy")
+  assessmentAttempts AssessmentAttempt[]
 }
 
 model Topic {
@@ -65,6 +66,7 @@ model Question {
   equivalentGroup   EquivalentQuestionGroup? @relation(fields: [equivalentGroupId], references: [id], onDelete: SetNull)
 
   assessmentQuestions AssessmentQuestion[]
+  participantAnswers  ParticipantAnswer[]
 
   @@index([equivalentGroupId])
 }
@@ -81,6 +83,7 @@ model Assessment {
   createdAt        DateTime             @default(now())
   updatedAt        DateTime             @updatedAt
   questions        AssessmentQuestion[]
+  attempts         AssessmentAttempt[]
 }
 
 model AssessmentQuestion {
@@ -97,6 +100,44 @@ model AssessmentQuestion {
   @@index([questionId])
 }
 
+model AssessmentAttempt {
+  id           Int                 @id @default(autoincrement())
+  assessmentId Int
+  assessment   Assessment          @relation(fields: [assessmentId], references: [id])
+  userId       Int
+  user         User                @relation(fields: [userId], references: [id])
+  startedAt    DateTime            @default(now())
+  submittedAt  DateTime?
+  score        Float?
+  status       AttemptStatus       @default(IN_PROGRESS)
+  answers      ParticipantAnswer[]
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @updatedAt
+
+  @@index([assessmentId])
+  @@index([userId])
+  @@index([status])
+}
+
+model ParticipantAnswer {
+  id               Int               @id @default(autoincrement())
+  attemptId        Int
+  attempt          AssessmentAttempt @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  questionId       Int
+  question         Question          @relation(fields: [questionId], references: [id])
+  selectedOptionId Int?
+  selectedOption   AnswerOption?     @relation(fields: [selectedOptionId], references: [id])
+  answerText       String?
+  isCorrect        Boolean?
+  pointsAwarded    Float?
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+
+  @@unique([attemptId, questionId])
+  @@index([questionId])
+  @@index([selectedOptionId])
+}
+
 model AnswerOption {
   id         Int      @id @default(autoincrement())
   questionId Int
@@ -104,6 +145,8 @@ model AnswerOption {
   text       String
   isCorrect  Boolean  @default(false)
   orderIndex Int
+
+  participantAnswers ParticipantAnswer[]
 
   @@unique([questionId, orderIndex])
   @@index([questionId])
@@ -153,6 +196,12 @@ enum AssessmentStatus {
   DRAFT
   PUBLISHED
   ARCHIVED
+}
+
+enum AttemptStatus {
+  IN_PROGRESS
+  SUBMITTED
+  GRADED
 }
 
 enum UserRole {
