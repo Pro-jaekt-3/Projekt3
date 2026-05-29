@@ -3,18 +3,37 @@ import { useEffect, useState } from "react";
 import {
   getEquivalentGroups,
   createEquivalentGroup,
+  addQuestionToGroup,
 } from "../services/equivalentGroupService";
+
+import { getQuestions } from "../services/questionService";
 
 type EquivalentGroup = {
   id: number;
   name: string;
   description?: string | null;
+  questions?: {
+    id: number;
+    title: string;
+  }[];
+};
+
+type Question = {
+  id: number;
+  title: string;
 };
 
 function EquivalentGroupsPage() {
   const [groups, setGroups] = useState<
     EquivalentGroup[]
   >([]);
+
+  const [questions, setQuestions] = useState<
+    Question[]
+  >([]);
+
+  const [selectedQuestionId, setSelectedQuestionId] =
+    useState("");
 
   const [name, setName] = useState("");
   const [description, setDescription] =
@@ -31,8 +50,19 @@ function EquivalentGroupsPage() {
     }
   };
 
+  const loadQuestions = async () => {
+    try {
+      const data = await getQuestions();
+
+      setQuestions(data);
+    } catch (error) {
+      console.error(error);
+    }
+  };
+
   useEffect(() => {
     loadGroups();
+    loadQuestions();
   }, []);
 
   const handleSubmit = async (
@@ -55,6 +85,28 @@ function EquivalentGroupsPage() {
       setDescription("");
 
       loadGroups();
+    } catch (error) {
+      console.error(error);
+    }
+  };
+
+  const handleAddQuestion = async (
+    groupId: number
+  ) => {
+    if (!selectedQuestionId) {
+      alert("Please select a question");
+      return;
+    }
+
+    try {
+      await addQuestionToGroup(
+        groupId,
+        Number(selectedQuestionId)
+      );
+
+      loadGroups();
+
+      alert("Question added to group");
     } catch (error) {
       console.error(error);
     }
@@ -104,14 +156,66 @@ function EquivalentGroupsPage() {
             className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6"
           >
             <h3 className="text-2xl font-semibold mb-2">
-              {group.name}
-            </h3>
+            {group.name}
+          </h3>
 
-            {group.description && (
-              <p className="text-gray-600">
-                {group.description}
+          {group.description && (
+            <p className="text-gray-600 mb-4">
+              {group.description}
+            </p>
+          )}
+
+          {group.questions &&
+          group.questions.length > 0 && (
+            <div className="mt-4 mb-4">
+              <p className="font-medium mb-2">
+                Questions:
               </p>
-            )}
+
+              <ul className="list-disc ml-6">
+                {group.questions.map((question) => (
+                  <li key={question.id}>
+                    {question.title}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+            <div className="flex gap-3 items-center">
+              <select
+                value={selectedQuestionId}
+                onChange={(e) =>
+                  setSelectedQuestionId(
+                    e.target.value
+                  )
+                }
+                className="border border-gray-300 rounded-lg px-4 py-2"
+              >
+                <option value="">
+                  Select Question
+                </option>
+
+                {questions.map((question) => (
+                  <option
+                    key={question.id}
+                    value={question.id}
+                  >
+                    {question.title}
+                  </option>
+                ))}
+              </select>
+
+              <button
+                type="button"
+                onClick={() =>
+                  handleAddQuestion(group.id)
+                }
+                className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg transition"
+              >
+                Add Question
+              </button>
+            </div>
           </div>
         ))}
       </div>
