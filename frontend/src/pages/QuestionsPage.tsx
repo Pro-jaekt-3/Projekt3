@@ -123,7 +123,10 @@ function QuestionsPage() {
         difficulty,
         topicId: Number(topicId),
         type,
-        options,
+        options:
+          type === "MULTIPLE_CHOICE"
+            ? options
+            : undefined,
       });
 
       setTitle("");
