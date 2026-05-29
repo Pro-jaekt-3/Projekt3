@@ -5,6 +5,7 @@ const questionRoutes = require("./routes/questionRoutes");
 const topicRoutes = require("./routes/topicRoutes");
 const learningObjectiveRoutes = require("./routes/learningObjectiveRoutes");
 const trainingRoutes = require("./routes/trainingRoutes");
+const equivalentQuestionGroupRoutes = require("./routes/equivalentQuestionGroupRoutes");
 
 const app = express();
 
@@ -21,6 +22,7 @@ app.use("/questions", questionRoutes);
 app.use("/topics", topicRoutes);
 app.use("/learning-objectives", learningObjectiveRoutes);
 app.use("/trainings", trainingRoutes);
+app.use("/equivalent-question-groups", equivalentQuestionGroupRoutes);
 const PORT = 3000;
 
 app.listen(PORT, () => {
