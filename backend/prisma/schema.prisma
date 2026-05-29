@@ -27,12 +27,13 @@ model Topic {
 }
 
 model Training {
-  id          Int      @id @default(autoincrement())
+  id          Int          @id @default(autoincrement())
   title       String
   description String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
   topics      Topic[]
+  assessments Assessment[]
 }
 
 model Question {
@@ -63,7 +64,37 @@ model Question {
   equivalentGroupId Int?
   equivalentGroup   EquivalentQuestionGroup? @relation(fields: [equivalentGroupId], references: [id], onDelete: SetNull)
 
+  assessmentQuestions AssessmentQuestion[]
+
   @@index([equivalentGroupId])
+}
+
+model Assessment {
+  id               Int                  @id @default(autoincrement())
+  title            String
+  description      String?
+  trainingId       Int
+  training         Training             @relation(fields: [trainingId], references: [id])
+  type             AssessmentType
+  status           AssessmentStatus     @default(DRAFT)
+  timeLimitMinutes Int?
+  createdAt        DateTime             @default(now())
+  updatedAt        DateTime             @updatedAt
+  questions        AssessmentQuestion[]
+}
+
+model AssessmentQuestion {
+  id           Int        @id @default(autoincrement())
+  assessmentId Int
+  assessment   Assessment @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+  questionId   Int
+  question     Question   @relation(fields: [questionId], references: [id])
+  orderIndex   Int
+  points       Float      @default(1)
+
+  @@unique([assessmentId, orderIndex])
+  @@unique([assessmentId, questionId])
+  @@index([questionId])
 }
 
 model AnswerOption {
@@ -109,6 +140,18 @@ enum QuestionStatus {
   REVIEW
   APPROVED
   REJECTED
+  ARCHIVED
+}
+
+enum AssessmentType {
+  PRE_TEST
+  POST_TEST
+  QUIZ
+}
+
+enum AssessmentStatus {
+  DRAFT
+  PUBLISHED
   ARCHIVED
 }
 
