@@ -198,6 +198,45 @@ async function main() {
     });
   };
 
+  const findOrCreateAssessmentAttempt = async ({
+    assessmentId,
+    userId,
+    startedAt,
+    submittedAt,
+    score,
+    status,
+  }) => {
+    const existingAttempt = await prisma.assessmentAttempt.findFirst({
+      where: {
+        assessmentId,
+        userId,
+        startedAt,
+      },
+    });
+
+    const data = {
+      assessmentId,
+      userId,
+      startedAt,
+      submittedAt,
+      score,
+      status,
+    };
+
+    if (existingAttempt) {
+      return prisma.assessmentAttempt.update({
+        where: {
+          id: existingAttempt.id,
+        },
+        data,
+      });
+    }
+
+    return prisma.assessmentAttempt.create({
+      data,
+    });
+  };
+
   // USERS
   const admin = await prisma.user.upsert({
     where: {
@@ -233,7 +272,7 @@ async function main() {
     },
   });
 
-  await prisma.user.upsert({
+  const participant = await prisma.user.upsert({
     where: {
       email: "participant@example.com",
     },
@@ -519,6 +558,101 @@ async function main() {
         orderIndex: question.orderIndex,
         points: question.points,
       })),
+  });
+
+  const sqlSelectedOption = await prisma.answerOption.findFirst({
+    where: {
+      questionId: sqlMultipleChoice.id,
+      orderIndex: 1,
+    },
+  });
+
+  const umlSelectedOption = await prisma.answerOption.findFirst({
+    where: {
+      questionId: umlMultipleChoice.id,
+      orderIndex: 1,
+    },
+  });
+
+  const demoAttemptAnswers = [
+    {
+      questionId: sqlSelectQuestion.id,
+      answerText: "SELECT * FROM Students;",
+      isCorrect: true,
+      pointsAwarded: 2,
+    },
+    {
+      questionId: primaryKeyQuestion.id,
+      answerText: "A primary key uniquely identifies each row in a table.",
+      isCorrect: true,
+      pointsAwarded: 1,
+    },
+    {
+      questionId: tcpIpQuestion.id,
+      answerText: "TCP/IP is a set of network protocols used for communication between devices.",
+      isCorrect: false,
+      pointsAwarded: 0,
+    },
+    {
+      questionId: sqlMultipleChoice.id,
+      selectedOptionId: sqlSelectedOption?.id,
+      isCorrect: true,
+      pointsAwarded: 1,
+    },
+    {
+      questionId: umlMultipleChoice.id,
+      selectedOptionId: umlSelectedOption?.id,
+      isCorrect: true,
+      pointsAwarded: 1,
+    },
+  ];
+
+  const seededAssessmentQuestionIds = new Set(
+    (
+      await prisma.assessmentQuestion.findMany({
+        where: {
+          assessmentId: demoAssessment.id,
+        },
+        select: {
+          questionId: true,
+        },
+      })
+    ).map((assessmentQuestion) => assessmentQuestion.questionId)
+  );
+
+  const validDemoAttemptAnswers = demoAttemptAnswers.filter((answer) =>
+    seededAssessmentQuestionIds.has(answer.questionId)
+  );
+
+  const demoAttemptScore = validDemoAttemptAnswers.reduce(
+    (total, answer) => total + (answer.pointsAwarded ?? 0),
+    0
+  );
+
+  const demoAttempt = await findOrCreateAssessmentAttempt({
+    assessmentId: demoAssessment.id,
+    userId: participant.id,
+    startedAt: new Date("2026-05-29T08:00:00.000Z"),
+    submittedAt: new Date("2026-05-29T08:22:00.000Z"),
+    score: demoAttemptScore,
+    status: "GRADED",
+  });
+
+  await prisma.participantAnswer.deleteMany({
+    where: {
+      attemptId: demoAttempt.id,
+    },
+  });
+
+  await prisma.participantAnswer.createMany({
+    data: validDemoAttemptAnswers.map((answer) => ({
+      attemptId: demoAttempt.id,
+      questionId: answer.questionId,
+      selectedOptionId: answer.selectedOptionId,
+      answerText: answer.answerText,
+      isCorrect: answer.isCorrect,
+      pointsAwarded: answer.pointsAwarded,
+    })),
   });
 
   console.log("Seed data inserted.");
