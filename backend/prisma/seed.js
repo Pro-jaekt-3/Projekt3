@@ -158,6 +158,46 @@ async function main() {
     });
   };
 
+  const findOrCreateAssessment = async ({
+    title,
+    description,
+    trainingId,
+    type,
+    status,
+    timeLimitMinutes,
+  }) => {
+    const existingAssessment = await prisma.assessment.findFirst({
+      where: {
+        title,
+        trainingId,
+      },
+    });
+
+    const data = {
+      description,
+      trainingId,
+      type,
+      status,
+      timeLimitMinutes,
+    };
+
+    if (existingAssessment) {
+      return prisma.assessment.update({
+        where: {
+          id: existingAssessment.id,
+        },
+        data,
+      });
+    }
+
+    return prisma.assessment.create({
+      data: {
+        title,
+        ...data,
+      },
+    });
+  };
+
   // USERS
   const admin = await prisma.user.upsert({
     where: {
@@ -283,7 +323,7 @@ async function main() {
     reviewedAt,
   });
 
-  await findOrCreateQuestion({
+  const sqlSelectQuestion = await findOrCreateQuestion({
     title: "SQL SELECT",
     description: "Write a SELECT query.",
     difficulty: 2,
@@ -297,7 +337,7 @@ async function main() {
     equivalentGroupId: sqlSelectGroup.id,
   });
 
-  await findOrCreateQuestion({
+  const primaryKeyQuestion = await findOrCreateQuestion({
     title: "Primary Key",
     description: "Explain primary keys in SQL.",
     difficulty: 1,
@@ -310,7 +350,7 @@ async function main() {
     reviewedAt,
   });
 
-  await findOrCreateQuestion({
+  const tcpIpQuestion = await findOrCreateQuestion({
     title: "What is TCP/IP?",
     description: "Explain TCP/IP protocol.",
     difficulty: 3,
@@ -410,6 +450,76 @@ async function main() {
       orderIndex: 4,
     },
   ]);
+
+  const demoAssessment = await findOrCreateAssessment({
+    title: "Demo predtest - Osnove informatike",
+    description: "Demo preverjanje za testiranje MVP modela preverjanj.",
+    type: "PRE_TEST",
+    status: "PUBLISHED",
+    timeLimitMinutes: 30,
+    trainingId: training.id,
+  });
+
+  const demoAssessmentQuestions = [
+    {
+      questionId: sqlSelectQuestion.id,
+      orderIndex: 1,
+      points: 2,
+    },
+    {
+      questionId: primaryKeyQuestion.id,
+      orderIndex: 2,
+      points: 1,
+    },
+    {
+      questionId: tcpIpQuestion.id,
+      orderIndex: 3,
+      points: 2,
+    },
+    {
+      questionId: sqlMultipleChoice.id,
+      orderIndex: 4,
+      points: 1,
+    },
+    {
+      questionId: umlMultipleChoice.id,
+      orderIndex: 5,
+      points: 1,
+    },
+  ];
+
+  const approvedDemoQuestions = await prisma.question.findMany({
+    where: {
+      id: {
+        in: demoAssessmentQuestions.map((question) => question.questionId),
+      },
+      status: "APPROVED",
+    },
+    select: {
+      id: true,
+    },
+  });
+
+  const approvedQuestionIds = new Set(
+    approvedDemoQuestions.map((question) => question.id)
+  );
+
+  await prisma.assessmentQuestion.deleteMany({
+    where: {
+      assessmentId: demoAssessment.id,
+    },
+  });
+
+  await prisma.assessmentQuestion.createMany({
+    data: demoAssessmentQuestions
+      .filter((question) => approvedQuestionIds.has(question.questionId))
+      .map((question) => ({
+        assessmentId: demoAssessment.id,
+        questionId: question.questionId,
+        orderIndex: question.orderIndex,
+        points: question.points,
+      })),
+  });
 
   console.log("Seed data inserted.");
 }
