@@ -213,10 +213,57 @@ const deleteQuestion = async (req, res) => {
   }
 };
 
+const updateQuestionStatus = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status } = req.body;
+    const allowedStatuses = ["REVIEW", "APPROVED", "REJECTED", "ARCHIVED"];
+
+    if (!status || !allowedStatuses.includes(status)) {
+      return res.status(400).json({
+        error: "Invalid status. Allowed values: REVIEW, APPROVED, REJECTED, ARCHIVED",
+      });
+    }
+
+    const question = await prisma.question.findUnique({
+      where: { id: Number(id) },
+    });
+
+    if (!question) {
+      return res.status(404).json({ error: "Question not found" });
+    }
+
+    const data = {
+      status,
+    };
+
+    if (status === "APPROVED" || status === "REJECTED") {
+      data.reviewedById = req.user.id;
+      data.reviewedAt = new Date();
+    }
+
+    const updatedQuestion = await prisma.question.update({
+      where: { id: Number(id) },
+      data,
+      include: {
+        topic: true,
+        answerOptions: {
+          orderBy: { orderIndex: "asc" },
+        },
+      },
+    });
+
+    res.json(updatedQuestion);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
 module.exports = {
   getQuestions,
   getQuestion,
   createQuestion,
   updateQuestion,
   deleteQuestion,
+  updateQuestionStatus,
 };

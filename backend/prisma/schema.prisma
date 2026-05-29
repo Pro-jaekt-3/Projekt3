@@ -106,7 +106,9 @@ enum QuestionType {
 enum QuestionStatus {
   DRAFT
   NEEDS_REVIEW
+  REVIEW
   APPROVED
+  REJECTED
   ARCHIVED
 }
 
