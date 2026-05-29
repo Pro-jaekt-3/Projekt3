@@ -28,13 +28,14 @@ model Topic {
 }
 
 model Training {
-  id          Int          @id @default(autoincrement())
-  title       String
-  description String?
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
-  topics      Topic[]
-  assessments Assessment[]
+  id                   Int                   @id @default(autoincrement())
+  title                String
+  description          String?
+  createdAt            DateTime              @default(now())
+  updatedAt            DateTime              @updatedAt
+  topics               Topic[]
+  assessments          Assessment[]
+  assessmentBlueprints AssessmentBlueprint[]
 }
 
 model Question {
@@ -84,6 +85,18 @@ model Assessment {
   updatedAt        DateTime             @updatedAt
   questions        AssessmentQuestion[]
   attempts         AssessmentAttempt[]
+}
+
+model AssessmentBlueprint {
+  id                  Int      @id @default(autoincrement())
+  title               String
+  description         String?
+  trainingId          Int
+  training            Training @relation(fields: [trainingId], references: [id])
+  targetQuestionCount Int
+  configJson          Json
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
 }
 
 model AssessmentQuestion {

@@ -198,6 +198,44 @@ async function main() {
     });
   };
 
+  const findOrCreateAssessmentBlueprint = async ({
+    title,
+    description,
+    trainingId,
+    targetQuestionCount,
+    configJson,
+  }) => {
+    const existingBlueprint = await prisma.assessmentBlueprint.findFirst({
+      where: {
+        title,
+        trainingId,
+      },
+    });
+
+    const data = {
+      description,
+      trainingId,
+      targetQuestionCount,
+      configJson,
+    };
+
+    if (existingBlueprint) {
+      return prisma.assessmentBlueprint.update({
+        where: {
+          id: existingBlueprint.id,
+        },
+        data,
+      });
+    }
+
+    return prisma.assessmentBlueprint.create({
+      data: {
+        title,
+        ...data,
+      },
+    });
+  };
+
   const findOrCreateAssessmentAttempt = async ({
     assessmentId,
     userId,
@@ -497,6 +535,45 @@ async function main() {
     status: "PUBLISHED",
     timeLimitMinutes: 30,
     trainingId: training.id,
+  });
+
+  await findOrCreateAssessmentBlueprint({
+    title: "Blueprint predtest - Osnove informatike",
+    description:
+      "Demo blueprint za generiranje preverjanja po tematikah, ucnih ciljih in tezavnosti.",
+    trainingId: training.id,
+    targetQuestionCount: 5,
+    configJson: {
+      topics: [
+        {
+          topicName: "SQL",
+          topicId: sql.id,
+          questionCount: 3,
+        },
+        {
+          topicName: "UML",
+          topicId: uml.id,
+          questionCount: 2,
+        },
+      ],
+      learningObjectives: [
+        {
+          title: "Write SQL queries",
+          learningObjectiveId: lo2.id,
+          questionCount: 3,
+        },
+        {
+          title: "Understand UML diagrams",
+          learningObjectiveId: lo1.id,
+          questionCount: 2,
+        },
+      ],
+      difficulty: {
+        easy: 2,
+        medium: 2,
+        hard: 1,
+      },
+    },
   });
 
   const demoAssessmentQuestions = [
