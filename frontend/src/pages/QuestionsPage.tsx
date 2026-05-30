@@ -2,6 +2,7 @@ import {
   getQuestions,
   createQuestion,
   deleteQuestion,
+  updateQuestionStatus,
 } from "../services/questionService";
 
 import { useEffect, useState } from "react";
@@ -12,6 +13,7 @@ type Question = {
   description: string;
   difficulty: number;
   type: string;
+  status: string;
 };
 
 type Topic = {
@@ -151,6 +153,22 @@ function QuestionsPage() {
   const handleDelete = async (id: number) => {
     try {
       await deleteQuestion(id);
+
+      loadQuestions();
+    } catch (error) {
+      console.error(error);
+    }
+  };
+
+  const handleStatusChange = async (
+    id: number,
+    status: string
+  ) => {
+    try {
+      await updateQuestionStatus(
+        id,
+        status
+      );
 
       loadQuestions();
     } catch (error) {
@@ -328,11 +346,49 @@ function QuestionsPage() {
               {question.description}
             </p>
 
+            <div className="mb-4">
+              <span className="font-medium">
+                Status:
+              </span>{" "}
+              {question.status}
+            </div>
+
             <div className="flex items-center justify-between">
               <span className="text-sm text-gray-500">
                 Difficulty:{" "}
                 {question.difficulty}
               </span>
+
+            <select
+              value={question.status}
+              onChange={(e) =>
+                handleStatusChange(
+                  question.id,
+                  e.target.value
+                )
+              }
+              className="border border-gray-300 rounded-lg px-3 py-2"
+            >
+              <option value="DRAFT">
+                DRAFT
+              </option>
+
+              <option value="NEEDS_REVIEW">
+                NEEDS REVIEW
+              </option>
+
+              <option value="REVIEW">
+                REVIEW
+              </option>
+
+              <option value="APPROVED">
+                APPROVED
+              </option>
+
+              <option value="REJECTED">
+                REJECTED
+              </option>
+            </select>
 
               <button
                 onClick={() =>
