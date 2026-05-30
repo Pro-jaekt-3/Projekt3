@@ -8,6 +8,8 @@ import TopicsPage from "./pages/TopicsPage";
 import LearningObjectivesPage from "./pages/LearningObjectivesPage";
 import TrainingsPage from "./pages/TrainingsPage";
 import EquivalentGroupsPage from "./pages/EquivalentGroupsPage";
+import AssessmentsPage from "./pages/AssessmentsPage";
+
 
 function App() {
   return (
@@ -26,6 +28,8 @@ function App() {
         <Route path="/trainings" element={<TrainingsPage />} />
 
         <Route path="/equivalent-groups" element={<EquivalentGroupsPage />} />
+
+        <Route path="/assessments" element={<AssessmentsPage />}/>
       </Routes>
     </BrowserRouter>
   );

@@ -10,6 +10,7 @@ function Navbar() {
         <Link to="/learning-objectives">Learning Objectives</Link>
         <Link to="/trainings">Trainings</Link>
         <Link to="/equivalent-groups">Equivalent Groups</Link>
+        <Link to="/assessments">Assessments</Link>
       </div>
     </nav>
   );
