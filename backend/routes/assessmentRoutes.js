@@ -5,6 +5,7 @@ const {
   getAssessments,
   getAssessment,
   createAssessment,
+  generateAssessment,
   updateAssessment,
   deleteAssessment,
 } = require("../controllers/assessmentController");
@@ -12,6 +13,7 @@ const { authenticate, requireRole } = require("../middleware/authMiddleware");
 
 router.get("/", authenticate, requireRole("INSTRUCTOR", "ADMIN"), getAssessments);
 router.get("/:id", authenticate, requireRole("INSTRUCTOR", "ADMIN"), getAssessment);
+router.post("/generate", authenticate, requireRole("INSTRUCTOR", "ADMIN"), generateAssessment);
 router.post("/", authenticate, requireRole("INSTRUCTOR", "ADMIN"), createAssessment);
 router.put("/:id", authenticate, requireRole("INSTRUCTOR", "ADMIN"), updateAssessment);
 router.delete("/:id", authenticate, requireRole("INSTRUCTOR", "ADMIN"), deleteAssessment);

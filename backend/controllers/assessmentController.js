@@ -151,6 +151,140 @@ const createAssessment = async (req, res) => {
   }
 };
 
+const generateAssessment = async (req, res) => {
+  try {
+    const {
+      title,
+      description,
+      trainingId,
+      topicId,
+      learningObjectiveId,
+      difficulty,
+      count,
+    } = req.body;
+
+    if (!title || !title.trim()) {
+      return res.status(400).json({ error: "Title is required" });
+    }
+
+    if (!trainingId) {
+      return res.status(400).json({ error: "trainingId is required" });
+    }
+
+    const parsedCount = Number(count);
+    if (!parsedCount || parsedCount < 1) {
+      return res.status(400).json({ error: "count must be a positive integer" });
+    }
+
+    let difficultyValue;
+    if (difficulty !== undefined) {
+      if (typeof difficulty === "number") {
+        difficultyValue = difficulty;
+      } else if (typeof difficulty === "string") {
+        const normalized = difficulty.trim().toLowerCase();
+        if (normalized === "easy") difficultyValue = 1;
+        else if (normalized === "medium") difficultyValue = 2;
+        else if (normalized === "hard") difficultyValue = 3;
+        else if (!Number.isNaN(Number(normalized))) difficultyValue = Number(normalized);
+        else {
+          return res.status(400).json({ error: "Invalid difficulty value" });
+        }
+      } else {
+        return res.status(400).json({ error: "Invalid difficulty value" });
+      }
+    }
+
+    const questionWhere = {
+      status: "APPROVED",
+      topic: {
+        trainingId: Number(trainingId),
+      },
+      ...(topicId !== undefined && { topicId: Number(topicId) }),
+      ...(learningObjectiveId !== undefined && {
+        learningObjectiveId: Number(learningObjectiveId),
+      }),
+      ...(difficultyValue !== undefined && { difficulty: difficultyValue }),
+    };
+
+    const availableQuestions = await prisma.question.findMany({
+      where: questionWhere,
+      orderBy: { id: "asc" },
+    });
+
+    if (availableQuestions.length < parsedCount) {
+      return res.status(400).json({
+        error: `Only ${availableQuestions.length} approved questions match the requested filters`,
+      });
+    }
+
+    const selectedQuestions = [];
+    const selectedGroupIds = new Set();
+    const overflow = [];
+
+    for (const question of availableQuestions) {
+      const groupId = question.equivalentGroupId;
+      if (groupId !== null && groupId !== undefined) {
+        if (!selectedGroupIds.has(groupId)) {
+          selectedGroupIds.add(groupId);
+          selectedQuestions.push(question);
+        } else {
+          overflow.push(question);
+        }
+      } else {
+        selectedQuestions.push(question);
+      }
+
+      if (selectedQuestions.length >= parsedCount) {
+        break;
+      }
+    }
+
+    if (selectedQuestions.length < parsedCount) {
+      for (const question of overflow) {
+        selectedQuestions.push(question);
+        if (selectedQuestions.length >= parsedCount) {
+          break;
+        }
+      }
+    }
+
+    if (selectedQuestions.length < parsedCount) {
+      return res.status(400).json({
+        error: `Only ${availableQuestions.length} approved questions match the requested filters`,
+      });
+    }
+
+    const assessment = await prisma.assessment.create({
+      data: {
+        title: title.trim(),
+        description,
+        trainingId: Number(trainingId),
+        type: "QUIZ",
+        questions: {
+          create: selectedQuestions.slice(0, parsedCount).map((question, index) => ({
+            questionId: question.id,
+            points: 1,
+            orderIndex: index,
+          })),
+        },
+      },
+      include: {
+        training: true,
+        questions: {
+          orderBy: { orderIndex: "asc" },
+          include: {
+            question: true,
+          },
+        },
+      },
+    });
+
+    res.status(201).json(assessment);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
 const updateAssessment = async (req, res) => {
   try {
     const { id } = req.params;
@@ -241,6 +375,7 @@ module.exports = {
   getAssessments,
   getAssessment,
   createAssessment,
+  generateAssessment,
   updateAssessment,
   deleteAssessment,
 };
