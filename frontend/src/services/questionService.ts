@@ -35,3 +35,25 @@ export const deleteQuestion = async (id: number) => {
     method: "DELETE",
   });
 };
+
+export const updateQuestionStatus = async (
+  id: number,
+  status: string
+) => {
+  const response = await fetch(
+    `${API_URL}/${id}/status`,
+    {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        "x-user-id": "1",
+        "x-user-role": "INSTRUCTOR",
+      },
+      body: JSON.stringify({
+        status,
+      }),
+    }
+  );
+
+  return response.json();
+};
