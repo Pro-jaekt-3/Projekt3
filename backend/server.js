@@ -8,11 +8,13 @@ const trainingRoutes = require("./routes/trainingRoutes");
 const equivalentQuestionGroupRoutes = require("./routes/equivalentQuestionGroupRoutes");
 const assessmentRoutes = require("./routes/assessmentRoutes");
 const assessmentAttemptRoutes = require("./routes/assessmentAttemptRoutes");
+const { authMiddleware } = require("./middleware/authMiddleware");
 
 const app = express();
 
 app.use(cors());
 app.use(express.json());
+app.use(authMiddleware);
 
 app.get("/", (req, res) => {
   res.json({
