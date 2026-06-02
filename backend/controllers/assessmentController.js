@@ -30,7 +30,15 @@ const getAssessments = async (req, res) => {
         questions: {
           orderBy: { orderIndex: "asc" },
           include: {
-            question: true,
+            question: {
+              include: {
+                answerOptions: {
+                  orderBy: {
+                    orderIndex: "asc",
+                  },
+                },
+              },
+            },
           },
         },
       },
@@ -53,7 +61,15 @@ const getAssessment = async (req, res) => {
         questions: {
           orderBy: { orderIndex: "asc" },
           include: {
-            question: true,
+            question: {
+              include: {
+                answerOptions: {
+                  orderBy: {
+                    orderIndex: "asc",
+                  },
+                },
+              },
+            },
           },
         },
       },

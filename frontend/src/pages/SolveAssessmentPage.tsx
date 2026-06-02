@@ -85,14 +85,28 @@ function SolveAssessmentPage() {
     try {
       const formattedAnswers =
         assessment.questions.map(
-          (assessmentQuestion) => ({
-            questionId:
-              assessmentQuestion.question.id,
-            textAnswer:
-              answers[
-                assessmentQuestion.question.id
-              ] || "",
-          })
+            (assessmentQuestion) => {
+            const question =
+                assessmentQuestion.question;
+
+            const value =
+                answers[question.id];
+
+            if (
+                question.type ===
+                "MULTIPLE_CHOICE"
+            ) {
+                return {
+                questionId: question.id,
+                selectedOptionId: Number(value),
+                };
+            }
+
+            return {
+                questionId: question.id,
+                textAnswer: value || "",
+            };
+            }
         );
 
       await submitAttempt(
