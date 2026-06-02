@@ -11,11 +11,11 @@ const {
 } = require("../controllers/assessmentController");
 const { authenticate, requireRole } = require("../middleware/authMiddleware");
 
-router.get("/", authenticate, requireRole("INSTRUCTOR", "ADMIN"), getAssessments);
-router.get("/:id", authenticate, requireRole("INSTRUCTOR", "ADMIN"), getAssessment);
-router.post("/generate", authenticate, requireRole("INSTRUCTOR", "ADMIN"), generateAssessment);
-router.post("/", authenticate, requireRole("INSTRUCTOR", "ADMIN"), createAssessment);
-router.put("/:id", authenticate, requireRole("INSTRUCTOR", "ADMIN"), updateAssessment);
-router.delete("/:id", authenticate, requireRole("INSTRUCTOR", "ADMIN"), deleteAssessment);
+router.get("/", getAssessments);
+router.get("/:id", getAssessment);
+router.post("/generate", authenticate, requireRole("ADMIN", "INSTRUCTOR"), generateAssessment);
+router.post("/", authenticate, requireRole("ADMIN", "INSTRUCTOR"), createAssessment);
+router.put("/:id", authenticate, requireRole("ADMIN", "INSTRUCTOR"), updateAssessment);
+router.delete("/:id", authenticate, requireRole("ADMIN", "INSTRUCTOR"), deleteAssessment);
 
 module.exports = router;
