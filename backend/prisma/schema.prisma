@@ -78,7 +78,7 @@ model Question {
 
 model AiModel {
   id           Int             @id @default(autoincrement())
-  provider     String
+  provider     AiProvider
   modelName    String
   displayName  String?
   baseUrl      String?
@@ -264,6 +264,13 @@ enum AiReviewStatus {
   PENDING
   ACCEPTED
   REJECTED
+}
+
+enum AiProvider {
+  OLLAMA
+  OPENAI
+  DEEPSEEK
+  OTHER
 }
 
 enum AssessmentType {

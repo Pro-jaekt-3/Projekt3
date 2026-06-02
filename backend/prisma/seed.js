@@ -611,7 +611,7 @@ async function main() {
 
   // AI MODELS AND INTERACTION TRACE EXAMPLES
   const ollamaModel = await upsertAiModel({
-    provider: "ollama",
+    provider: "OLLAMA",
     modelName: "gpt-oss:120b",
     displayName: "Ollama gpt-oss:120b",
     baseUrl: "http://localhost:11434",
@@ -620,7 +620,7 @@ async function main() {
   });
 
   const openAiModel = await upsertAiModel({
-    provider: "openai",
+    provider: "OPENAI",
     modelName: "gpt-4.1",
     displayName: "OpenAI GPT-4.1",
     baseUrl: null,
@@ -629,7 +629,7 @@ async function main() {
   });
 
   const deepSeekModel = await upsertAiModel({
-    provider: "deepseek",
+    provider: "DEEPSEEK",
     modelName: "deepseek-chat",
     displayName: "DeepSeek Chat",
     baseUrl: null,
