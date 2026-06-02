@@ -9,6 +9,7 @@ import LearningObjectivesPage from "./pages/LearningObjectivesPage";
 import TrainingsPage from "./pages/TrainingsPage";
 import EquivalentGroupsPage from "./pages/EquivalentGroupsPage";
 import AssessmentsPage from "./pages/AssessmentsPage";
+import SolveAssessmentPage from "./pages/SolveAssessmentPage";
 
 
 function App() {
@@ -29,7 +30,9 @@ function App() {
 
         <Route path="/equivalent-groups" element={<EquivalentGroupsPage />} />
 
-        <Route path="/assessments" element={<AssessmentsPage />}/>
+        <Route path="/assessments" element={<AssessmentsPage />} />
+
+        <Route path="/solve-assessment/:id" element={<SolveAssessmentPage />} />
       </Routes>
     </BrowserRouter>
   );
