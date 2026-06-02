@@ -275,6 +275,87 @@ async function main() {
     });
   };
 
+  const upsertAiModel = async ({
+    provider,
+    modelName,
+    displayName,
+    baseUrl,
+    isLocal,
+    isActive,
+  }) =>
+    prisma.aiModel.upsert({
+      where: {
+        provider_modelName: {
+          provider,
+          modelName,
+        },
+      },
+      update: {
+        displayName,
+        baseUrl,
+        isLocal,
+        isActive,
+      },
+      create: {
+        provider,
+        modelName,
+        displayName,
+        baseUrl,
+        isLocal,
+        isActive,
+      },
+    });
+
+  const findOrCreateAiInteraction = async ({
+    aiModelId,
+    requestedById,
+    action,
+    prompt,
+    resultText,
+    resultJson,
+    sourceQuestionId,
+    generatedQuestionId,
+    reviewStatus,
+    reviewedById,
+    reviewedAt,
+  }) => {
+    const existingInteraction = await prisma.aiInteraction.findFirst({
+      where: {
+        aiModelId,
+        requestedById,
+        action,
+        prompt,
+      },
+    });
+
+    const data = {
+      aiModelId,
+      requestedById,
+      action,
+      prompt,
+      resultText,
+      resultJson,
+      sourceQuestionId,
+      generatedQuestionId,
+      reviewStatus,
+      reviewedById,
+      reviewedAt,
+    };
+
+    if (existingInteraction) {
+      return prisma.aiInteraction.update({
+        where: {
+          id: existingInteraction.id,
+        },
+        data,
+      });
+    }
+
+    return prisma.aiInteraction.create({
+      data,
+    });
+  };
+
   // USERS
   const admin = await prisma.user.upsert({
     where: {
@@ -527,6 +608,102 @@ async function main() {
       orderIndex: 4,
     },
   ]);
+
+  // AI MODELS AND INTERACTION TRACE EXAMPLES
+  const ollamaModel = await upsertAiModel({
+    provider: "ollama",
+    modelName: "gpt-oss:120b",
+    displayName: "Ollama gpt-oss:120b",
+    baseUrl: "http://localhost:11434",
+    isLocal: true,
+    isActive: true,
+  });
+
+  const openAiModel = await upsertAiModel({
+    provider: "openai",
+    modelName: "gpt-4.1",
+    displayName: "OpenAI GPT-4.1",
+    baseUrl: null,
+    isLocal: false,
+    isActive: true,
+  });
+
+  const deepSeekModel = await upsertAiModel({
+    provider: "deepseek",
+    modelName: "deepseek-chat",
+    displayName: "DeepSeek Chat",
+    baseUrl: null,
+    isLocal: false,
+    isActive: true,
+  });
+
+  await findOrCreateAiInteraction({
+    aiModelId: ollamaModel.id,
+    requestedById: instructor.id,
+    action: "GENERATE_QUESTION",
+    prompt:
+      "Demo AI trace: propose one draft SQL question about SELECT with expected answer guidance.",
+    resultText: null,
+    resultJson: {
+      title: "SQL SELECT projection",
+      description:
+        "Write a query that returns the name and email columns from the Students table.",
+      type: "CODE",
+      difficulty: 2,
+      suggestedStatus: "DRAFT",
+      expectedAnswer: "SELECT name, email FROM Students;",
+    },
+    sourceQuestionId: null,
+    generatedQuestionId: null,
+    reviewStatus: "PENDING",
+    reviewedById: null,
+    reviewedAt: null,
+  });
+
+  await findOrCreateAiInteraction({
+    aiModelId: openAiModel.id,
+    requestedById: instructor.id,
+    action: "CHECK_QUESTION_QUALITY",
+    prompt:
+      "Demo AI trace: review the quality of the approved SQL SELECT question for clarity and assessment fit.",
+    resultText:
+      "The question is clear for basic SQL recall, but the expected table structure should be stated before use in an assessment.",
+    resultJson: {
+      clarity: "good",
+      difficultyFit: "appropriate",
+      recommendation:
+        "Keep as approved demo content; add schema context in future revisions.",
+    },
+    sourceQuestionId: sqlSelectQuestion.id,
+    generatedQuestionId: null,
+    reviewStatus: "ACCEPTED",
+    reviewedById: admin.id,
+    reviewedAt: new Date("2026-05-30T10:00:00.000Z"),
+  });
+
+  await findOrCreateAiInteraction({
+    aiModelId: deepSeekModel.id,
+    requestedById: instructor.id,
+    action: "GENERATE_EQUIVALENT_QUESTION",
+    prompt:
+      "Demo AI trace: propose an equivalent variant of the approved SQL SELECT question without creating a question record.",
+    resultText: null,
+    resultJson: {
+      title: "SQL SELECT all rows",
+      description:
+        "Write a query that returns all rows and columns from a table named Courses.",
+      type: "CODE",
+      difficulty: 2,
+      suggestedStatus: "NEEDS_REVIEW",
+      equivalenceRationale:
+        "The proposal checks the same basic SELECT syntax skill with a different table name.",
+    },
+    sourceQuestionId: sqlSelectQuestion.id,
+    generatedQuestionId: null,
+    reviewStatus: "PENDING",
+    reviewedById: null,
+    reviewedAt: null,
+  });
 
   const demoAssessment = await findOrCreateAssessment({
     title: "Demo predtest - Osnove informatike",
