@@ -308,10 +308,74 @@ const getWorstQuestions = async (req, res) => {
   }
 };
 
+const getQuestionAnalytics = async (req, res) => {
+  try {
+    const parsedLimit = Number(req.query.limit);
+    const limit = Number.isInteger(parsedLimit) && parsedLimit > 0 ? parsedLimit : null;
+    const sort = req.query.sort;
+
+    const answers = await getSubmittedAnswersWithPoints();
+    const grouped = new Map();
+
+    for (const answer of answers) {
+      const questionId = answer.questionId;
+
+      if (!grouped.has(questionId)) {
+        grouped.set(questionId, {
+          questionId,
+          questionText: answer.question.title,
+          answerCount: 0,
+          correctCount: 0,
+          totalPoints: 0,
+        });
+      }
+
+      const entry = grouped.get(questionId);
+      entry.answerCount += 1;
+      entry.correctCount += answer.isCorrect === true ? 1 : 0;
+      entry.totalPoints += answer.awardedPoints;
+    }
+
+    let result = [...grouped.values()].map((entry) => ({
+      questionId: entry.questionId,
+      questionText: entry.questionText,
+      answerCount: entry.answerCount,
+      correctCount: entry.correctCount,
+      correctPercentage: toPercentage(entry.correctCount, entry.answerCount),
+      averagePoints: entry.answerCount > 0 ? roundToTwo(entry.totalPoints / entry.answerCount) : 0,
+    }));
+
+    if (sort === "worst") {
+      result = result.sort((a, b) => {
+        if (a.correctPercentage !== b.correctPercentage) {
+          return a.correctPercentage - b.correctPercentage;
+        }
+
+        if (a.averagePoints !== b.averagePoints) {
+          return a.averagePoints - b.averagePoints;
+        }
+
+        return b.answerCount - a.answerCount;
+      });
+    } else {
+      result = result.sort((a, b) => a.questionId - b.questionId);
+    }
+
+    if (limit !== null) {
+      result = result.slice(0, limit);
+    }
+
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
 module.exports = {
   getAnalyticsByTopic,
   getAnalyticsByLearningObjective,
   getAnalyticsByDifficulty,
   getPrePostComparison,
   getWorstQuestions,
+  getQuestionAnalytics,
 };
