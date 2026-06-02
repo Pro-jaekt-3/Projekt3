@@ -11,6 +11,7 @@ function Navbar() {
         <Link to="/trainings">Trainings</Link>
         <Link to="/equivalent-groups">Equivalent Groups</Link>
         <Link to="/assessments">Assessments</Link>
+        <Link to="/analytics">Analytics</Link>
       </div>
     </nav>
   );

@@ -10,6 +10,7 @@ import TrainingsPage from "./pages/TrainingsPage";
 import EquivalentGroupsPage from "./pages/EquivalentGroupsPage";
 import AssessmentsPage from "./pages/AssessmentsPage";
 import SolveAssessmentPage from "./pages/SolveAssessmentPage";
+import AnalyticsPage from "./pages/AnalyticsPage";
 
 
 function App() {
@@ -33,6 +34,8 @@ function App() {
         <Route path="/assessments" element={<AssessmentsPage />} />
 
         <Route path="/solve-assessment/:id" element={<SolveAssessmentPage />} />
+
+        <Route path="/analytics" element={<AnalyticsPage />} />
       </Routes>
     </BrowserRouter>
   );
