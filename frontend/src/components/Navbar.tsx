@@ -12,6 +12,7 @@ function Navbar() {
         <Link to="/equivalent-groups">Equivalent Groups</Link>
         <Link to="/assessments">Assessments</Link>
         <Link to="/analytics">Analytics</Link>
+        <Link to="/login">Login</Link>
       </div>
     </nav>
   );

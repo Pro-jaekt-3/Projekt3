@@ -11,6 +11,7 @@ import EquivalentGroupsPage from "./pages/EquivalentGroupsPage";
 import AssessmentsPage from "./pages/AssessmentsPage";
 import SolveAssessmentPage from "./pages/SolveAssessmentPage";
 import AnalyticsPage from "./pages/AnalyticsPage";
+import LoginPage from "./pages/LoginPage";
 
 
 function App() {
@@ -36,6 +37,8 @@ function App() {
         <Route path="/solve-assessment/:id" element={<SolveAssessmentPage />} />
 
         <Route path="/analytics" element={<AnalyticsPage />} />
+
+        <Route path="/login" element={<LoginPage />} />
       </Routes>
     </BrowserRouter>
   );
