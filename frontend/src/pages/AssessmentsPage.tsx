@@ -8,6 +8,7 @@ import {
 
 import { getQuestions } from "../services/questionService";
 import { getTrainings } from "../services/trainingService";
+import { Link } from "react-router-dom";
 
 type Assessment = {
   id: number;
@@ -308,16 +309,25 @@ function AssessmentsPage() {
                     </div>
                 )}
 
-              <button
-                onClick={() =>
-                  handleDelete(
-                    assessment.id
-                  )
-                }
-                className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg transition"
-              >
-                Delete
-              </button>
+              <div className="flex gap-2">
+            <button
+              onClick={() =>
+                handleDelete(
+                  assessment.id
+                )
+              }
+              className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg transition"
+            >
+              Delete
+            </button>
+
+            <Link
+              to={`/solve-assessment/${assessment.id}`}
+              className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg transition"
+            >
+              Solve
+            </Link>
+          </div>
             </div>
           )
         )}

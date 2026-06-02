@@ -73,3 +73,19 @@ export const deleteAssessment = async (
     },
   });
 };
+
+export const getAssessment = async (
+  id: number
+) => {
+  const response = await fetch(
+    `${API_URL}/${id}`,
+    {
+      headers: {
+        "x-user-id": "1",
+        "x-user-role": "INSTRUCTOR",
+      },
+    }
+  );
+
+  return response.json();
+};
