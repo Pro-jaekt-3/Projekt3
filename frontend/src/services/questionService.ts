@@ -13,7 +13,12 @@ export const createQuestion = async (questionData: {
   description: string;
   difficulty: number;
   topicId: number;
+
+  learningObjectiveId?: number;
+  equivalentGroupId?: number;
+
   type: string;
+
   options?: {
     text: string;
     isCorrect: boolean;

@@ -21,6 +21,16 @@ type Topic = {
   name: string;
 };
 
+type LearningObjective = {
+  id: number;
+  title: string;
+};
+
+type EquivalentGroup = {
+  id: number;
+  name: string;
+};
+
 type QuestionOption = {
   text: string;
   isCorrect: boolean;
@@ -30,10 +40,18 @@ function QuestionsPage() {
   const [questions, setQuestions] = useState<Question[]>([]);
   const [topics, setTopics] = useState<Topic[]>([]);
 
+  const [learningObjectives, setLearningObjectives] = useState<LearningObjective[]>([]);
+
+  const [equivalentGroups, setEquivalentGroups] = useState<EquivalentGroup[]>([]);
+
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [difficulty, setDifficulty] = useState(1);
   const [topicId, setTopicId] = useState("");
+
+  const [learningObjectiveId, setLearningObjectiveId] = useState("");
+  const [equivalentGroupId, setEquivalentGroupId] = useState("");
+
   const [type, setType] = useState("OPEN");
 
   const [options, setOptions] = useState<
@@ -72,17 +90,47 @@ function QuestionsPage() {
   useEffect(() => {
     loadQuestions();
     fetchTopics();
+    fetchLearningObjectives();
+    fetchEquivalentGroups();
   }, []);
 
-  const addOption = () => {
-  setOptions([
-    ...options,
-    {
-      text: "",
-      isCorrect: false,
-    },
-  ]);
+  const fetchLearningObjectives = async () => {
+  try {
+    const response = await fetch(
+      "http://localhost:3000/learning-objectives"
+    );
+
+    const data = await response.json();
+
+    setLearningObjectives(data);
+  } catch (error) {
+    console.error(error);
+  }
 };
+
+  const fetchEquivalentGroups = async () => {
+    try {
+      const response = await fetch(
+        "http://localhost:3000/equivalent-question-groups"
+      );
+
+      const data = await response.json();
+
+      setEquivalentGroups(data);
+    } catch (error) {
+      console.error(error);
+    }
+  };
+
+    const addOption = () => {
+    setOptions([
+      ...options,
+      {
+        text: "",
+        isCorrect: false,
+      },
+    ]);
+  };
 
   const removeOption = (index: number) => {
     setOptions(
@@ -124,7 +172,19 @@ function QuestionsPage() {
         description,
         difficulty,
         topicId: Number(topicId),
+
+        learningObjectiveId:
+          learningObjectiveId
+            ? Number(learningObjectiveId)
+            : undefined,
+
+        equivalentGroupId:
+          equivalentGroupId
+            ? Number(equivalentGroupId)
+            : undefined,
+
         type,
+
         options:
           type === "MULTIPLE_CHOICE"
             ? options
@@ -136,6 +196,9 @@ function QuestionsPage() {
       setDifficulty(1);
       setTopicId("");
       setType("OPEN");
+
+      setLearningObjectiveId("");
+      setEquivalentGroupId("");
 
       setOptions([
         {
@@ -254,6 +317,48 @@ function QuestionsPage() {
               value={topic.id}
             >
               {topic.name}
+            </option>
+          ))}
+        </select>
+
+        <select
+          value={learningObjectiveId}
+          onChange={(e) =>
+            setLearningObjectiveId(e.target.value)
+          }
+          className="border border-gray-300 rounded-lg px-4 py-3"
+        >
+          <option value="">
+            Select Learning Objective
+          </option>
+
+          {learningObjectives.map((objective) => (
+            <option
+              key={objective.id}
+              value={objective.id}
+            >
+              {objective.title}
+            </option>
+          ))}
+        </select>
+
+        <select
+          value={equivalentGroupId}
+          onChange={(e) =>
+            setEquivalentGroupId(e.target.value)
+          }
+          className="border border-gray-300 rounded-lg px-4 py-3"
+        >
+          <option value="">
+            No Equivalent Group
+          </option>
+
+          {equivalentGroups.map((group) => (
+            <option
+              key={group.id}
+              value={group.id}
+            >
+              {group.name}
             </option>
           ))}
         </select>
