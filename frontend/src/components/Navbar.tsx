@@ -43,7 +43,7 @@ function Navbar() {
 
         {currentUser.role === "PARTICIPANT" && (
           <>
-            <Link to="/assessments">
+            <Link to="/my-assessments">
               My Assessments
             </Link>
           </>

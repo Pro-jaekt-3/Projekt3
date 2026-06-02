@@ -11,6 +11,7 @@ import EquivalentGroupsPage from "./pages/EquivalentGroupsPage";
 import AssessmentsPage from "./pages/AssessmentsPage";
 import SolveAssessmentPage from "./pages/SolveAssessmentPage";
 import AnalyticsPage from "./pages/AnalyticsPage";
+import MyAssessmentsPage from "./pages/MyAssessmentsPage";
 import ProtectedRoute from "./components/ProtectedRoute";
 
 
@@ -115,6 +116,19 @@ function App() {
               ]}
             >
               <SolveAssessmentPage />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/my-assessments"
+          element={
+            <ProtectedRoute
+              allowedRoles={[
+                "PARTICIPANT",
+              ]}
+            >
+              <MyAssessmentsPage />
             </ProtectedRoute>
           }
         />
