@@ -12,10 +12,10 @@ const {
 const { authenticate, requireRole } = require("../middleware/authMiddleware");
 
 router.get("/", getQuestions);
-router.post("/", createQuestion);
+router.post("/", authenticate, requireRole("ADMIN", "INSTRUCTOR"), createQuestion);
 router.get("/:id", getQuestion);
-router.put("/:id", updateQuestion);
-router.patch("/:id/status", authenticate, requireRole("INSTRUCTOR", "ADMIN"), updateQuestionStatus);
-router.delete("/:id", deleteQuestion);
+router.put("/:id", authenticate, requireRole("ADMIN", "INSTRUCTOR"), updateQuestion);
+router.patch("/:id/status", authenticate, requireRole("ADMIN", "INSTRUCTOR"), updateQuestionStatus);
+router.delete("/:id", authenticate, requireRole("ADMIN", "INSTRUCTOR"), deleteQuestion);
 
 module.exports = router;
