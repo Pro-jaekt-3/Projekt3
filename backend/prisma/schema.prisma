@@ -8,14 +8,16 @@ datasource db {
 }
 
 model User {
-  id                 Int                 @id @default(autoincrement())
-  email              String              @unique
-  name               String
-  externalAuthId     String?             @unique
-  role               UserRole            @default(PARTICIPANT)
-  createdQuestions   Question[]          @relation("QuestionCreatedBy")
-  reviewedQuestions  Question[]          @relation("QuestionReviewedBy")
-  assessmentAttempts AssessmentAttempt[]
+  id                      Int                 @id @default(autoincrement())
+  email                   String              @unique
+  name                    String
+  externalAuthId          String?             @unique
+  role                    UserRole            @default(PARTICIPANT)
+  createdQuestions        Question[]          @relation("QuestionCreatedBy")
+  reviewedQuestions       Question[]          @relation("QuestionReviewedBy")
+  assessmentAttempts      AssessmentAttempt[]
+  requestedAiInteractions AiInteraction[]     @relation("AiInteractionRequestedBy")
+  reviewedAiInteractions  AiInteraction[]     @relation("AiInteractionReviewedBy")
 }
 
 model Topic {
@@ -66,10 +68,57 @@ model Question {
   equivalentGroupId Int?
   equivalentGroup   EquivalentQuestionGroup? @relation(fields: [equivalentGroupId], references: [id], onDelete: SetNull)
 
-  assessmentQuestions AssessmentQuestion[]
-  participantAnswers  ParticipantAnswer[]
+  assessmentQuestions     AssessmentQuestion[]
+  participantAnswers      ParticipantAnswer[]
+  sourceAiInteractions    AiInteraction[]      @relation("AiInteractionSourceQuestion")
+  generatedAiInteractions AiInteraction[]      @relation("AiInteractionGeneratedQuestion")
 
   @@index([equivalentGroupId])
+}
+
+model AiModel {
+  id           Int             @id @default(autoincrement())
+  provider     String
+  modelName    String
+  displayName  String?
+  baseUrl      String?
+  isLocal      Boolean         @default(false)
+  isActive     Boolean         @default(true)
+  interactions AiInteraction[]
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+
+  @@unique([provider, modelName])
+}
+
+model AiInteraction {
+  id                  Int            @id @default(autoincrement())
+  aiModelId           Int
+  aiModel             AiModel        @relation(fields: [aiModelId], references: [id])
+  requestedById       Int
+  requestedBy         User           @relation("AiInteractionRequestedBy", fields: [requestedById], references: [id])
+  action              AiAction
+  prompt              String         @db.LongText
+  resultText          String?        @db.LongText
+  resultJson          Json?
+  sourceQuestionId    Int?
+  sourceQuestion      Question?      @relation("AiInteractionSourceQuestion", fields: [sourceQuestionId], references: [id], onDelete: SetNull)
+  generatedQuestionId Int?
+  generatedQuestion   Question?      @relation("AiInteractionGeneratedQuestion", fields: [generatedQuestionId], references: [id], onDelete: SetNull)
+  reviewStatus        AiReviewStatus @default(PENDING)
+  reviewedById        Int?
+  reviewedBy          User?          @relation("AiInteractionReviewedBy", fields: [reviewedById], references: [id])
+  reviewedAt          DateTime?
+  createdAt           DateTime       @default(now())
+  updatedAt           DateTime       @updatedAt
+
+  @@index([aiModelId])
+  @@index([requestedById])
+  @@index([reviewedById])
+  @@index([sourceQuestionId])
+  @@index([generatedQuestionId])
+  @@index([action])
+  @@index([reviewStatus])
 }
 
 model Assessment {
@@ -134,19 +183,19 @@ model AssessmentAttempt {
 }
 
 model ParticipantAnswer {
-  id               Int               @id @default(autoincrement())
-  attemptId        Int
-  attempt          AssessmentAttempt @relation(fields: [attemptId], references: [id], onDelete: Cascade)
-  questionId       Int
-  question         Question          @relation(fields: [questionId], references: [id])
-  selectedOptionId Int?
-  selectedOption   AnswerOption?     @relation(fields: [selectedOptionId], references: [id])
-  answerText       String?
-  isCorrect        Boolean?
-  pointsAwarded    Float?
-  needsManualReview Boolean @default(false)
-  createdAt        DateTime          @default(now())
-  updatedAt        DateTime          @updatedAt
+  id                Int               @id @default(autoincrement())
+  attemptId         Int
+  attempt           AssessmentAttempt @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  questionId        Int
+  question          Question          @relation(fields: [questionId], references: [id])
+  selectedOptionId  Int?
+  selectedOption    AnswerOption?     @relation(fields: [selectedOptionId], references: [id])
+  answerText        String?
+  isCorrect         Boolean?
+  pointsAwarded     Float?
+  needsManualReview Boolean           @default(false)
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
 
   @@unique([attemptId, questionId])
   @@index([questionId])
@@ -199,6 +248,22 @@ enum QuestionStatus {
   APPROVED
   REJECTED
   ARCHIVED
+}
+
+enum AiAction {
+  GENERATE_QUESTION
+  EDIT_QUESTION
+  GENERATE_EQUIVALENT_QUESTION
+  CHECK_EQUIVALENCE
+  CHECK_QUESTION_QUALITY
+  REVIEW_TEST
+  GENERATE_SYNTHETIC_DATA
+}
+
+enum AiReviewStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
 }
 
 enum AssessmentType {
