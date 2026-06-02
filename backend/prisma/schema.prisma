@@ -117,11 +117,12 @@ model AssessmentAttempt {
   id           Int                 @id @default(autoincrement())
   assessmentId Int
   assessment   Assessment          @relation(fields: [assessmentId], references: [id])
-  userId       Int
-  user         User                @relation(fields: [userId], references: [id])
+  userId       Int?
+  user         User?               @relation(fields: [userId], references: [id], onDelete: SetNull)
   startedAt    DateTime            @default(now())
   submittedAt  DateTime?
   score        Float?
+  maxScore     Float?
   status       AttemptStatus       @default(IN_PROGRESS)
   answers      ParticipantAnswer[]
   createdAt    DateTime            @default(now())
@@ -143,6 +144,7 @@ model ParticipantAnswer {
   answerText       String?
   isCorrect        Boolean?
   pointsAwarded    Float?
+  needsManualReview Boolean @default(false)
   createdAt        DateTime          @default(now())
   updatedAt        DateTime          @updatedAt
 
