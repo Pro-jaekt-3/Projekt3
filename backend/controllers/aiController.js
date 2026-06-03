@@ -157,6 +157,90 @@ const generateQuestionDraft = async (req, res) => {
   }
 };
 
+const reviewAiInteraction = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { reviewStatus } = req.body;
+    const allowedReviewStatuses = ["ACCEPTED", "REJECTED"];
+
+    if (!reviewStatus) {
+      return res.status(400).json({
+        error: "reviewStatus is required",
+      });
+    }
+
+    if (!allowedReviewStatuses.includes(reviewStatus)) {
+      return res.status(400).json({
+        error: "Invalid reviewStatus. Allowed values: ACCEPTED, REJECTED",
+      });
+    }
+
+    const aiInteractionId = Number(id);
+
+    if (!Number.isInteger(aiInteractionId) || aiInteractionId <= 0) {
+      return res.status(400).json({
+        error: "Invalid AiInteraction id",
+      });
+    }
+
+    const aiInteraction = await prisma.aiInteraction.findUnique({
+      where: { id: aiInteractionId },
+    });
+
+    if (!aiInteraction) {
+      return res.status(404).json({
+        error: "AiInteraction not found",
+      });
+    }
+
+    if (aiInteraction.reviewStatus !== "PENDING") {
+      return res.status(409).json({
+        error: `AiInteraction has already been reviewed with status ${aiInteraction.reviewStatus}`,
+      });
+    }
+
+    const reviewerId = getRequesterId(req);
+
+    if (!reviewerId) {
+      return res.status(400).json({
+        error: "Reviewer user is required",
+      });
+    }
+
+    const reviewer = await prisma.user.findUnique({
+      where: { id: reviewerId },
+    });
+
+    if (!reviewer) {
+      return res.status(400).json({
+        error: `Reviewer user ${reviewerId} was not found.`,
+      });
+    }
+
+    const updatedAiInteraction = await prisma.aiInteraction.update({
+      where: { id: aiInteractionId },
+      data: {
+        reviewStatus,
+        reviewedById: reviewerId,
+        reviewedAt: new Date(),
+      },
+    });
+
+    res.json({
+      aiInteractionId: updatedAiInteraction.id,
+      reviewStatus: updatedAiInteraction.reviewStatus,
+      reviewedById: updatedAiInteraction.reviewedById,
+      reviewedAt: updatedAiInteraction.reviewedAt,
+      message: `AI suggestion ${reviewStatus.toLowerCase()}`,
+    });
+  } catch (error) {
+    res.status(500).json({
+      error: error.message,
+    });
+  }
+};
+
 module.exports = {
   generateQuestionDraft,
+  reviewAiInteraction,
 };
