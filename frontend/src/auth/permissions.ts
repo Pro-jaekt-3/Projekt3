@@ -1,7 +1,12 @@
-import { currentUser } from "./mockUser";
+import type { AppUserRole } from "./AuthProvider";
 
 export const hasRole = (
-  ...roles: string[]
+  currentRole: AppUserRole | null | undefined,
+  ...roles: AppUserRole[]
 ) => {
-  return roles.includes(currentUser.role);
+  if (!currentRole) {
+    return false;
+  }
+
+  return roles.includes(currentRole);
 };
