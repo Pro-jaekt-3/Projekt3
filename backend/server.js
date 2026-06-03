@@ -12,6 +12,7 @@ const equivalentQuestionGroupRoutes = require("./routes/equivalentQuestionGroupR
 const assessmentRoutes = require("./routes/assessmentRoutes");
 const assessmentAttemptRoutes = require("./routes/assessmentAttemptRoutes");
 const analyticsRoutes = require("./routes/analyticsRoutes");
+const aiRoutes = require("./routes/aiRoutes");
 
 const app = express();
 
@@ -33,6 +34,7 @@ app.use("/equivalent-question-groups", equivalentQuestionGroupRoutes);
 app.use("/assessments", assessmentRoutes);
 app.use("/assessment-attempts", assessmentAttemptRoutes);
 app.use("/analytics", analyticsRoutes);
+app.use("/ai", aiRoutes);
 const PORT = 3000;
 
 app.listen(PORT, () => {
