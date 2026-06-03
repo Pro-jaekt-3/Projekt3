@@ -76,6 +76,23 @@ Backend bo na:
 http://localhost:3000
 ```
 
+## Backend AI configuration
+
+The backend has centralized AI provider configuration in `backend/config/ai.js`.
+This only prepares provider/model settings; it does not add AI routes or make AI calls.
+
+Example backend environment values:
+
+```env
+AI_DEFAULT_PROVIDER=OLLAMA
+AI_DEFAULT_MODEL=llama3.1
+OLLAMA_BASE_URL=http://localhost:11434
+OPENAI_API_KEY=
+OPENAI_BASE_URL=
+DEEPSEEK_API_KEY=
+DEEPSEEK_BASE_URL=
+```
+
 ## Frontend setup
 
 1. Odpri terminal v `frontend/`:
