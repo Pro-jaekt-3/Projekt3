@@ -1,41 +1,22 @@
-const defaultDevUser = {
-  id: "dev-user",
-  email: "dev@example.com",
-  role: "INSTRUCTOR",
-};
-
 const authMiddleware = (req, res, next) => {
-  const isDevelopment = process.env.NODE_ENV !== "production";
+  const userId = req.header("x-user-id");
+  const email = req.header("x-user-email");
+  const role = req.header("x-user-role");
 
-  req.user = {
-    ...defaultDevUser,
-  };
-
-  if (isDevelopment) {
-    req.user = {
-      id: req.header("x-user-id") || defaultDevUser.id,
-      email: req.header("x-user-email") || defaultDevUser.email,
-      role: req.header("x-user-role") || defaultDevUser.role,
-    };
+  if (!userId || !role) {
+    return res.status(401).json({ error: "Unauthorized" });
   }
 
-  next();
-};
-
-const requireRole = (...roles) => {
-  const allowedRoles = roles.flat();
-
-  return (req, res, next) => {
-    if (!req.user || !allowedRoles.includes(req.user.role)) {
-      return res.status(403).json({ error: "Forbidden" });
-    }
-
-    next();
+  req.user = {
+    id: Number(userId),
+    email: email || null,
+    role,
   };
+
+  next();
 };
 
 module.exports = {
   authMiddleware,
   authenticate: authMiddleware,
-  requireRole,
 };

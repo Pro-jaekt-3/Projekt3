@@ -9,7 +9,8 @@ const {
   deleteQuestion,
   updateQuestionStatus,
 } = require("../controllers/questionController");
-const { authenticate, requireRole } = require("../middleware/authMiddleware");
+const { authenticate } = require("../middleware/authMiddleware");
+const { requireRole } = require("../middleware/roleMiddleware");
 
 router.get("/", getQuestions);
 router.post("/", authenticate, requireRole("ADMIN", "INSTRUCTOR"), createQuestion);

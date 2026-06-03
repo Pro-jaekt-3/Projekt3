@@ -9,7 +9,8 @@ const {
   updateAssessment,
   deleteAssessment,
 } = require("../controllers/assessmentController");
-const { authenticate, requireRole } = require("../middleware/authMiddleware");
+const { authenticate } = require("../middleware/authMiddleware");
+const { requireRole } = require("../middleware/roleMiddleware");
 
 router.get("/", getAssessments);
 router.get("/:id", getAssessment);
