@@ -9,6 +9,7 @@ import { getLearningObjectives } from "../services/learningObjectiveService";
 import { getEquivalentGroups } from "../services/equivalentGroupService";
 
 import { useEffect, useState } from "react";
+import { Link, useSearchParams } from "react-router-dom";
 
 type Question = {
   id: number;
@@ -40,6 +41,12 @@ type QuestionOption = {
 };
 
 function QuestionsPage() {
+  const [searchParams] = useSearchParams();
+  const initialTopicId =
+    searchParams.get("topicId") || "";
+  const initialLearningObjectiveId =
+    searchParams.get("learningObjectiveId") || "";
+
   const [questions, setQuestions] = useState<Question[]>([]);
   const [topics, setTopics] = useState<Topic[]>([]);
 
@@ -50,9 +57,9 @@ function QuestionsPage() {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [difficulty, setDifficulty] = useState(1);
-  const [topicId, setTopicId] = useState("");
+  const [topicId, setTopicId] = useState(initialTopicId);
 
-  const [learningObjectiveId, setLearningObjectiveId] = useState("");
+  const [learningObjectiveId, setLearningObjectiveId] = useState(initialLearningObjectiveId);
   const [equivalentGroupId, setEquivalentGroupId] = useState("");
 
   const [type, setType] = useState("OPEN");
@@ -184,10 +191,10 @@ function QuestionsPage() {
       setTitle("");
       setDescription("");
       setDifficulty(1);
-      setTopicId("");
+      setTopicId(initialTopicId);
       setType("OPEN");
 
-      setLearningObjectiveId("");
+      setLearningObjectiveId(initialLearningObjectiveId);
       setEquivalentGroupId("");
 
       setOptions([
@@ -231,9 +238,24 @@ function QuestionsPage() {
 
   return (
     <div className="max-w-7xl mx-auto px-8 py-10">
-      <h1 className="text-6xl font-bold text-center mb-12">
-        Questions
-      </h1>
+      <div className="mb-10">
+        <h1 className="text-5xl font-bold mb-4">
+          Questions
+        </h1>
+
+        <p className="max-w-3xl text-lg leading-8 text-slate-600">
+          Questions are the reusable content items for assessments.
+          Approved questions can be selected when an instructor creates
+          a quiz, pre-test or post-test.
+        </p>
+
+        <Link
+          to="/assessments"
+          className="mt-5 inline-flex rounded-lg bg-slate-900 px-5 py-3 font-medium text-white transition hover:bg-slate-800"
+        >
+          Next: Create assessment
+        </Link>
+      </div>
 
       <form
         onSubmit={handleSubmit}
@@ -422,6 +444,26 @@ function QuestionsPage() {
       </form>
 
       <div className="grid gap-6">
+        {questions.length > 0 && (
+          <div className="rounded-2xl border border-blue-100 bg-blue-50 p-6">
+            <h2 className="text-xl font-semibold text-slate-950">
+              Ready for assessments
+            </h2>
+
+            <p className="mt-2 max-w-3xl text-slate-600">
+              When enough questions are reviewed and approved, continue to
+              assessments and select the questions for a test.
+            </p>
+
+            <Link
+              to="/assessments"
+              className="mt-4 inline-flex rounded-lg bg-blue-600 px-5 py-3 font-medium text-white transition hover:bg-blue-700"
+            >
+              Create Assessment
+            </Link>
+          </div>
+        )}
+
         {questions.map((question) => (
           <div
             key={question.id}

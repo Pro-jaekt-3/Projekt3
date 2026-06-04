@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Link, useSearchParams } from "react-router-dom";
 
 import {
   getTopics,
@@ -25,6 +26,10 @@ type Training = {
 };
 
 function TopicsPage() {
+  const [searchParams] = useSearchParams();
+  const initialTrainingId =
+    searchParams.get("trainingId") || "";
+
   const [topics, setTopics] = useState<Topic[]>([]);
   const [trainings, setTrainings] = useState<
     Training[]
@@ -32,7 +37,7 @@ function TopicsPage() {
 
   const [name, setName] = useState("");
   const [trainingId, setTrainingId] =
-    useState("");
+    useState(initialTrainingId);
 
   const loadTopics = async () => {
     try {
@@ -78,7 +83,7 @@ function TopicsPage() {
       );
 
       setName("");
-      setTrainingId("");
+      setTrainingId(initialTrainingId);
 
       loadTopics();
     } catch (error) {
@@ -98,9 +103,23 @@ function TopicsPage() {
 
   return (
     <div className="max-w-7xl mx-auto px-8 py-10">
-      <h1 className="text-6xl font-bold text-center mb-12">
-        Topics
-      </h1>
+      <div className="mb-10">
+        <h1 className="text-5xl font-bold mb-4">
+          Topics
+        </h1>
+
+        <p className="max-w-3xl text-lg leading-8 text-slate-600">
+          Topics belong to trainings and organize the subject areas that
+          later connect learning objectives, questions and assessments.
+        </p>
+
+        <Link
+          to="/learning-objectives"
+          className="mt-5 inline-flex rounded-lg bg-slate-900 px-5 py-3 font-medium text-white transition hover:bg-slate-800"
+        >
+          Next: Add learning objectives
+        </Link>
+      </div>
 
       <form
         onSubmit={handleSubmit}
@@ -161,14 +180,23 @@ function TopicsPage() {
               </p>
             </div>
 
-            <button
-              onClick={() =>
-                handleDelete(topic.id)
-              }
-              className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg transition"
-            >
-              Delete
-            </button>
+            <div className="flex flex-wrap gap-3">
+              <Link
+                to={`/learning-objectives?topicId=${topic.id}`}
+                className="rounded-lg bg-slate-900 px-4 py-2 text-white transition hover:bg-slate-800"
+              >
+                Manage Objectives
+              </Link>
+
+              <button
+                onClick={() =>
+                  handleDelete(topic.id)
+                }
+                className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg transition"
+              >
+                Delete
+              </button>
+            </div>
           </div>
         ))}
       </div>
