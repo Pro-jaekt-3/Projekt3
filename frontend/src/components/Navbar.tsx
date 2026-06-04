@@ -50,6 +50,10 @@ function Navbar() {
             <Link to="/analytics">
               Analytics
             </Link>
+
+            <Link to="/ai-assistant">
+              AI Assistant
+            </Link>
           </>
         )}
 
