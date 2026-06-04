@@ -11,6 +11,7 @@ import EquivalentGroupsPage from "./pages/EquivalentGroupsPage";
 import AssessmentsPage from "./pages/AssessmentsPage";
 import SolveAssessmentPage from "./pages/SolveAssessmentPage";
 import AnalyticsPage from "./pages/AnalyticsPage";
+import AiAssistantPage from "./pages/AiAssistantPage";
 import LoginPage from "./pages/LoginPage";
 import MyAssessmentsPage from "./pages/MyAssessmentsPage";
 import ProtectedRoute from "./components/ProtectedRoute";
@@ -147,6 +148,20 @@ function App() {
                 ]}
               >
                 <AnalyticsPage />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/ai-assistant"
+            element={
+              <ProtectedRoute
+                allowedRoles={[
+                  "ADMIN",
+                  "INSTRUCTOR",
+                ]}
+              >
+                <AiAssistantPage />
               </ProtectedRoute>
             }
           />
