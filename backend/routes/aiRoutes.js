@@ -6,19 +6,24 @@ const {
   suggestQuestionEquivalence,
   reviewAiInteraction,
 } = require("../controllers/aiController");
-const { authenticate } = require("../middleware/authMiddleware");
+const { firebaseAuthMiddleware } = require("../middleware/firebaseAuthMiddleware");
 const { requireRole } = require("../middleware/roleMiddleware");
 
-router.post("/question-draft", generateQuestionDraft);
+router.post(
+  "/question-draft",
+  firebaseAuthMiddleware,
+  requireRole("ADMIN", "INSTRUCTOR"),
+  generateQuestionDraft
+);
 router.post(
   "/equivalence-suggestion",
-  authenticate,
+  firebaseAuthMiddleware,
   requireRole("ADMIN", "INSTRUCTOR"),
   suggestQuestionEquivalence
 );
 router.patch(
   "/interactions/:id/review",
-  authenticate,
+  firebaseAuthMiddleware,
   requireRole("ADMIN", "INSTRUCTOR"),
   reviewAiInteraction
 );

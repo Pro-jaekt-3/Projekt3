@@ -50,7 +50,6 @@ const createQuestion = async (req, res) => {
       topicId,
       type,
       options,
-      createdById = 1, // if create by id is undefined js sets it to 1 will not be required in the future when we have auth implemented in production ?
       learningObjectiveId,
     } = req.body;
 
@@ -83,7 +82,7 @@ const createQuestion = async (req, res) => {
         difficulty,
         topicId,
         type: questionType,
-        createdById,
+        createdById: req.user.id,
         learningObjectiveId,
         answerOptions: options
           ? {

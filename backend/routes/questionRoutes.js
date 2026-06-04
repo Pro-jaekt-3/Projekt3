@@ -9,14 +9,14 @@ const {
   deleteQuestion,
   updateQuestionStatus,
 } = require("../controllers/questionController");
-const { authenticate } = require("../middleware/authMiddleware");
+const { firebaseAuthMiddleware } = require("../middleware/firebaseAuthMiddleware");
 const { requireRole } = require("../middleware/roleMiddleware");
 
-router.get("/", getQuestions);
-router.post("/", authenticate, requireRole("ADMIN", "INSTRUCTOR"), createQuestion);
-router.get("/:id", getQuestion);
-router.put("/:id", authenticate, requireRole("ADMIN", "INSTRUCTOR"), updateQuestion);
-router.patch("/:id/status", authenticate, requireRole("ADMIN", "INSTRUCTOR"), updateQuestionStatus);
-router.delete("/:id", authenticate, requireRole("ADMIN", "INSTRUCTOR"), deleteQuestion);
+router.get("/", firebaseAuthMiddleware, requireRole("ADMIN", "INSTRUCTOR"), getQuestions);
+router.post("/", firebaseAuthMiddleware, requireRole("ADMIN", "INSTRUCTOR"), createQuestion);
+router.get("/:id", firebaseAuthMiddleware, requireRole("ADMIN", "INSTRUCTOR"), getQuestion);
+router.put("/:id", firebaseAuthMiddleware, requireRole("ADMIN", "INSTRUCTOR"), updateQuestion);
+router.patch("/:id/status", firebaseAuthMiddleware, requireRole("ADMIN", "INSTRUCTOR"), updateQuestionStatus);
+router.delete("/:id", firebaseAuthMiddleware, requireRole("ADMIN", "INSTRUCTOR"), deleteQuestion);
 
 module.exports = router;

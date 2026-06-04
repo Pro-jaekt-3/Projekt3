@@ -9,14 +9,14 @@ const {
   updateAssessment,
   deleteAssessment,
 } = require("../controllers/assessmentController");
-const { authenticate } = require("../middleware/authMiddleware");
+const { firebaseAuthMiddleware } = require("../middleware/firebaseAuthMiddleware");
 const { requireRole } = require("../middleware/roleMiddleware");
 
-router.get("/", getAssessments);
-router.get("/:id", getAssessment);
-router.post("/generate", authenticate, requireRole("ADMIN", "INSTRUCTOR"), generateAssessment);
-router.post("/", authenticate, requireRole("ADMIN", "INSTRUCTOR"), createAssessment);
-router.put("/:id", authenticate, requireRole("ADMIN", "INSTRUCTOR"), updateAssessment);
-router.delete("/:id", authenticate, requireRole("ADMIN", "INSTRUCTOR"), deleteAssessment);
+router.get("/", firebaseAuthMiddleware, requireRole("ADMIN", "INSTRUCTOR", "PARTICIPANT"), getAssessments);
+router.get("/:id", firebaseAuthMiddleware, requireRole("ADMIN", "INSTRUCTOR", "PARTICIPANT"), getAssessment);
+router.post("/generate", firebaseAuthMiddleware, requireRole("ADMIN", "INSTRUCTOR"), generateAssessment);
+router.post("/", firebaseAuthMiddleware, requireRole("ADMIN", "INSTRUCTOR"), createAssessment);
+router.put("/:id", firebaseAuthMiddleware, requireRole("ADMIN", "INSTRUCTOR"), updateAssessment);
+router.delete("/:id", firebaseAuthMiddleware, requireRole("ADMIN", "INSTRUCTOR"), deleteAssessment);
 
 module.exports = router;

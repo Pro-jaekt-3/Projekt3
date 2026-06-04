@@ -9,15 +9,17 @@ const {
   updateTopic,
   deleteTopic,
 } = require("../controllers/topicController");
+const { firebaseAuthMiddleware } = require("../middleware/firebaseAuthMiddleware");
+const { requireRole } = require("../middleware/roleMiddleware");
 
-router.get("/", getTopics);
+router.get("/", firebaseAuthMiddleware, requireRole("ADMIN", "INSTRUCTOR"), getTopics);
 
-router.post("/", createTopic);
+router.post("/", firebaseAuthMiddleware, requireRole("ADMIN", "INSTRUCTOR"), createTopic);
 
-router.get("/:id", getTopic);
+router.get("/:id", firebaseAuthMiddleware, requireRole("ADMIN", "INSTRUCTOR"), getTopic);
 
-router.put("/:id", updateTopic);
+router.put("/:id", firebaseAuthMiddleware, requireRole("ADMIN", "INSTRUCTOR"), updateTopic);
 
-router.delete("/:id", deleteTopic);
+router.delete("/:id", firebaseAuthMiddleware, requireRole("ADMIN", "INSTRUCTOR"), deleteTopic);
 
 module.exports = router;

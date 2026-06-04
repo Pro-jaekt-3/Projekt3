@@ -1,10 +1,10 @@
-const API_BASE_URL = import.meta.env.VITE_API_URL;
+import { apiJsonFetch } from "./apiClient";
 
 export const startAttempt = async (
   assessmentId: number
 ) => {
-  const response = await fetch(
-    `${API_BASE_URL}/assessment-attempts/start`,
+  return apiJsonFetch(
+    "/assessment-attempts/start",
     {
       method: "POST",
       headers: {
@@ -12,29 +12,17 @@ export const startAttempt = async (
       },
       body: JSON.stringify({
         assessmentId,
-        participantId: 1,
       }),
     }
   );
-
-  const data = await response.json();
-
-  if (!response.ok) {
-    console.error(data);
-    throw new Error(
-      data.error || "Failed to start attempt"
-    );
-  }
-
-  return data;
 };
 
 export const submitAttempt = async (
   attemptId: number,
   answers: any[]
 ) => {
-  const response = await fetch(
-    `${API_BASE_URL}/assessment-attempts/${attemptId}/submit`,
+  return apiJsonFetch(
+    `/assessment-attempts/${attemptId}/submit`,
     {
       method: "POST",
       headers: {
@@ -45,15 +33,4 @@ export const submitAttempt = async (
       }),
     }
   );
-
-  const data = await response.json();
-
-  if (!response.ok) {
-    console.error(data);
-    throw new Error(
-      data.error || "Failed to submit attempt"
-    );
-  }
-
-  return data;
 };

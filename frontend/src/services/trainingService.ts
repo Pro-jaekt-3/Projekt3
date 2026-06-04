@@ -1,15 +1,17 @@
-const API_URL = "http://localhost:3000/trainings";
+import {
+  apiEnsureOk,
+  apiJsonFetch,
+} from "./apiClient";
 
 export const getTrainings = async () => {
-  const response = await fetch(API_URL);
-  return response.json();
+  return apiJsonFetch("/trainings");
 };
 
 export const createTraining = async (
   title: string,
   description = ""
 ) => {
-  const response = await fetch(API_URL, {
+  return apiJsonFetch("/trainings", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -19,14 +21,12 @@ export const createTraining = async (
       description,
     }),
   });
-
-  return response.json();
 };
 
 export const deleteTraining = async (
   id: number
 ) => {
-  await fetch(`${API_URL}/${id}`, {
+  await apiEnsureOk(`/trainings/${id}`, {
     method: "DELETE",
   });
 };

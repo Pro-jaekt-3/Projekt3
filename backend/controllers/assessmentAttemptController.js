@@ -43,20 +43,29 @@ const serializeAttempt = (attempt) => ({
     : attempt.answers,
 });
 
+const canAccessAttempt = (attempt, user) => {
+  if (!attempt || !user) {
+    return false;
+  }
+
+  if (user.role === "ADMIN" || user.role === "INSTRUCTOR") {
+    return true;
+  }
+
+  return attempt.userId === user.id;
+};
+
 const startAttempt = async (req, res) => {
   try {
     const assessmentId = parseId(req.body.assessmentId);
-    const participantId =
-      req.body.participantId !== undefined && req.body.participantId !== null
-        ? parseId(req.body.participantId)
-        : req.user?.id ?? null;
+    const participantId = req.user?.id ?? null;
 
     if (!assessmentId) {
       return res.status(400).json({ error: "assessmentId must be a positive integer" });
     }
 
-    if (req.body.participantId !== undefined && req.body.participantId !== null && !participantId) {
-      return res.status(400).json({ error: "participantId must be a positive integer" });
+    if (!participantId) {
+      return res.status(401).json({ error: "Authenticated user is required" });
     }
 
     const [assessment, participant] = await Promise.all([
@@ -128,6 +137,10 @@ const submitAttempt = async (req, res) => {
 
     if (!attempt) {
       return res.status(404).json({ error: "Attempt not found" });
+    }
+
+    if (!canAccessAttempt(attempt, req.user)) {
+      return res.status(403).json({ error: "Forbidden" });
     }
 
     if (attempt.status !== "IN_PROGRESS") {
@@ -270,6 +283,10 @@ const getAttempt = async (req, res) => {
 
     if (!attempt) {
       return res.status(404).json({ error: "Attempt not found" });
+    }
+
+    if (!canAccessAttempt(attempt, req.user)) {
+      return res.status(403).json({ error: "Forbidden" });
     }
 
     res.json(serializeAttempt(attempt));

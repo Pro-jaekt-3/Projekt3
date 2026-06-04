@@ -10,13 +10,15 @@ const {
   addQuestionToGroup,
   removeQuestionFromGroup,
 } = require("../controllers/equivalentQuestionGroupController");
+const { firebaseAuthMiddleware } = require("../middleware/firebaseAuthMiddleware");
+const { requireRole } = require("../middleware/roleMiddleware");
 
-router.get("/", getEquivalentQuestionGroups);
-router.post("/", createEquivalentQuestionGroup);
-router.get("/:id", getEquivalentQuestionGroup);
-router.put("/:id", updateEquivalentQuestionGroup);
-router.delete("/:id", deleteEquivalentQuestionGroup);
-router.post("/:id/questions", addQuestionToGroup);
-router.delete("/:id/questions/:questionId", removeQuestionFromGroup);
+router.get("/", firebaseAuthMiddleware, requireRole("ADMIN", "INSTRUCTOR"), getEquivalentQuestionGroups);
+router.post("/", firebaseAuthMiddleware, requireRole("ADMIN", "INSTRUCTOR"), createEquivalentQuestionGroup);
+router.get("/:id", firebaseAuthMiddleware, requireRole("ADMIN", "INSTRUCTOR"), getEquivalentQuestionGroup);
+router.put("/:id", firebaseAuthMiddleware, requireRole("ADMIN", "INSTRUCTOR"), updateEquivalentQuestionGroup);
+router.delete("/:id", firebaseAuthMiddleware, requireRole("ADMIN", "INSTRUCTOR"), deleteEquivalentQuestionGroup);
+router.post("/:id/questions", firebaseAuthMiddleware, requireRole("ADMIN", "INSTRUCTOR"), addQuestionToGroup);
+router.delete("/:id/questions/:questionId", firebaseAuthMiddleware, requireRole("ADMIN", "INSTRUCTOR"), removeQuestionFromGroup);
 
 module.exports = router;

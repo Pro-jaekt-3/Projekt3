@@ -1,16 +1,10 @@
-const API_BASE_URL = import.meta.env.VITE_API_URL;
-
-const API_URL = `${API_BASE_URL}/assessments`;
+import {
+  apiEnsureOk,
+  apiJsonFetch,
+} from "./apiClient";
 
 export const getAssessments = async () => {
-  const response = await fetch(API_URL, {
-    headers: {
-      "x-user-id": "1",
-      "x-user-role": "INSTRUCTOR",
-    },
-  });
-
-  return response.json();
+  return apiJsonFetch("/assessments");
 };
 
 export const createAssessment = async (
@@ -22,17 +16,13 @@ export const createAssessment = async (
     questions: number[];
   }
 ) => {
-  const response = await fetch(API_URL, {
+  return apiJsonFetch("/assessments", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "x-user-id": "1",
-      "x-user-role": "INSTRUCTOR",
     },
     body: JSON.stringify(assessmentData),
   });
-
-  return response.json();
 };
 
 export const generateAssessment = async (
@@ -46,46 +36,25 @@ export const generateAssessment = async (
     difficulty?: number;
   }
 ) => {
-  const response = await fetch(
-    `${API_URL}/generate`,
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-user-id": "1",
-        "x-user-role": "INSTRUCTOR",
-      },
-      body: JSON.stringify(generateData),
-    }
-  );
-
-  return response.json();
+  return apiJsonFetch("/assessments/generate", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(generateData),
+  });
 };
 
 export const deleteAssessment = async (
   id: number
 ) => {
-  await fetch(`${API_URL}/${id}`, {
+  await apiEnsureOk(`/assessments/${id}`, {
     method: "DELETE",
-    headers: {
-      "x-user-id": "1",
-      "x-user-role": "INSTRUCTOR",
-    },
   });
 };
 
 export const getAssessment = async (
   id: number
 ) => {
-  const response = await fetch(
-    `${API_URL}/${id}`,
-    {
-      headers: {
-        "x-user-id": "1",
-        "x-user-role": "INSTRUCTOR",
-      },
-    }
-  );
-
-  return response.json();
+  return apiJsonFetch(`/assessments/${id}`);
 };

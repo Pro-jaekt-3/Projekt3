@@ -4,6 +4,9 @@ import {
   deleteQuestion,
   updateQuestionStatus,
 } from "../services/questionService";
+import { getTopics } from "../services/topicService";
+import { getLearningObjectives } from "../services/learningObjectiveService";
+import { getEquivalentGroups } from "../services/equivalentGroupService";
 
 import { useEffect, useState } from "react";
 
@@ -75,12 +78,7 @@ function QuestionsPage() {
 
   const fetchTopics = async () => {
     try {
-      const response = await fetch(
-        "http://localhost:3000/topics"
-      );
-
-      const data = await response.json();
-
+      const data = await getTopics();
       setTopics(data);
     } catch (error) {
       console.error(error);
@@ -96,12 +94,8 @@ function QuestionsPage() {
 
   const fetchLearningObjectives = async () => {
   try {
-    const response = await fetch(
-      "http://localhost:3000/learning-objectives"
-    );
-
-    const data = await response.json();
-
+    const data =
+      await getLearningObjectives();
     setLearningObjectives(data);
   } catch (error) {
     console.error(error);
@@ -110,12 +104,8 @@ function QuestionsPage() {
 
   const fetchEquivalentGroups = async () => {
     try {
-      const response = await fetch(
-        "http://localhost:3000/equivalent-question-groups"
-      );
-
-      const data = await response.json();
-
+      const data =
+        await getEquivalentGroups();
       setEquivalentGroups(data);
     } catch (error) {
       console.error(error);

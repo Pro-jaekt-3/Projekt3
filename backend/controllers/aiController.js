@@ -9,9 +9,10 @@ function missingRequiredFields(body) {
 }
 
 function getRequesterId(req) {
-  const rawId = req.user?.id || req.headers["x-user-id"];
-  const requesterId = Number(rawId);
-  return Number.isInteger(requesterId) && requesterId > 0 ? requesterId : null;
+  const requesterId = Number(req.user?.id);
+  return Number.isInteger(requesterId) && requesterId > 0
+    ? requesterId
+    : null;
 }
 
 function buildQuestionDraftPrompt({
@@ -140,7 +141,7 @@ const generateQuestionDraft = async (req, res) => {
 
     if (!requesterId) {
       return res.status(400).json({
-        error: "Requester user is required. Provide req.user.id or x-user-id in development.",
+        error: "Authenticated requester user is required.",
       });
     }
 
@@ -239,7 +240,7 @@ const suggestQuestionEquivalence = async (req, res) => {
 
     if (!requesterId) {
       return res.status(400).json({
-        error: "Requester user is required. Provide req.user.id or x-user-id in development.",
+        error: "Authenticated requester user is required.",
       });
     }
 
