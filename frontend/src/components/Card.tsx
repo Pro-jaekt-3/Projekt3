@@ -1,11 +1,10 @@
 type Props = {
   children: React.ReactNode;
-  className?: string;
 };
 
-function Card({ children, className = "" }: Props) {
+function Card({ children }: Props) {
   return (
-    <div className={`rounded-lg border border-slate-200 bg-white p-6 shadow-sm ${className}`}>
+    <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
       {children}
     </div>
   );

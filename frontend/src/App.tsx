@@ -1,6 +1,6 @@
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 
-import AppLayout from "./components/AppLayout";
+import Navbar from "./components/Navbar";
 
 import HomePage from "./pages/HomePage";
 import QuestionsPage from "./pages/QuestionsPage";
@@ -21,136 +21,136 @@ function App() {
   return (
     <AuthProvider>
       <BrowserRouter>
-        <AppLayout>
-          <Routes>
-            <Route path="/" element={<HomePage />} />
+        <Navbar />
 
-            <Route
-              path="/questions"
-              element={
-                <ProtectedRoute
-                  allowedRoles={[
-                    "ADMIN",
-                    "INSTRUCTOR",
-                  ]}
-                >
-                  <QuestionsPage />
-                </ProtectedRoute>
-              }
-            />
+        <Routes>
+          <Route path="/" element={<HomePage />} />
 
-            <Route
-              path="/topics"
-              element={
-                <ProtectedRoute
-                  allowedRoles={[
-                    "ADMIN",
-                    "INSTRUCTOR",
-                  ]}
-                >
-                  <TopicsPage />
-                </ProtectedRoute>
-              }
-            />
+          <Route
+            path="/questions"
+            element={
+              <ProtectedRoute
+                allowedRoles={[
+                  "ADMIN",
+                  "INSTRUCTOR",
+                ]}
+              >
+                <QuestionsPage />
+              </ProtectedRoute>
+            }
+          />
 
-            <Route
-              path="/learning-objectives"
-              element={
-                <ProtectedRoute
-                  allowedRoles={[
-                    "ADMIN",
-                    "INSTRUCTOR",
-                  ]}
-                >
-                  <LearningObjectivesPage />
-                </ProtectedRoute>
-              }
-            />
+          <Route
+            path="/topics"
+            element={
+              <ProtectedRoute
+                allowedRoles={[
+                  "ADMIN",
+                  "INSTRUCTOR",
+                ]}
+              >
+                <TopicsPage />
+              </ProtectedRoute>
+            }
+          />
 
-            <Route
-              path="/trainings"
-              element={
-                <ProtectedRoute
-                  allowedRoles={[
-                    "ADMIN",
-                    "INSTRUCTOR",
-                  ]}
-                >
-                  <TrainingsPage />
-                </ProtectedRoute>
-              }
-            />
+          <Route
+            path="/learning-objectives"
+            element={
+              <ProtectedRoute
+                allowedRoles={[
+                  "ADMIN",
+                  "INSTRUCTOR",
+                ]}
+              >
+                <LearningObjectivesPage />
+              </ProtectedRoute>
+            }
+          />
 
-            <Route
-              path="/equivalent-groups"
-              element={
-                <ProtectedRoute
-                  allowedRoles={[
-                    "ADMIN",
-                    "INSTRUCTOR",
-                  ]}
-                >
-                  <EquivalentGroupsPage />
-                </ProtectedRoute>
-              }
-            />
+          <Route
+            path="/trainings"
+            element={
+              <ProtectedRoute
+                allowedRoles={[
+                  "ADMIN",
+                  "INSTRUCTOR",
+                ]}
+              >
+                <TrainingsPage />
+              </ProtectedRoute>
+            }
+          />
 
-            <Route
-              path="/assessments"
-              element={
-                <ProtectedRoute
-                  allowedRoles={[
-                    "ADMIN",
-                    "INSTRUCTOR",
-                  ]}
-                >
-                  <AssessmentsPage />
-                </ProtectedRoute>
-              }
-            />
+          <Route
+            path="/equivalent-groups"
+            element={
+              <ProtectedRoute
+                allowedRoles={[
+                  "ADMIN",
+                  "INSTRUCTOR",
+                ]}
+              >
+                <EquivalentGroupsPage />
+              </ProtectedRoute>
+            }
+          />
 
-            <Route
-              path="/solve-assessment/:id"
-              element={
-                <ProtectedRoute
-                  allowedRoles={[
-                    "PARTICIPANT",
-                  ]}
-                >
-                  <SolveAssessmentPage />
-                </ProtectedRoute>
-              }
-            />
+          <Route
+            path="/assessments"
+            element={
+              <ProtectedRoute
+                allowedRoles={[
+                  "ADMIN",
+                  "INSTRUCTOR",
+                ]}
+              >
+                <AssessmentsPage />
+              </ProtectedRoute>
+            }
+          />
 
-            <Route path="/login" element={<LoginPage />} />
-            <Route
-              path="/my-assessments"
-              element={
-                <ProtectedRoute
-                  allowedRoles={[
-                    "PARTICIPANT",
-                  ]}
-                >
-                  <MyAssessmentsPage />
-                </ProtectedRoute>
-              }
-            />
+          <Route
+            path="/solve-assessment/:id"
+            element={
+              <ProtectedRoute
+                allowedRoles={[
+                  "PARTICIPANT",
+                ]}
+              >
+                <SolveAssessmentPage />
+              </ProtectedRoute>
+            }
+          />
 
-            <Route
-              path="/analytics"
-              element={
-                <ProtectedRoute
-                  allowedRoles={[
-                    "ADMIN",
-                    "INSTRUCTOR",
-                  ]}
-                >
-                  <AnalyticsPage />
-                </ProtectedRoute>
-              }
-            />
-          </Routes>
-        </AppLayout>
+          <Route path="/login" element={<LoginPage />} />
+          <Route
+            path="/my-assessments"
+            element={
+              <ProtectedRoute
+                allowedRoles={[
+                  "PARTICIPANT",
+                ]}
+              >
+                <MyAssessmentsPage />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/analytics"
+            element={
+              <ProtectedRoute
+                allowedRoles={[
+                  "ADMIN",
+                  "INSTRUCTOR",
+                ]}
+              >
+                <AnalyticsPage />
+              </ProtectedRoute>
+            }
+          />
+        </Routes>
       </BrowserRouter>
     </AuthProvider>
   );
