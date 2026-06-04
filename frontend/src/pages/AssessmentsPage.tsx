@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import {
   getAssessments,
@@ -8,7 +8,6 @@ import {
 
 import { getQuestions } from "../services/questionService";
 import { getTrainings } from "../services/trainingService";
-import { Link } from "react-router-dom";
 
 type Assessment = {
   id: number;
@@ -27,7 +26,8 @@ type Assessment = {
 type Question = {
   id: number;
   title: string;
-}; 
+  status?: string;
+};
 
 type Training = {
   id: number;
@@ -47,12 +47,29 @@ function AssessmentsPage() {
   const [selectedQuestions, setSelectedQuestions] =
     useState<number[]>([]);
 
+  const [previewAssessmentId, setPreviewAssessmentId] =
+    useState<number | null>(null);
+
   const [title, setTitle] = useState("");
   const [description, setDescription] =
     useState("");
   const [trainingId, setTrainingId] =
     useState("");
   const [type, setType] = useState("QUIZ");
+
+  const hasQuestionStatuses = questions.some(
+    (question) => Boolean(question.status)
+  );
+
+  const availableQuestions = useMemo(() => {
+    if (!hasQuestionStatuses) {
+      return questions;
+    }
+
+    return questions.filter(
+      (question) => question.status === "APPROVED"
+    );
+  }, [hasQuestionStatuses, questions]);
 
   const loadAssessments = async () => {
     try {
@@ -160,176 +177,278 @@ function AssessmentsPage() {
 
   return (
     <div className="max-w-7xl mx-auto px-8 py-10">
-      <h1 className="text-6xl font-bold text-center mb-12">
-        Assessments
-      </h1>
+      <div className="mb-10">
+        <p className="mb-3 text-sm font-semibold uppercase tracking-wide text-blue-700">
+          Instructor assessment flow
+        </p>
+
+        <h1 className="text-5xl font-bold mb-4">
+          Create and manage assessments
+        </h1>
+
+        <p className="max-w-3xl text-lg leading-8 text-slate-600">
+          Build quizzes, pre-tests and post-tests from the question bank.
+          Participants start and solve assigned assessments from My
+          Assessments, not from this management page.
+        </p>
+      </div>
 
       <form
         onSubmit={handleSubmit}
-        className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 flex flex-col gap-4 max-w-3xl mb-10"
+        className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 flex flex-col gap-6 max-w-4xl mb-10"
       >
-        <input
-          type="text"
-          placeholder="Assessment title"
-          value={title}
-          onChange={(e) =>
-            setTitle(e.target.value)
-          }
-          className="border border-gray-300 rounded-lg px-4 py-3"
-        />
+        <section className="flex flex-col gap-4">
+          <div>
+            <h2 className="text-xl font-semibold text-slate-950">
+              Basic assessment data
+            </h2>
 
-        <textarea
-          placeholder="Description"
-          value={description}
-          onChange={(e) =>
-            setDescription(e.target.value)
-          }
-          className="border border-gray-300 rounded-lg px-4 py-3"
-        />
-
-        <select
-          value={type}
-          onChange={(e) =>
-            setType(e.target.value)
-          }
-          className="border border-gray-300 rounded-lg px-4 py-3"
-        >
-          <option value="QUIZ">
-            Quiz
-          </option>
-
-          <option value="PRE_TEST">
-            Pre Test
-          </option>
-
-          <option value="POST_TEST">
-            Post Test
-          </option>
-        </select>
-
-        <select
-          value={trainingId}
-          onChange={(e) =>
-            setTrainingId(e.target.value)
-          }
-          className="border border-gray-300 rounded-lg px-4 py-3"
-        >
-          <option value="">
-            Select Training
-          </option>
-
-          {trainings.map((training) => (
-            <option
-              key={training.id}
-              value={training.id}
-            >
-              {training.title}
-            </option>
-          ))}
-        </select>
-
-        <div>
-          <h3 className="font-semibold text-lg mb-3">
-            Select Questions
-          </h3>
-
-          <div className="flex flex-col gap-2 max-h-64 overflow-y-auto border border-gray-200 rounded-lg p-4">
-            {questions.map((question) => (
-              <label
-                key={question.id}
-                className="flex items-center gap-3"
-              >
-                <input
-                  type="checkbox"
-                  checked={selectedQuestions.includes(
-                    question.id
-                  )}
-                  onChange={() =>
-                    handleQuestionToggle(
-                      question.id
-                    )
-                  }
-                />
-
-                {question.title}
-              </label>
-            ))}
+            <p className="mt-1 text-sm text-slate-500">
+              Name the assessment and add optional context for participants.
+            </p>
           </div>
-        </div>
+
+          <input
+            type="text"
+            placeholder="Assessment title"
+            value={title}
+            onChange={(e) =>
+              setTitle(e.target.value)
+            }
+            className="border border-gray-300 rounded-lg px-4 py-3"
+          />
+
+          <textarea
+            placeholder="Description"
+            value={description}
+            onChange={(e) =>
+              setDescription(e.target.value)
+            }
+            className="border border-gray-300 rounded-lg px-4 py-3"
+          />
+        </section>
+
+        <section className="grid gap-4 md:grid-cols-2">
+          <div>
+            <label className="mb-2 block text-sm font-semibold text-slate-700">
+              Assessment type
+            </label>
+
+            <select
+              value={type}
+              onChange={(e) =>
+                setType(e.target.value)
+              }
+              className="w-full border border-gray-300 rounded-lg px-4 py-3"
+            >
+              <option value="QUIZ">
+                Quiz
+              </option>
+
+              <option value="PRE_TEST">
+                Pre Test
+              </option>
+
+              <option value="POST_TEST">
+                Post Test
+              </option>
+            </select>
+          </div>
+
+          <div>
+            <label className="mb-2 block text-sm font-semibold text-slate-700">
+              Training
+            </label>
+
+            <select
+              value={trainingId}
+              onChange={(e) =>
+                setTrainingId(e.target.value)
+              }
+              className="w-full border border-gray-300 rounded-lg px-4 py-3"
+            >
+              <option value="">
+                Select Training
+              </option>
+
+              {trainings.map((training) => (
+                <option
+                  key={training.id}
+                  value={training.id}
+                >
+                  {training.title}
+                </option>
+              ))}
+            </select>
+          </div>
+        </section>
+
+        <section>
+          <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <h2 className="text-xl font-semibold text-slate-950">
+                Select questions
+              </h2>
+
+              <p className="mt-1 text-sm text-slate-500">
+                Selected questions: {selectedQuestions.length}
+              </p>
+            </div>
+
+            {hasQuestionStatuses && (
+              <span className="rounded-full bg-emerald-50 px-3 py-1 text-sm font-medium text-emerald-700">
+                Showing approved questions
+              </span>
+            )}
+          </div>
+
+          {questions.length === 0 ? (
+            <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+              No questions are available yet. Add questions before creating
+              an assessment.
+            </div>
+          ) : availableQuestions.length === 0 ? (
+            <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+              Questions exist, but none are approved. Approve questions or
+              adjust question status before creating an assessment.
+            </div>
+          ) : (
+            <div className="flex flex-col gap-2 max-h-72 overflow-y-auto border border-gray-200 rounded-lg p-4">
+              {availableQuestions.map((question) => (
+                <label
+                  key={question.id}
+                  className="flex items-center gap-3 rounded-md px-2 py-1.5 hover:bg-slate-50"
+                >
+                  <input
+                    type="checkbox"
+                    checked={selectedQuestions.includes(
+                      question.id
+                    )}
+                    onChange={() =>
+                      handleQuestionToggle(
+                        question.id
+                      )
+                    }
+                  />
+
+                  <span>{question.title}</span>
+
+                  {question.status && (
+                    <span className="ml-auto rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600">
+                      {question.status}
+                    </span>
+                  )}
+                </label>
+              ))}
+            </div>
+          )}
+        </section>
 
         <button
           type="submit"
-          className="bg-blue-600 hover:bg-blue-700 text-white rounded-lg py-3 font-medium transition"
+          className="bg-blue-600 hover:bg-blue-700 text-white rounded-lg py-3 font-medium transition disabled:cursor-not-allowed disabled:opacity-60"
+          disabled={availableQuestions.length === 0}
         >
           Create Assessment
         </button>
       </form>
 
+      <div className="mb-5">
+        <h2 className="text-3xl font-bold text-slate-950">
+          Assessment list
+        </h2>
+
+        <p className="mt-2 text-slate-600">
+          Preview assessments here. Participants use My Assessments to
+          start an attempt.
+        </p>
+      </div>
+
       <div className="grid gap-6">
         {assessments.map(
-          (assessment) => (
-            <div
-              key={assessment.id}
-              className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6"
-            >
-              <div className="flex justify-between items-start mb-4">
-                <div>
-                  <h3 className="text-2xl font-semibold">
-                    {assessment.title}
-                  </h3>
+          (assessment) => {
+            const isPreviewOpen =
+              previewAssessmentId === assessment.id;
 
-                  {assessment.description && (
-                    <p className="text-gray-600 mt-2">
-                      {
-                        assessment.description
-                      }
-                    </p>
-                  )}
+            return (
+              <div
+                key={assessment.id}
+                className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6"
+              >
+                <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+                  <div>
+                    <h3 className="text-2xl font-semibold">
+                      {assessment.title}
+                    </h3>
+
+                    {assessment.description && (
+                      <p className="text-gray-600 mt-2">
+                        {
+                          assessment.description
+                        }
+                      </p>
+                    )}
+                  </div>
+
+                  <span className="w-fit bg-blue-100 text-blue-700 text-sm px-3 py-1 rounded-full">
+                    {assessment.type}
+                  </span>
                 </div>
 
-                <span className="bg-blue-100 text-blue-700 text-sm px-3 py-1 rounded-full">
-                  {assessment.type}
-                </span>
-              </div>
-
-                {assessment.questions &&
-                assessment.questions.length > 0 && (
-                    <div className="mt-4 mb-4">
-                    <p className="font-medium mb-2">
-                        Questions:
+                {isPreviewOpen && (
+                  <div className="mt-5 rounded-xl border border-slate-200 bg-slate-50 p-4">
+                    <p className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-500">
+                      Read-only preview
                     </p>
 
-                    <ul className="list-disc ml-6">
+                    {assessment.questions &&
+                    assessment.questions.length > 0 ? (
+                      <ol className="list-decimal space-y-2 pl-5">
                         {assessment.questions.map((aq) => (
-                        <li key={aq.id}>
+                          <li key={aq.id}>
                             {aq.question.title}
-                        </li>
+                          </li>
                         ))}
-                    </ul>
-                    </div>
+                      </ol>
+                    ) : (
+                      <p className="text-sm text-slate-600">
+                        No questions are attached to this assessment.
+                      </p>
+                    )}
+                  </div>
                 )}
 
-              <div className="flex gap-2">
-            <button
-              onClick={() =>
-                handleDelete(
-                  assessment.id
-                )
-              }
-              className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg transition"
-            >
-              Delete
-            </button>
+                <div className="mt-5 flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setPreviewAssessmentId(
+                        isPreviewOpen
+                          ? null
+                          : assessment.id
+                      )
+                    }
+                    className="bg-slate-900 hover:bg-slate-800 text-white px-4 py-2 rounded-lg transition"
+                  >
+                    {isPreviewOpen
+                      ? "Hide Preview"
+                      : "Preview"}
+                  </button>
 
-            <Link
-              to={`/solve-assessment/${assessment.id}`}
-              className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg transition"
-            >
-              Solve
-            </Link>
-          </div>
-            </div>
-          )
+                  <button
+                    onClick={() =>
+                      handleDelete(
+                        assessment.id
+                      )
+                    }
+                    className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg transition"
+                  >
+                    Delete
+                  </button>
+                </div>
+              </div>
+            );
+          }
         )}
       </div>
     </div>
