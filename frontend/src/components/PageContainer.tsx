@@ -1,14 +1,10 @@
 type Props = {
   children: React.ReactNode;
-  className?: string;
 };
 
-function PageContainer({
-  children,
-  className = "",
-}: Props) {
+function PageContainer({ children }: Props) {
   return (
-    <div className={`mx-auto max-w-7xl px-6 py-8 sm:px-8 lg:py-10 ${className}`}>
+    <div className="max-w-7xl mx-auto px-8 py-8">
       {children}
     </div>
   );
