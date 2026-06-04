@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 
 import {
   getTrainings,
@@ -74,9 +75,24 @@ function TrainingsPage() {
 
   return (
     <div className="max-w-7xl mx-auto px-8 py-10">
-      <h1 className="text-6xl font-bold text-center mb-12">
-        Trainings
-      </h1>
+      <div className="mb-10">
+        <h1 className="text-5xl font-bold mb-4">
+          Trainings
+        </h1>
+
+        <p className="max-w-3xl text-lg leading-8 text-slate-600">
+          Trainings are the top-level structure for instructor content.
+          Create a training first, then add topics, learning objectives,
+          questions and assessments.
+        </p>
+
+        <Link
+          to="/topics"
+          className="mt-5 inline-flex rounded-lg bg-slate-900 px-5 py-3 font-medium text-white transition hover:bg-slate-800"
+        >
+          Next: Add topics
+        </Link>
+      </div>
 
       <form
         onSubmit={handleSubmit}
@@ -115,7 +131,7 @@ function TrainingsPage() {
             key={training.id}
             className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6"
           >
-            <div className="flex items-start justify-between">
+            <div className="flex flex-col gap-5 md:flex-row md:items-start md:justify-between">
               <div>
                 <h3 className="text-2xl font-semibold mb-2">
                   {training.title}
@@ -128,14 +144,23 @@ function TrainingsPage() {
                 )}
               </div>
 
-              <button
-                onClick={() =>
-                  handleDelete(training.id)
-                }
-                className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg transition"
-              >
-                Delete
-              </button>
+              <div className="flex flex-wrap gap-3">
+                <Link
+                  to={`/topics?trainingId=${training.id}`}
+                  className="rounded-lg bg-slate-900 px-4 py-2 text-white transition hover:bg-slate-800"
+                >
+                  Manage Topics
+                </Link>
+
+                <button
+                  onClick={() =>
+                    handleDelete(training.id)
+                  }
+                  className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg transition"
+                >
+                  Delete
+                </button>
+              </div>
             </div>
           </div>
         ))}

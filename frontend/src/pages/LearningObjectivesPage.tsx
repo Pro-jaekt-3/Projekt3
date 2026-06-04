@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Link, useSearchParams } from "react-router-dom";
 
 import {
   getLearningObjectives,
@@ -25,6 +26,10 @@ type Topic = {
 };
 
 function LearningObjectivesPage() {
+  const [searchParams] = useSearchParams();
+  const initialTopicId =
+    searchParams.get("topicId") || "";
+
   const [learningObjectives, setLearningObjectives] =
     useState<LearningObjective[]>([]);
 
@@ -32,7 +37,7 @@ function LearningObjectivesPage() {
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
-  const [topicId, setTopicId] = useState("");
+  const [topicId, setTopicId] = useState(initialTopicId);
 
   const loadLearningObjectives = async () => {
     try {
@@ -81,7 +86,7 @@ function LearningObjectivesPage() {
 
       setTitle("");
       setDescription("");
-      setTopicId("");
+      setTopicId(initialTopicId);
 
       loadLearningObjectives();
     } catch (error) {
@@ -101,9 +106,23 @@ function LearningObjectivesPage() {
 
   return (
     <div className="max-w-7xl mx-auto px-8 py-10">
-      <h1 className="text-6xl font-bold text-center mb-12">
-        Learning Objectives
-      </h1>
+      <div className="mb-10">
+        <h1 className="text-5xl font-bold mb-4">
+          Learning Objectives
+        </h1>
+
+        <p className="max-w-3xl text-lg leading-8 text-slate-600">
+          Learning objectives belong to topics. They describe what the
+          participant should know before you create targeted questions.
+        </p>
+
+        <Link
+          to="/questions"
+          className="mt-5 inline-flex rounded-lg bg-slate-900 px-5 py-3 font-medium text-white transition hover:bg-slate-800"
+        >
+          Next: Add questions
+        </Link>
+      </div>
 
       <form
         onSubmit={handleSubmit}
@@ -164,7 +183,7 @@ function LearningObjectivesPage() {
               key={objective.id}
               className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6"
             >
-              <div className="flex items-start justify-between mb-4">
+              <div className="flex flex-col gap-5 md:flex-row md:items-start md:justify-between">
                 <div>
                   <h3 className="text-2xl font-semibold mb-2">
                     {objective.title}
@@ -180,16 +199,25 @@ function LearningObjectivesPage() {
                   </p>
                 </div>
 
-                <button
-                  onClick={() =>
-                    handleDelete(
-                      objective.id
-                    )
-                  }
-                  className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg transition"
-                >
-                  Delete
-                </button>
+                <div className="flex flex-wrap gap-3">
+                  <Link
+                    to={`/questions?topicId=${objective.topicId}&learningObjectiveId=${objective.id}`}
+                    className="rounded-lg bg-slate-900 px-4 py-2 text-white transition hover:bg-slate-800"
+                  >
+                    Create Questions
+                  </Link>
+
+                  <button
+                    onClick={() =>
+                      handleDelete(
+                        objective.id
+                      )
+                    }
+                    className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg transition"
+                  >
+                    Delete
+                  </button>
+                </div>
               </div>
             </div>
           )
