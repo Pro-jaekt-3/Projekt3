@@ -38,6 +38,8 @@ function LearningObjectivesPage() {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [topicId, setTopicId] = useState(initialTopicId);
+  const [createdObjectiveId, setCreatedObjectiveId] =
+    useState<number | null>(null);
 
   const loadLearningObjectives = async () => {
     try {
@@ -78,15 +80,19 @@ function LearningObjectivesPage() {
     }
 
     try {
-      await createLearningObjective({
-        title,
-        description,
-        topicId: Number(topicId),
-      });
+      const createdObjective =
+        await createLearningObjective({
+          title,
+          description,
+          topicId: Number(topicId),
+        });
 
       setTitle("");
       setDescription("");
       setTopicId(initialTopicId);
+      setCreatedObjectiveId(
+        createdObjective.id
+      );
 
       loadLearningObjectives();
     } catch (error) {
@@ -117,7 +123,11 @@ function LearningObjectivesPage() {
         </p>
 
         <Link
-          to="/questions"
+          to={
+            initialTopicId
+              ? `/questions?topicId=${initialTopicId}`
+              : "/questions"
+          }
           className="mt-5 inline-flex rounded-lg bg-slate-900 px-5 py-3 font-medium text-white transition hover:bg-slate-800"
         >
           Next: Add questions
@@ -197,6 +207,23 @@ function LearningObjectivesPage() {
                     Topic:{" "}
                     {objective.topic?.name}
                   </p>
+
+                  {createdObjectiveId ===
+                    objective.id && (
+                    <div className="mt-4 rounded-lg border border-blue-200 bg-blue-50 p-3">
+                      <p className="text-sm font-medium text-blue-900">
+                        Learning objective created. Add targeted questions
+                        for this objective next.
+                      </p>
+
+                      <Link
+                        to={`/questions?topicId=${objective.topicId}&learningObjectiveId=${objective.id}`}
+                        className="mt-3 inline-flex rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-700"
+                      >
+                        Create Questions
+                      </Link>
+                    </div>
+                  )}
                 </div>
 
                 <div className="flex flex-wrap gap-3">

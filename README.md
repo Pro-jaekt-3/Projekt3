@@ -44,7 +44,15 @@ npm install
 ```env
 DATABASE_URL="mysql://root:GESLO@localhost:3306/projekt3"
 PORT=3000
+FIREBASE_PROJECT_ID=your-firebase-project-id
+FIREBASE_CLIENT_EMAIL=firebase-adminsdk-xxxxx@your-firebase-project-id.iam.gserviceaccount.com
+FIREBASE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n"
 ```
+
+Required backend environment values:
+- `DATABASE_URL` - MySQL connection string used by Prisma.
+- `PORT` - backend port for local development.
+- `FIREBASE_PROJECT_ID`, `FIREBASE_CLIENT_EMAIL`, `FIREBASE_PRIVATE_KEY` - Firebase Admin service account values used to verify Firebase ID tokens.
 
 3. Ustvari bazo v MySQL, če še ne obstaja:
 
@@ -106,7 +114,17 @@ npm install
 
 ```env
 VITE_API_URL=http://localhost:3000
+VITE_FIREBASE_API_KEY=your-firebase-api-key
+VITE_FIREBASE_AUTH_DOMAIN=your-firebase-project.firebaseapp.com
+VITE_FIREBASE_PROJECT_ID=your-firebase-project-id
+VITE_FIREBASE_STORAGE_BUCKET=your-firebase-project.appspot.com
+VITE_FIREBASE_MESSAGING_SENDER_ID=your-sender-id
+VITE_FIREBASE_APP_ID=your-firebase-app-id
 ```
+
+Required frontend environment values:
+- `VITE_API_URL` - backend API base URL, for example `http://localhost:3000`.
+- `VITE_FIREBASE_API_KEY`, `VITE_FIREBASE_AUTH_DOMAIN`, `VITE_FIREBASE_PROJECT_ID`, `VITE_FIREBASE_STORAGE_BUCKET`, `VITE_FIREBASE_MESSAGING_SENDER_ID`, `VITE_FIREBASE_APP_ID` - Firebase web app configuration used by the existing Firebase login.
 
 3. Zaženi frontend:
 
@@ -119,6 +137,19 @@ Frontend bo na:
 ```txt
 http://localhost:5173
 ```
+
+## Demo accounts and setup
+
+Seed data creates these database users:
+- `admin@example.com` - `ADMIN`
+- `instructor@example.com` - `INSTRUCTOR`
+- `participant@example.com` - `PARTICIPANT`
+
+For demo login, create Firebase Authentication users with emails that match the seeded database users above. The backend links a Firebase user to an existing database user by email on first login.
+
+If a Firebase user signs in with an email that does not exist in the database, the backend creates a new database user with role `PARTICIPANT`. That account can use participant pages, but instructor/admin pages will show access denied until the database role matches the requested access. Do not expect Google or email/password demo accounts to receive instructor/admin access unless their Firebase email matches a database user with the correct role.
+
+Demo assessments should use `MULTIPLE_CHOICE` questions when automatic scoring is needed. `OPEN` and `CODE` answers are saved, but they are not automatically graded in the current MVP.
 
 ## API endpointi
 

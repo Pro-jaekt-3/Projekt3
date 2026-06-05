@@ -7,14 +7,14 @@ export const getQuestions = async () => {
   return apiJsonFetch("/questions");
 };
 
-export const createQuestion = async (questionData: {
+type QuestionPayload = {
   title: string;
   description: string;
   difficulty: number;
   topicId: number;
 
-  learningObjectiveId?: number;
-  equivalentGroupId?: number;
+  learningObjectiveId?: number | null;
+  equivalentGroupId?: number | null;
 
   type: string;
 
@@ -22,9 +22,26 @@ export const createQuestion = async (questionData: {
     text: string;
     isCorrect: boolean;
   }[];
-}) => {
+};
+
+export const createQuestion = async (
+  questionData: QuestionPayload
+) => {
   return apiJsonFetch("/questions", {
     method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(questionData),
+  });
+};
+
+export const updateQuestion = async (
+  id: number,
+  questionData: Partial<QuestionPayload>
+) => {
+  return apiJsonFetch(`/questions/${id}`, {
+    method: "PUT",
     headers: {
       "Content-Type": "application/json",
     },

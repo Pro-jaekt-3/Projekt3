@@ -12,6 +12,12 @@ import { onAuthStateChanged } from "firebase/auth";
 import { auth } from "../lib/firebase";
 
 const API_BASE_URL = import.meta.env.VITE_API_URL;
+const API_CONFIG_ERROR =
+  "Missing frontend API configuration: set VITE_API_URL in frontend/.env.";
+
+if (!API_BASE_URL) {
+  console.warn(API_CONFIG_ERROR);
+}
 
 type AppUserRole = "ADMIN" | "INSTRUCTOR" | "PARTICIPANT";
 
@@ -51,6 +57,10 @@ function AuthProvider({ children }: { children: ReactNode }) {
       setIsLoading(true);
 
       try {
+        if (!API_BASE_URL) {
+          throw new Error(API_CONFIG_ERROR);
+        }
+
         const token = await user.getIdToken();
         const response = await fetch(`${API_BASE_URL}/auth/me`, {
           headers: {

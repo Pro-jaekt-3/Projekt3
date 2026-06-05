@@ -1,5 +1,38 @@
 const prisma = require("../prisma/client");
 
+const ASSESSMENT_STATUSES = ["DRAFT", "PUBLISHED", "ARCHIVED"];
+
+const assessmentDetailInclude = {
+  training: true,
+  questions: {
+    orderBy: { orderIndex: "asc" },
+    include: {
+      question: {
+        include: {
+          answerOptions: {
+            orderBy: {
+              orderIndex: "asc",
+            },
+          },
+        },
+      },
+    },
+  },
+};
+
+const canManageAssessments = (user) =>
+  user?.role === "ADMIN" || user?.role === "INSTRUCTOR";
+
+const parseId = (value) => {
+  const parsed = Number(value);
+
+  if (!Number.isInteger(parsed) || parsed <= 0) {
+    return null;
+  }
+
+  return parsed;
+};
+
 const normalizeQuestionItems = (questions) => {
   return questions.map((item, index) => {
     if (typeof item === "number") {
@@ -25,22 +58,31 @@ const normalizeQuestionItems = (questions) => {
 const getAssessments = async (req, res) => {
   try {
     const assessments = await prisma.assessment.findMany({
+      where: canManageAssessments(req.user)
+        ? undefined
+        : {
+            status: "PUBLISHED",
+          },
+      include: assessmentDetailInclude,
+    });
+
+    res.json(assessments);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+const getAvailableAssessments = async (req, res) => {
+  try {
+    const assessments = await prisma.assessment.findMany({
+      where: {
+        status: "PUBLISHED",
+      },
       include: {
         training: true,
-        questions: {
-          orderBy: { orderIndex: "asc" },
-          include: {
-            question: {
-              include: {
-                answerOptions: {
-                  orderBy: {
-                    orderIndex: "asc",
-                  },
-                },
-              },
-            },
-          },
-        },
+      },
+      orderBy: {
+        updatedAt: "desc",
       },
     });
 
@@ -56,18 +98,55 @@ const getAssessment = async (req, res) => {
 
     const assessment = await prisma.assessment.findUnique({
       where: { id: Number(id) },
+      include: assessmentDetailInclude,
+    });
+
+    if (!assessment) {
+      return res.status(404).json({ error: "Assessment not found" });
+    }
+
+    if (!canManageAssessments(req.user) && assessment.status !== "PUBLISHED") {
+      return res.status(403).json({ error: "This assessment is not available." });
+    }
+
+    res.json(assessment);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+const getAssessmentResults = async (req, res) => {
+  try {
+    const assessmentId = parseId(req.params.id);
+
+    if (!assessmentId) {
+      return res.status(400).json({ error: "Assessment id must be a positive integer" });
+    }
+
+    const assessment = await prisma.assessment.findUnique({
+      where: { id: assessmentId },
       include: {
         training: true,
         questions: {
           orderBy: { orderIndex: "asc" },
           include: {
-            question: {
+            question: true,
+          },
+        },
+        attempts: {
+          orderBy: { createdAt: "desc" },
+          include: {
+            user: {
+              select: {
+                id: true,
+                name: true,
+                email: true,
+                role: true,
+              },
+            },
+            answers: {
               include: {
-                answerOptions: {
-                  orderBy: {
-                    orderIndex: "asc",
-                  },
-                },
+                question: true,
               },
             },
           },
@@ -79,23 +158,111 @@ const getAssessment = async (req, res) => {
       return res.status(404).json({ error: "Assessment not found" });
     }
 
-    res.json(assessment);
+    const submittedAttempts = assessment.attempts.filter(
+      (attempt) => attempt.status === "SUBMITTED"
+    );
+    const scoredAttempts = submittedAttempts.filter(
+      (attempt) => typeof attempt.score === "number"
+    );
+    const percentageAttempts = submittedAttempts.filter(
+      (attempt) =>
+        typeof attempt.score === "number" &&
+        typeof attempt.maxScore === "number" &&
+        attempt.maxScore > 0
+    );
+
+    const averageScore =
+      scoredAttempts.length > 0
+        ? scoredAttempts.reduce((total, attempt) => total + attempt.score, 0) /
+          scoredAttempts.length
+        : null;
+
+    const averagePercentage =
+      percentageAttempts.length > 0
+        ? percentageAttempts.reduce(
+            (total, attempt) => total + (attempt.score / attempt.maxScore) * 100,
+            0
+          ) / percentageAttempts.length
+        : null;
+
+    const questionStats = assessment.questions.map((assessmentQuestion) => {
+      const answers = submittedAttempts.flatMap((attempt) =>
+        attempt.answers.filter(
+          (answer) => answer.questionId === assessmentQuestion.questionId
+        )
+      );
+      const gradedAnswers = answers.filter(
+        (answer) => typeof answer.pointsAwarded === "number"
+      );
+      const correctAnswers = answers.filter((answer) => answer.isCorrect === true);
+      const attemptsCount = answers.length;
+
+      return {
+        questionId: assessmentQuestion.questionId,
+        title: assessmentQuestion.question?.title ?? null,
+        attemptsCount,
+        correctCount: correctAnswers.length,
+        correctRate:
+          attemptsCount > 0 ? (correctAnswers.length / attemptsCount) * 100 : null,
+        averagePoints:
+          gradedAnswers.length > 0
+            ? gradedAnswers.reduce(
+                (total, answer) => total + answer.pointsAwarded,
+                0
+              ) / gradedAnswers.length
+            : null,
+      };
+    });
+
+    res.json({
+      assessment: {
+        id: assessment.id,
+        title: assessment.title,
+        type: assessment.type,
+        status: assessment.status,
+        training: assessment.training,
+      },
+      summary: {
+        assignedParticipants: null,
+        submittedAttempts: submittedAttempts.length,
+        averageScore,
+        averagePercentage,
+      },
+      attempts: assessment.attempts.map((attempt) => ({
+        id: attempt.id,
+        user: attempt.user,
+        status: attempt.status,
+        score: attempt.score,
+        maxScore: attempt.maxScore,
+        submittedAt: attempt.submittedAt,
+        answersCount: attempt.answers.length,
+      })),
+      questionStats,
+    });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 };
 
-const validateQuestions = async (questionItems) => {
+const validateQuestions = async (questionItems, trainingId) => {
   const questionIds = questionItems.map((item) => item.questionId);
   const uniqueQuestionIds = [...new Set(questionIds)];
+  const parsedTrainingId = parseId(trainingId);
 
   if (uniqueQuestionIds.length !== questionIds.length) {
     return { error: "Duplicate question IDs are not allowed" };
   }
 
+  if (!parsedTrainingId) {
+    return { error: "trainingId is required" };
+  }
+
   const questions = await prisma.question.findMany({
     where: {
       id: { in: uniqueQuestionIds },
+    },
+    include: {
+      topic: true,
     },
   });
 
@@ -106,6 +273,16 @@ const validateQuestions = async (questionItems) => {
   const invalidStatus = questions.find((question) => question.status !== "APPROVED");
   if (invalidStatus) {
     return { error: "All questions must be APPROVED to be added to an assessment" };
+  }
+
+  const wrongTraining = questions.find(
+    (question) => question.topic?.trainingId !== parsedTrainingId
+  );
+  if (wrongTraining) {
+    return {
+      error:
+        "All questions must belong to the selected training through their topic",
+    };
   }
 
   return { questionItems, questionIds: uniqueQuestionIds };
@@ -123,14 +300,14 @@ const createAssessment = async (req, res) => {
       return res.status(400).json({ error: "At least one question is required" });
     }
 
-    const questionItems = normalizeQuestionItems(questions);
-    const validation = await validateQuestions(questionItems);
-    if (validation.error) {
-      return res.status(400).json({ error: validation.error });
-    }
-
     if (!trainingId) {
       return res.status(400).json({ error: "trainingId is required" });
+    }
+
+    const questionItems = normalizeQuestionItems(questions);
+    const validation = await validateQuestions(questionItems, trainingId);
+    if (validation.error) {
+      return res.status(400).json({ error: validation.error });
     }
 
     const assessment = await prisma.assessment.create({
@@ -139,6 +316,7 @@ const createAssessment = async (req, res) => {
         description,
         trainingId: Number(trainingId),
         type,
+        status: "DRAFT",
         questions: {
           create: questionItems.map((item) => ({
             questionId: item.questionId,
@@ -276,6 +454,7 @@ const generateAssessment = async (req, res) => {
         description,
         trainingId: Number(trainingId),
         type: "QUIZ",
+        status: "DRAFT",
         questions: {
           create: selectedQuestions.slice(0, parsedCount).map((question, index) => ({
             questionId: question.id,
@@ -308,11 +487,39 @@ const updateAssessment = async (req, res) => {
 
     const existing = await prisma.assessment.findUnique({
       where: { id: Number(id) },
+      include: {
+        questions: {
+          orderBy: { orderIndex: "asc" },
+        },
+        attempts: {
+          where: {
+            status: "SUBMITTED",
+          },
+          select: {
+            id: true,
+          },
+        },
+      },
     });
 
     if (!existing) {
       return res.status(404).json({ error: "Assessment not found" });
     }
+
+    if (existing.status !== "DRAFT") {
+      return res.status(400).json({
+        error: "Only DRAFT assessments can be edited",
+      });
+    }
+
+    if (existing.attempts.length > 0) {
+      return res.status(409).json({
+        error: "Assessments with submitted attempts cannot be edited",
+      });
+    }
+
+    const effectiveTrainingId =
+      trainingId !== undefined ? Number(trainingId) : existing.trainingId;
 
     let questionUpdate = undefined;
     if (questions !== undefined) {
@@ -321,7 +528,7 @@ const updateAssessment = async (req, res) => {
       }
 
       const questionItems = normalizeQuestionItems(questions);
-      const validation = await validateQuestions(questionItems);
+      const validation = await validateQuestions(questionItems, effectiveTrainingId);
       if (validation.error) {
         return res.status(400).json({ error: validation.error });
       }
@@ -334,6 +541,16 @@ const updateAssessment = async (req, res) => {
           orderIndex: item.orderIndex,
         })),
       };
+    } else if (trainingId !== undefined) {
+      const questionItems = existing.questions.map((item) => ({
+        questionId: item.questionId,
+        points: item.points,
+        orderIndex: item.orderIndex,
+      }));
+      const validation = await validateQuestions(questionItems, effectiveTrainingId);
+      if (validation.error) {
+        return res.status(400).json({ error: validation.error });
+      }
     }
 
     const assessment = await prisma.assessment.update({
@@ -365,6 +582,39 @@ const updateAssessment = async (req, res) => {
   }
 };
 
+const updateAssessmentStatus = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status } = req.body;
+
+    if (!ASSESSMENT_STATUSES.includes(status)) {
+      return res.status(400).json({
+        error: `status must be one of: ${ASSESSMENT_STATUSES.join(", ")}`,
+      });
+    }
+
+    const existing = await prisma.assessment.findUnique({
+      where: { id: Number(id) },
+    });
+
+    if (!existing) {
+      return res.status(404).json({ error: "Assessment not found" });
+    }
+
+    const assessment = await prisma.assessment.update({
+      where: { id: Number(id) },
+      data: {
+        status,
+      },
+      include: assessmentDetailInclude,
+    });
+
+    res.json(assessment);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
 const deleteAssessment = async (req, res) => {
   try {
     const { id } = req.params;
@@ -389,9 +639,12 @@ const deleteAssessment = async (req, res) => {
 
 module.exports = {
   getAssessments,
+  getAvailableAssessments,
   getAssessment,
+  getAssessmentResults,
   createAssessment,
   generateAssessment,
   updateAssessment,
+  updateAssessmentStatus,
   deleteAssessment,
 };

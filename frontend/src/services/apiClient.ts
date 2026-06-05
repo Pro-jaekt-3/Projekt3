@@ -1,6 +1,12 @@
 import { auth } from "../lib/firebase";
 
 const API_BASE_URL = import.meta.env.VITE_API_URL;
+const API_CONFIG_ERROR =
+  "Missing frontend API configuration: set VITE_API_URL in frontend/.env.";
+
+if (!API_BASE_URL) {
+  console.warn(API_CONFIG_ERROR);
+}
 
 type ApiRequestOptions = RequestInit & {
   authRequired?: boolean;
@@ -59,6 +65,10 @@ export const apiFetch = async (
   path: string,
   options: ApiRequestOptions = {}
 ) => {
+  if (!API_BASE_URL) {
+    throw new Error(API_CONFIG_ERROR);
+  }
+
   const {
     authRequired = true,
     headers,

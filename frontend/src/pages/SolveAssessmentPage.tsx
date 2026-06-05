@@ -49,6 +49,10 @@ function SolveAssessmentPage() {
     useState(false);
   const [isSubmitted, setIsSubmitted] =
     useState(false);
+  const [submittedAttemptId, setSubmittedAttemptId] =
+    useState<number | null>(null);
+  const [isConfirmingSubmit, setIsConfirmingSubmit] =
+    useState(false);
   const [submitWarning, setSubmitWarning] =
     useState("");
   const [submitError, setSubmitError] =
@@ -65,16 +69,21 @@ function SolveAssessmentPage() {
       const assessmentData =
         await getAssessment(Number(id));
 
-      setAssessment(assessmentData);
-
       const attempt =
         await startAttempt(Number(id));
 
+      setAssessment(assessmentData);
       setAttemptId(attempt.id);
     } catch (error) {
       console.error(error);
+      setAssessment(null);
+      setAttemptId(null);
       setSubmitError(
-        "Failed to load this assessment. Please try again later."
+        error instanceof Error &&
+          error.message ===
+            "This assessment is not available."
+          ? error.message
+          : "Failed to load this assessment. Please try again later."
       );
     }
   };
@@ -111,6 +120,7 @@ function SolveAssessmentPage() {
     }));
     setSubmitWarning("");
     setSubmitError("");
+    setIsConfirmingSubmit(false);
   };
 
   const handleSubmit = async () => {
@@ -120,10 +130,14 @@ function SolveAssessmentPage() {
 
     setSubmitError("");
 
-    if (unansweredCount > 0) {
+    if (!isConfirmingSubmit) {
       setSubmitWarning(
-        `${unansweredCount} question${unansweredCount === 1 ? "" : "s"} unanswered. The attempt will still be submitted.`
+        unansweredCount > 0
+          ? `${unansweredCount} question${unansweredCount === 1 ? "" : "s"} unanswered. Review your answers, then confirm submission.`
+          : "Review your answers, then confirm submission."
       );
+      setIsConfirmingSubmit(true);
+      return;
     }
 
     try {
@@ -155,17 +169,27 @@ function SolveAssessmentPage() {
           }
         );
 
-      await submitAttempt(
+      const submittedAttempt = await submitAttempt(
         attemptId,
         formattedAnswers
       );
 
+      const responseAttemptId =
+        Number(submittedAttempt?.id);
+
+      setSubmittedAttemptId(
+        Number.isInteger(responseAttemptId) &&
+          responseAttemptId > 0
+          ? responseAttemptId
+          : null
+      );
       setIsSubmitted(true);
     } catch (error) {
       console.error(error);
       setSubmitError(
         "Failed to submit this assessment. Please try again."
       );
+      setIsConfirmingSubmit(false);
     } finally {
       setIsSubmitting(false);
     }
@@ -176,11 +200,15 @@ function SolveAssessmentPage() {
       <div className="mx-auto max-w-4xl px-8 py-10">
         <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
           <h1 className="text-3xl font-bold mb-2">
-            Loading assessment
+            {submitError
+              ? "Assessment unavailable"
+              : "Loading assessment"}
           </h1>
 
           <p className="text-slate-600">
-            Preparing your attempt...
+            {submitError
+              ? "This assessment cannot be started from this page."
+              : "Preparing your attempt..."}
           </p>
 
           {submitError && (
@@ -207,11 +235,24 @@ function SolveAssessmentPage() {
 
           <p className="mt-4 max-w-2xl text-slate-700">
             Your attempt for {assessment.title} was submitted successfully.
-            Result details are not available in the current participant
-            frontend route yet.
           </p>
 
+          {!submittedAttemptId && (
+            <p className="mt-4 max-w-2xl text-slate-700">
+              Result details are not available from the current response.
+            </p>
+          )}
+
           <div className="mt-6 flex flex-wrap gap-3">
+            {submittedAttemptId && (
+              <Link
+                to={`/my-results/${submittedAttemptId}`}
+                className="rounded-lg bg-blue-600 px-5 py-3 font-medium text-white transition hover:bg-blue-700"
+              >
+                View result
+              </Link>
+            )}
+
             <Link
               to="/my-assessments"
               className="rounded-lg bg-slate-900 px-5 py-3 font-medium text-white transition hover:bg-slate-800"
@@ -364,6 +405,13 @@ function SolveAssessmentPage() {
         </div>
       )}
 
+      {isConfirmingSubmit && !submitError && (
+        <div className="mt-4 rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-800">
+          Submit confirmation is active. Your next submit action will send
+          this attempt.
+        </div>
+      )}
+
       <div className="mt-8 flex flex-wrap items-center gap-3">
         <button
           onClick={handleSubmit}
@@ -372,7 +420,9 @@ function SolveAssessmentPage() {
         >
           {isSubmitting
             ? "Submitting..."
-            : "Submit Assessment"}
+            : isConfirmingSubmit
+              ? "Confirm Submit"
+              : "Review Submission"}
         </button>
 
         <Link

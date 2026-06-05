@@ -81,16 +81,16 @@ function TrainingsPage() {
         </h1>
 
         <p className="max-w-3xl text-lg leading-8 text-slate-600">
-          Trainings are the top-level structure for instructor content.
-          Create a training first, then add topics, learning objectives,
-          questions and assessments.
+          Trainings are the central workspace for curriculum, question
+          bank, assessments and results. Open a workspace to build and
+          monitor the full product flow for that training.
         </p>
 
         <Link
-          to="/topics"
+          to="/questions"
           className="mt-5 inline-flex rounded-lg bg-slate-900 px-5 py-3 font-medium text-white transition hover:bg-slate-800"
         >
-          Next: Add topics
+          Open Question Bank
         </Link>
       </div>
 
@@ -146,8 +146,15 @@ function TrainingsPage() {
 
               <div className="flex flex-wrap gap-3">
                 <Link
+                  to={`/trainings/${training.id}`}
+                  className="rounded-lg bg-blue-600 px-4 py-2 font-medium text-white transition hover:bg-blue-700"
+                >
+                  Open Workspace
+                </Link>
+
+                <Link
                   to={`/topics?trainingId=${training.id}`}
-                  className="rounded-lg bg-slate-900 px-4 py-2 text-white transition hover:bg-slate-800"
+                  className="rounded-lg border border-slate-300 px-4 py-2 font-medium text-slate-700 transition hover:bg-slate-100"
                 >
                   Manage Topics
                 </Link>

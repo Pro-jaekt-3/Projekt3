@@ -7,13 +7,16 @@ import QuestionsPage from "./pages/QuestionsPage";
 import TopicsPage from "./pages/TopicsPage";
 import LearningObjectivesPage from "./pages/LearningObjectivesPage";
 import TrainingsPage from "./pages/TrainingsPage";
+import TrainingDetailPage from "./pages/TrainingDetailPage";
 import EquivalentGroupsPage from "./pages/EquivalentGroupsPage";
 import AssessmentsPage from "./pages/AssessmentsPage";
+import AssessmentResultsPage from "./pages/AssessmentResultsPage";
 import SolveAssessmentPage from "./pages/SolveAssessmentPage";
 import AnalyticsPage from "./pages/AnalyticsPage";
 import AiAssistantPage from "./pages/AiAssistantPage";
 import LoginPage from "./pages/LoginPage";
 import MyAssessmentsPage from "./pages/MyAssessmentsPage";
+import ParticipantResultPage from "./pages/ParticipantResultPage";
 import ProtectedRoute from "./components/ProtectedRoute";
 import { AuthProvider } from "./auth/AuthProvider";
 
@@ -84,6 +87,20 @@ function App() {
           />
 
           <Route
+            path="/trainings/:id"
+            element={
+              <ProtectedRoute
+                allowedRoles={[
+                  "ADMIN",
+                  "INSTRUCTOR",
+                ]}
+              >
+                <TrainingDetailPage />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
             path="/equivalent-groups"
             element={
               <ProtectedRoute
@@ -112,6 +129,20 @@ function App() {
           />
 
           <Route
+            path="/assessments/:id/results"
+            element={
+              <ProtectedRoute
+                allowedRoles={[
+                  "ADMIN",
+                  "INSTRUCTOR",
+                ]}
+              >
+                <AssessmentResultsPage />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
             path="/solve-assessment/:id"
             element={
               <ProtectedRoute
@@ -134,6 +165,19 @@ function App() {
                 ]}
               >
                 <MyAssessmentsPage />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/my-results/:attemptId"
+            element={
+              <ProtectedRoute
+                allowedRoles={[
+                  "PARTICIPANT",
+                ]}
+              >
+                <ParticipantResultPage />
               </ProtectedRoute>
             }
           />

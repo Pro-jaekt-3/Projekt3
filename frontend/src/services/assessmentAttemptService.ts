@@ -34,3 +34,11 @@ export const submitAttempt = async (
     }
   );
 };
+
+export const getAttemptById = async (
+  attemptId: number
+) => {
+  return apiJsonFetch(
+    `/assessment-attempts/${attemptId}`
+  );
+};

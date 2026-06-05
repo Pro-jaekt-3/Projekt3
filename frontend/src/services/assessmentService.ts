@@ -7,6 +7,10 @@ export const getAssessments = async () => {
   return apiJsonFetch("/assessments");
 };
 
+export const getAvailableAssessments = async () => {
+  return apiJsonFetch("/assessments/available");
+};
+
 export const createAssessment = async (
   assessmentData: {
     title: string;
@@ -53,8 +57,50 @@ export const deleteAssessment = async (
   });
 };
 
+export const updateAssessmentStatus = async (
+  id: number,
+  status: "DRAFT" | "PUBLISHED" | "ARCHIVED"
+) => {
+  return apiJsonFetch(`/assessments/${id}/status`, {
+    method: "PATCH",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      status,
+    }),
+  });
+};
+
+export const updateAssessment = async (
+  id: number,
+  assessmentData: {
+    title: string;
+    description?: string;
+    trainingId: number;
+    type: string;
+    questions: number[];
+  }
+) => {
+  return apiJsonFetch(`/assessments/${id}`, {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(assessmentData),
+  });
+};
+
 export const getAssessment = async (
   id: number
 ) => {
   return apiJsonFetch(`/assessments/${id}`);
+};
+
+export const getAssessmentResults = async (
+  assessmentId: number
+) => {
+  return apiJsonFetch(
+    `/assessments/${assessmentId}/results`
+  );
 };
