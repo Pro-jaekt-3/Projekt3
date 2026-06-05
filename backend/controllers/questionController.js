@@ -1,14 +1,18 @@
 const prisma = require("../prisma/client");
 
+const questionInclude = {
+  topic: true,
+  learningObjective: true,
+  equivalentGroup: true,
+  answerOptions: {
+    orderBy: { orderIndex: "asc" },
+  },
+};
+
 const getQuestions = async (req, res) => {
   try {
     const questions = await prisma.question.findMany({
-      include: {
-        topic: true,
-        answerOptions: {
-          orderBy: { orderIndex: "asc" },
-        },
-      },
+      include: questionInclude,
     });
 
     res.json(questions);
@@ -23,12 +27,7 @@ const getQuestion = async (req, res) => {
 
     const question = await prisma.question.findUnique({
       where: { id: Number(id) },
-      include: {
-        topic: true,
-        answerOptions: {
-          orderBy: { orderIndex: "asc" },
-        },
-      },
+      include: questionInclude,
     });
 
     if (!question) {
@@ -51,6 +50,7 @@ const createQuestion = async (req, res) => {
       type,
       options,
       learningObjectiveId,
+      equivalentGroupId,
     } = req.body;
 
     const questionType = type || "OPEN";
@@ -84,6 +84,7 @@ const createQuestion = async (req, res) => {
         type: questionType,
         createdById: req.user.id,
         learningObjectiveId,
+        equivalentGroupId,
         answerOptions: options
           ? {
               create: options.map((option, index) => ({
@@ -94,12 +95,7 @@ const createQuestion = async (req, res) => {
             }
           : undefined,
       },
-      include: {
-        topic: true,
-        answerOptions: {
-          orderBy: { orderIndex: "asc" },
-        },
-      },
+      include: questionInclude,
     });
 
     res.status(201).json(question);
@@ -118,6 +114,8 @@ const updateQuestion = async (req, res) => {
       topicId,
       type,
       options,
+      learningObjectiveId,
+      equivalentGroupId,
     } = req.body;
 
     const existing = await prisma.question.findUnique({
@@ -163,6 +161,8 @@ const updateQuestion = async (req, res) => {
         ...(difficulty !== undefined && { difficulty }),
         ...(topicId !== undefined && { topicId }),
         ...(type !== undefined && { type }),
+        ...(learningObjectiveId !== undefined && { learningObjectiveId }),
+        ...(equivalentGroupId !== undefined && { equivalentGroupId }),
         ...(options
           ? {
               answerOptions: {
@@ -176,12 +176,7 @@ const updateQuestion = async (req, res) => {
             }
           : {}),
       },
-      include: {
-        topic: true,
-        answerOptions: {
-          orderBy: { orderIndex: "asc" },
-        },
-      },
+      include: questionInclude,
     });
 
     res.json(question);
@@ -244,12 +239,7 @@ const updateQuestionStatus = async (req, res) => {
     const updatedQuestion = await prisma.question.update({
       where: { id: Number(id) },
       data,
-      include: {
-        topic: true,
-        answerOptions: {
-          orderBy: { orderIndex: "asc" },
-        },
-      },
+      include: questionInclude,
     });
 
     res.json(updatedQuestion);

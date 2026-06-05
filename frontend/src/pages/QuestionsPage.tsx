@@ -56,6 +56,25 @@ type QuestionOption = {
   isCorrect: boolean;
 };
 
+const STATUS_UPDATE_ACTIONS = [
+  {
+    value: "REVIEW",
+    label: "Move to review",
+  },
+  {
+    value: "APPROVED",
+    label: "Approve",
+  },
+  {
+    value: "REJECTED",
+    label: "Reject",
+  },
+  {
+    value: "ARCHIVED",
+    label: "Archive",
+  },
+];
+
 function QuestionsPage() {
   const [searchParams] = useSearchParams();
   const initialTopicId =
@@ -85,6 +104,7 @@ function QuestionsPage() {
       isCorrect: false,
     },
   ]);
+  const [formError, setFormError] = useState("");
 
   const loadQuestions = async () => {
     try {
@@ -174,6 +194,7 @@ function QuestionsPage() {
   }));
 
   const addOption = () => {
+    setFormError("");
     setOptions([
       ...options,
       {
@@ -184,6 +205,7 @@ function QuestionsPage() {
   };
 
   const removeOption = (index: number) => {
+    setFormError("");
     setOptions(
       options.filter((_, i) => i !== index)
     );
@@ -193,6 +215,7 @@ function QuestionsPage() {
     index: number,
     value: string
   ) => {
+    setFormError("");
     const updated = [...options];
     updated[index].text = value;
     setOptions(updated);
@@ -202,6 +225,7 @@ function QuestionsPage() {
     index: number,
     checked: boolean
   ) => {
+    setFormError("");
     const updated = [...options];
     updated[index].isCorrect = checked;
     setOptions(updated);
@@ -244,7 +268,7 @@ function QuestionsPage() {
       (groupId
         ? equivalentGroupNameById.get(groupId) ||
           `Variant group ${groupId}`
-        : "No variants")
+        : "No variants yet")
     );
   };
 
@@ -252,16 +276,42 @@ function QuestionsPage() {
     e: React.FormEvent
   ) => {
     e.preventDefault();
+    setFormError("");
 
     if (!title || !description || !topicId) {
-      alert("Please fill all required fields");
+      setFormError("Please fill all required fields.");
       return;
+    }
+
+    const normalizedOptions = options.map((option) => ({
+      text: option.text.trim(),
+      isCorrect: option.isCorrect,
+    }));
+
+    const filledOptions = normalizedOptions.filter(
+      (option) => option.text.length > 0
+    );
+
+    if (type === "MULTIPLE_CHOICE") {
+      if (filledOptions.length < 2) {
+        setFormError(
+          "Multiple choice questions require at least two non-empty options."
+        );
+        return;
+      }
+
+      if (!filledOptions.some((option) => option.isCorrect)) {
+        setFormError(
+          "Multiple choice questions require at least one correct option."
+        );
+        return;
+      }
     }
 
     try {
       await createQuestion({
-        title,
-        description,
+        title: title.trim(),
+        description: description.trim(),
         difficulty,
         topicId: Number(topicId),
         learningObjectiveId:
@@ -275,7 +325,7 @@ function QuestionsPage() {
         type,
         options:
           type === "MULTIPLE_CHOICE"
-            ? options
+            ? filledOptions
             : undefined,
       });
 
@@ -296,6 +346,11 @@ function QuestionsPage() {
       loadQuestions();
     } catch (error) {
       console.error(error);
+      setFormError(
+        error instanceof Error
+          ? error.message
+          : "Failed to create question."
+      );
     }
   };
 
@@ -313,12 +368,21 @@ function QuestionsPage() {
     id: number,
     status: string
   ) => {
+    if (!status) {
+      return;
+    }
+
     try {
       await updateQuestionStatus(id, status);
 
       loadQuestions();
     } catch (error) {
       console.error(error);
+      setFormError(
+        error instanceof Error
+          ? error.message
+          : "Failed to update question status."
+      );
     }
   };
 
@@ -383,6 +447,12 @@ function QuestionsPage() {
               New questions enter the review flow through the backend's
               existing create behavior.
             </p>
+
+            {formError && (
+              <div className="mt-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+                {formError}
+              </div>
+            )}
           </div>
 
           <div className="flex flex-col gap-4">
@@ -420,9 +490,10 @@ function QuestionsPage() {
 
               <select
                 value={type}
-                onChange={(e) =>
-                  setType(e.target.value)
-                }
+                onChange={(e) => {
+                  setFormError("");
+                  setType(e.target.value);
+                }}
                 className="border border-gray-300 rounded-lg px-4 py-3"
               >
                 <option value="OPEN">
@@ -750,7 +821,7 @@ function QuestionsPage() {
 
               <div className="mt-5 flex flex-wrap items-center gap-3">
                 <select
-                  value={question.status}
+                  value=""
                   onChange={(e) =>
                     handleStatusChange(
                       question.id,
@@ -759,21 +830,18 @@ function QuestionsPage() {
                   }
                   className="border border-gray-300 rounded-lg px-3 py-2"
                 >
-                  <option value="DRAFT">
-                    DRAFT
+                  <option value="">
+                    Change status
                   </option>
-                  <option value="NEEDS_REVIEW">
-                    NEEDS REVIEW
-                  </option>
-                  <option value="REVIEW">
-                    REVIEW
-                  </option>
-                  <option value="APPROVED">
-                    APPROVED
-                  </option>
-                  <option value="REJECTED">
-                    REJECTED
-                  </option>
+
+                  {STATUS_UPDATE_ACTIONS.map((action) => (
+                    <option
+                      key={action.value}
+                      value={action.value}
+                    >
+                      {action.label}
+                    </option>
+                  ))}
                 </select>
 
                 <button
