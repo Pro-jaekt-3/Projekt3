@@ -49,6 +49,8 @@ function SolveAssessmentPage() {
     useState(false);
   const [isSubmitted, setIsSubmitted] =
     useState(false);
+  const [submittedAttemptId, setSubmittedAttemptId] =
+    useState<number | null>(null);
   const [isConfirmingSubmit, setIsConfirmingSubmit] =
     useState(false);
   const [submitWarning, setSubmitWarning] =
@@ -162,11 +164,20 @@ function SolveAssessmentPage() {
           }
         );
 
-      await submitAttempt(
+      const submittedAttempt = await submitAttempt(
         attemptId,
         formattedAnswers
       );
 
+      const responseAttemptId =
+        Number(submittedAttempt?.id);
+
+      setSubmittedAttemptId(
+        Number.isInteger(responseAttemptId) &&
+          responseAttemptId > 0
+          ? responseAttemptId
+          : null
+      );
       setIsSubmitted(true);
     } catch (error) {
       console.error(error);
@@ -215,11 +226,24 @@ function SolveAssessmentPage() {
 
           <p className="mt-4 max-w-2xl text-slate-700">
             Your attempt for {assessment.title} was submitted successfully.
-            Result details are not available in the current participant
-            frontend route yet.
           </p>
 
+          {!submittedAttemptId && (
+            <p className="mt-4 max-w-2xl text-slate-700">
+              Result details are not available from the current response.
+            </p>
+          )}
+
           <div className="mt-6 flex flex-wrap gap-3">
+            {submittedAttemptId && (
+              <Link
+                to={`/my-results/${submittedAttemptId}`}
+                className="rounded-lg bg-blue-600 px-5 py-3 font-medium text-white transition hover:bg-blue-700"
+              >
+                View result
+              </Link>
+            )}
+
             <Link
               to="/my-assessments"
               className="rounded-lg bg-slate-900 px-5 py-3 font-medium text-white transition hover:bg-slate-800"

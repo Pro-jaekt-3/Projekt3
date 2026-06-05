@@ -15,6 +15,7 @@ import AnalyticsPage from "./pages/AnalyticsPage";
 import AiAssistantPage from "./pages/AiAssistantPage";
 import LoginPage from "./pages/LoginPage";
 import MyAssessmentsPage from "./pages/MyAssessmentsPage";
+import ParticipantResultPage from "./pages/ParticipantResultPage";
 import ProtectedRoute from "./components/ProtectedRoute";
 import { AuthProvider } from "./auth/AuthProvider";
 
@@ -149,6 +150,19 @@ function App() {
                 ]}
               >
                 <MyAssessmentsPage />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/my-results/:attemptId"
+            element={
+              <ProtectedRoute
+                allowedRoles={[
+                  "PARTICIPANT",
+                ]}
+              >
+                <ParticipantResultPage />
               </ProtectedRoute>
             }
           />
