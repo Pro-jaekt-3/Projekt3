@@ -7,6 +7,7 @@ import QuestionsPage from "./pages/QuestionsPage";
 import TopicsPage from "./pages/TopicsPage";
 import LearningObjectivesPage from "./pages/LearningObjectivesPage";
 import TrainingsPage from "./pages/TrainingsPage";
+import TrainingDetailPage from "./pages/TrainingDetailPage";
 import EquivalentGroupsPage from "./pages/EquivalentGroupsPage";
 import AssessmentsPage from "./pages/AssessmentsPage";
 import SolveAssessmentPage from "./pages/SolveAssessmentPage";
@@ -79,6 +80,20 @@ function App() {
                 ]}
               >
                 <TrainingsPage />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/trainings/:id"
+            element={
+              <ProtectedRoute
+                allowedRoles={[
+                  "ADMIN",
+                  "INSTRUCTOR",
+                ]}
+              >
+                <TrainingDetailPage />
               </ProtectedRoute>
             }
           />

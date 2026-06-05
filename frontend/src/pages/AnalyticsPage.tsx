@@ -352,7 +352,9 @@ function AnalyticsPage() {
         <p className="max-w-4xl text-lg leading-8 text-slate-600">
           Use analytics to identify weak topics, weak learning objectives,
           difficulty gaps and problematic questions. Current backend data
-          supports topic, learning objective and difficulty summaries.
+          supports topic, learning objective and difficulty summaries. Use
+          this page to review results by topic, learning objective and
+          difficulty.
         </p>
 
         <div className="mt-6 flex flex-wrap gap-3">

@@ -187,9 +187,10 @@ function AssessmentsPage() {
         </h1>
 
         <p className="max-w-3xl text-lg leading-8 text-slate-600">
-          Build quizzes, pre-tests and post-tests from the question bank.
-          Participants start and solve assigned assessments from My
-          Assessments, not from this management page.
+          Create and manage assessments. Assessments are built from
+          approved questions in the question bank. Participants start and
+          solve available assessments from My Assessments, not from this
+          management page.
         </p>
       </div>
 
@@ -200,7 +201,7 @@ function AssessmentsPage() {
         <section className="flex flex-col gap-4">
           <div>
             <h2 className="text-xl font-semibold text-slate-950">
-              Basic assessment data
+              Step 1: Basic info
             </h2>
 
             <p className="mt-1 text-sm text-slate-500">
@@ -287,7 +288,7 @@ function AssessmentsPage() {
           <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
             <div>
               <h2 className="text-xl font-semibold text-slate-950">
-                Select questions
+                Step 2: Select questions
               </h2>
 
               <p className="mt-1 text-sm text-slate-500">
@@ -342,6 +343,52 @@ function AssessmentsPage() {
               ))}
             </div>
           )}
+        </section>
+
+        <section className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+          <h2 className="text-xl font-semibold text-slate-950">
+            Step 3: Preview
+          </h2>
+
+          <p className="mt-1 text-sm text-slate-500">
+            Review the assessment structure before creating it.
+          </p>
+
+          <div className="mt-4 grid gap-3 text-sm text-slate-700 md:grid-cols-2">
+            <p>
+              <strong>Title:</strong>{" "}
+              {title || "Not set"}
+            </p>
+
+            <p>
+              <strong>Type:</strong> {type}
+            </p>
+
+            <p>
+              <strong>Training:</strong>{" "}
+              {trainings.find(
+                (training) =>
+                  training.id === Number(trainingId)
+              )?.title || "Not selected"}
+            </p>
+
+            <p>
+              <strong>Questions:</strong>{" "}
+              {selectedQuestions.length} selected
+            </p>
+          </div>
+        </section>
+
+        <section className="rounded-xl border border-amber-200 bg-amber-50 p-4">
+          <h2 className="text-xl font-semibold text-slate-950">
+            Step 4: Availability
+          </h2>
+
+          <p className="mt-2 text-sm leading-6 text-amber-800">
+            In this MVP, created assessments are available for demo
+            participants. In the full version, assessments will be assigned
+            to a training or selected participants.
+          </p>
         </section>
 
         <button

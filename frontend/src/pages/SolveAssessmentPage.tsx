@@ -49,6 +49,8 @@ function SolveAssessmentPage() {
     useState(false);
   const [isSubmitted, setIsSubmitted] =
     useState(false);
+  const [isConfirmingSubmit, setIsConfirmingSubmit] =
+    useState(false);
   const [submitWarning, setSubmitWarning] =
     useState("");
   const [submitError, setSubmitError] =
@@ -111,6 +113,7 @@ function SolveAssessmentPage() {
     }));
     setSubmitWarning("");
     setSubmitError("");
+    setIsConfirmingSubmit(false);
   };
 
   const handleSubmit = async () => {
@@ -120,10 +123,14 @@ function SolveAssessmentPage() {
 
     setSubmitError("");
 
-    if (unansweredCount > 0) {
+    if (!isConfirmingSubmit) {
       setSubmitWarning(
-        `${unansweredCount} question${unansweredCount === 1 ? "" : "s"} unanswered. The attempt will still be submitted.`
+        unansweredCount > 0
+          ? `${unansweredCount} question${unansweredCount === 1 ? "" : "s"} unanswered. Review your answers, then confirm submission.`
+          : "Review your answers, then confirm submission."
       );
+      setIsConfirmingSubmit(true);
+      return;
     }
 
     try {
@@ -166,6 +173,7 @@ function SolveAssessmentPage() {
       setSubmitError(
         "Failed to submit this assessment. Please try again."
       );
+      setIsConfirmingSubmit(false);
     } finally {
       setIsSubmitting(false);
     }
@@ -364,6 +372,13 @@ function SolveAssessmentPage() {
         </div>
       )}
 
+      {isConfirmingSubmit && !submitError && (
+        <div className="mt-4 rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-800">
+          Submit confirmation is active. Your next submit action will send
+          this attempt.
+        </div>
+      )}
+
       <div className="mt-8 flex flex-wrap items-center gap-3">
         <button
           onClick={handleSubmit}
@@ -372,7 +387,9 @@ function SolveAssessmentPage() {
         >
           {isSubmitting
             ? "Submitting..."
-            : "Submit Assessment"}
+            : isConfirmingSubmit
+              ? "Confirm Submit"
+              : "Review Submission"}
         </button>
 
         <Link

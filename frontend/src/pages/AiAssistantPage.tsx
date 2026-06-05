@@ -24,17 +24,19 @@ function AiAssistantPage() {
     <div className="max-w-7xl mx-auto px-8 py-10">
       <div className="mb-10">
         <p className="mb-3 text-sm font-semibold uppercase tracking-wide text-blue-700">
-          AI assistant
+          Internal AI workspace
         </p>
 
         <h1 className="text-5xl font-bold mb-4">
-          Draft and review AI suggestions
+          AI Assistant is not a primary flow
         </h1>
 
         <p className="max-w-4xl text-lg leading-8 text-slate-600">
-          Use this workspace to request draft questions and review AI
-          suggestions before they enter the question bank. AI output is not
-          automatically approved and must be reviewed by an instructor.
+          AI help now belongs inside question creation, review and
+          assessment workflows. This legacy page remains available for
+          internal maintenance, but it is not shown in primary navigation.
+          AI output is not automatically approved and must be reviewed by
+          an instructor.
         </p>
       </div>
 

@@ -36,14 +36,18 @@ function MyAssessmentsPage() {
         </p>
 
         <h1 className="text-5xl font-bold mb-4">
-          My assessments
+          My Assessments
         </h1>
 
         <p className="max-w-3xl text-lg leading-8 text-slate-600">
-          Start an available assessment from this page. Progress and
-          completed-result grouping will be added when the API exposes
-          attempt status for the current participant.
+          Assessments available to you. Start an assessment when you are
+          ready to submit an attempt.
         </p>
+
+        <div className="mt-5 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+          For the current MVP demo, available assessments may not yet be
+          filtered by assignment.
+        </div>
       </div>
 
       {assessments.length === 0 ? (
