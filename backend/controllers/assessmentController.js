@@ -23,6 +23,16 @@ const assessmentDetailInclude = {
 const canManageAssessments = (user) =>
   user?.role === "ADMIN" || user?.role === "INSTRUCTOR";
 
+const parseId = (value) => {
+  const parsed = Number(value);
+
+  if (!Number.isInteger(parsed) || parsed <= 0) {
+    return null;
+  }
+
+  return parsed;
+};
+
 const normalizeQuestionItems = (questions) => {
   return questions.map((item, index) => {
     if (typeof item === "number") {
@@ -100,6 +110,135 @@ const getAssessment = async (req, res) => {
     }
 
     res.json(assessment);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+const getAssessmentResults = async (req, res) => {
+  try {
+    const assessmentId = parseId(req.params.id);
+
+    if (!assessmentId) {
+      return res.status(400).json({ error: "Assessment id must be a positive integer" });
+    }
+
+    const assessment = await prisma.assessment.findUnique({
+      where: { id: assessmentId },
+      include: {
+        training: true,
+        questions: {
+          orderBy: { orderIndex: "asc" },
+          include: {
+            question: true,
+          },
+        },
+        attempts: {
+          orderBy: { createdAt: "desc" },
+          include: {
+            user: {
+              select: {
+                id: true,
+                name: true,
+                email: true,
+                role: true,
+              },
+            },
+            answers: {
+              include: {
+                question: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!assessment) {
+      return res.status(404).json({ error: "Assessment not found" });
+    }
+
+    const submittedAttempts = assessment.attempts.filter(
+      (attempt) => attempt.status === "SUBMITTED"
+    );
+    const scoredAttempts = submittedAttempts.filter(
+      (attempt) => typeof attempt.score === "number"
+    );
+    const percentageAttempts = submittedAttempts.filter(
+      (attempt) =>
+        typeof attempt.score === "number" &&
+        typeof attempt.maxScore === "number" &&
+        attempt.maxScore > 0
+    );
+
+    const averageScore =
+      scoredAttempts.length > 0
+        ? scoredAttempts.reduce((total, attempt) => total + attempt.score, 0) /
+          scoredAttempts.length
+        : null;
+
+    const averagePercentage =
+      percentageAttempts.length > 0
+        ? percentageAttempts.reduce(
+            (total, attempt) => total + (attempt.score / attempt.maxScore) * 100,
+            0
+          ) / percentageAttempts.length
+        : null;
+
+    const questionStats = assessment.questions.map((assessmentQuestion) => {
+      const answers = submittedAttempts.flatMap((attempt) =>
+        attempt.answers.filter(
+          (answer) => answer.questionId === assessmentQuestion.questionId
+        )
+      );
+      const gradedAnswers = answers.filter(
+        (answer) => typeof answer.pointsAwarded === "number"
+      );
+      const correctAnswers = answers.filter((answer) => answer.isCorrect === true);
+      const attemptsCount = answers.length;
+
+      return {
+        questionId: assessmentQuestion.questionId,
+        title: assessmentQuestion.question?.title ?? null,
+        attemptsCount,
+        correctCount: correctAnswers.length,
+        correctRate:
+          attemptsCount > 0 ? (correctAnswers.length / attemptsCount) * 100 : null,
+        averagePoints:
+          gradedAnswers.length > 0
+            ? gradedAnswers.reduce(
+                (total, answer) => total + answer.pointsAwarded,
+                0
+              ) / gradedAnswers.length
+            : null,
+      };
+    });
+
+    res.json({
+      assessment: {
+        id: assessment.id,
+        title: assessment.title,
+        type: assessment.type,
+        status: assessment.status,
+        training: assessment.training,
+      },
+      summary: {
+        assignedParticipants: null,
+        submittedAttempts: submittedAttempts.length,
+        averageScore,
+        averagePercentage,
+      },
+      attempts: assessment.attempts.map((attempt) => ({
+        id: attempt.id,
+        user: attempt.user,
+        status: attempt.status,
+        score: attempt.score,
+        maxScore: attempt.maxScore,
+        submittedAt: attempt.submittedAt,
+        answersCount: attempt.answers.length,
+      })),
+      questionStats,
+    });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -446,6 +585,7 @@ module.exports = {
   getAssessments,
   getAvailableAssessments,
   getAssessment,
+  getAssessmentResults,
   createAssessment,
   generateAssessment,
   updateAssessment,

@@ -5,6 +5,7 @@ const {
   getAssessments,
   getAvailableAssessments,
   getAssessment,
+  getAssessmentResults,
   createAssessment,
   generateAssessment,
   updateAssessment,
@@ -16,6 +17,7 @@ const { requireRole } = require("../middleware/roleMiddleware");
 
 router.get("/", firebaseAuthMiddleware, requireRole("ADMIN", "INSTRUCTOR", "PARTICIPANT"), getAssessments);
 router.get("/available", firebaseAuthMiddleware, requireRole("ADMIN", "INSTRUCTOR", "PARTICIPANT"), getAvailableAssessments);
+router.get("/:id/results", firebaseAuthMiddleware, requireRole("ADMIN", "INSTRUCTOR"), getAssessmentResults);
 router.get("/:id", firebaseAuthMiddleware, requireRole("ADMIN", "INSTRUCTOR", "PARTICIPANT"), getAssessment);
 router.post("/generate", firebaseAuthMiddleware, requireRole("ADMIN", "INSTRUCTOR"), generateAssessment);
 router.post("/", firebaseAuthMiddleware, requireRole("ADMIN", "INSTRUCTOR"), createAssessment);

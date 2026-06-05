@@ -77,3 +77,11 @@ export const getAssessment = async (
 ) => {
   return apiJsonFetch(`/assessments/${id}`);
 };
+
+export const getAssessmentResults = async (
+  assessmentId: number
+) => {
+  return apiJsonFetch(
+    `/assessments/${assessmentId}/results`
+  );
+};

@@ -10,6 +10,7 @@ import TrainingsPage from "./pages/TrainingsPage";
 import TrainingDetailPage from "./pages/TrainingDetailPage";
 import EquivalentGroupsPage from "./pages/EquivalentGroupsPage";
 import AssessmentsPage from "./pages/AssessmentsPage";
+import AssessmentResultsPage from "./pages/AssessmentResultsPage";
 import SolveAssessmentPage from "./pages/SolveAssessmentPage";
 import AnalyticsPage from "./pages/AnalyticsPage";
 import AiAssistantPage from "./pages/AiAssistantPage";
@@ -123,6 +124,20 @@ function App() {
                 ]}
               >
                 <AssessmentsPage />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/assessments/:id/results"
+            element={
+              <ProtectedRoute
+                allowedRoles={[
+                  "ADMIN",
+                  "INSTRUCTOR",
+                ]}
+              >
+                <AssessmentResultsPage />
               </ProtectedRoute>
             }
           />

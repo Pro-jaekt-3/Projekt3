@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 
 import {
   getAssessments,
@@ -519,6 +520,13 @@ function AssessmentsPage() {
                       ? "Hide Preview"
                       : "Preview"}
                   </button>
+
+                  <Link
+                    to={`/assessments/${assessment.id}/results`}
+                    className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition"
+                  >
+                    View Results
+                  </Link>
 
                   {(assessment.status || "DRAFT") === "DRAFT" && (
                     <button

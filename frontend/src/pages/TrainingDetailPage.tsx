@@ -515,6 +515,13 @@ function TrainingDetailPage() {
                   {assessment.type} |{" "}
                   {assessment.questions?.length || 0} questions
                 </p>
+
+                <Link
+                  to={`/assessments/${assessment.id}/results`}
+                  className="mt-4 inline-flex rounded-lg border border-slate-300 px-4 py-2 font-medium text-slate-700 transition hover:bg-slate-100"
+                >
+                  View Results
+                </Link>
               </div>
             ))}
           </div>
