@@ -7,7 +7,7 @@ const AI_PROVIDERS = Object.freeze({
 
 const DEFAULT_PROVIDER = AI_PROVIDERS.OLLAMA;
 const DEFAULT_OLLAMA_BASE_URL = "http://localhost:11434";
-const DEFAULT_LOCAL_MODEL = "llama3.1";
+const DEFAULT_LOCAL_MODEL = "qwen3:8b";
 
 function readEnv(name, fallback = undefined) {
   const value = process.env[name];
@@ -54,12 +54,14 @@ function getProviderConfig(provider) {
 }
 
 function getDefaultAiModelConfig() {
-  const provider = normalizeProvider(readEnv("AI_DEFAULT_PROVIDER", DEFAULT_PROVIDER));
+  const provider = normalizeProvider(
+    readEnv("AI_DEFAULT_PROVIDER", readEnv("AI_PROVIDER", DEFAULT_PROVIDER))
+  );
   const providerConfig = getProviderConfig(provider);
 
   return {
     provider,
-    modelName: readEnv("AI_DEFAULT_MODEL", DEFAULT_LOCAL_MODEL),
+    modelName: readEnv("AI_DEFAULT_MODEL"),
     providerConfig,
   };
 }
@@ -74,6 +76,8 @@ function getAiConfig() {
 // TODO: Later AI endpoint issues should select the active AiModel from the database.
 module.exports = {
   AI_PROVIDERS,
+  DEFAULT_LOCAL_MODEL,
+  DEFAULT_OLLAMA_BASE_URL,
   getAiConfig,
   getProviderConfig,
   getDefaultAiModelConfig,

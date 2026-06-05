@@ -9,6 +9,7 @@ import {
 } from "../services/questionService";
 import {
   generateQuestionDraft,
+  getAiModels,
   suggestQuestionEquivalence,
 } from "../services/aiService";
 import { getEquivalentGroups } from "../services/equivalentGroupService";
@@ -59,6 +60,15 @@ type EquivalentGroup = {
 type QuestionOption = {
   text: string;
   isCorrect: boolean;
+};
+
+type AiModel = {
+  id: number;
+  provider: string;
+  modelName: string;
+  displayName?: string | null;
+  isLocal: boolean;
+  isActive: boolean;
 };
 
 const STATUS_UPDATE_ACTIONS = [
@@ -123,6 +133,8 @@ function QuestionsPage() {
   const [aiSuggestion, setAiSuggestion] = useState("");
   const [aiError, setAiError] = useState("");
   const [isAiLoading, setIsAiLoading] = useState(false);
+  const [aiModels, setAiModels] = useState<AiModel[]>([]);
+  const [selectedAiModelId, setSelectedAiModelId] = useState("");
   const [equivalenceQuestionAId, setEquivalenceQuestionAId] = useState("");
   const [equivalenceQuestionBId, setEquivalenceQuestionBId] = useState("");
 
@@ -143,15 +155,36 @@ function QuestionsPage() {
           topicData,
           objectiveData,
           equivalentGroupData,
+          aiModelData,
         ] = await Promise.all([
           getTopics(),
           getLearningObjectives(),
           getEquivalentGroups(),
+          getAiModels(),
         ]);
 
         setTopics(topicData);
         setLearningObjectives(objectiveData);
         setEquivalentGroups(equivalentGroupData);
+        setAiModels(aiModelData);
+
+        const activeModels = aiModelData.filter(
+          (model: AiModel) => model.isActive
+        );
+        const preferredModel =
+          activeModels.find(
+            (model: AiModel) =>
+              model.provider === "OLLAMA" &&
+              model.modelName === "qwen3:8b"
+          ) ||
+          activeModels.find(
+            (model: AiModel) => model.provider === "OLLAMA"
+          ) ||
+          activeModels[0];
+
+        if (preferredModel) {
+          setSelectedAiModelId(String(preferredModel.id));
+        }
       } catch (error) {
         console.error(error);
       }
@@ -383,6 +416,13 @@ function QuestionsPage() {
   const selectedObjectiveName = learningObjectiveId
     ? objectiveNameById.get(Number(learningObjectiveId)) || ""
     : "";
+  const activeAiModels = aiModels.filter((model) => model.isActive);
+  const selectedAiModel = activeAiModels.find(
+    (model) => model.id === Number(selectedAiModelId)
+  );
+  const selectedAiModelLabel = selectedAiModel
+    ? `${selectedAiModel.displayName || selectedAiModel.modelName} (${selectedAiModel.provider})`
+    : "";
 
   const handleGenerateDraft = async () => {
     setAiError("");
@@ -390,6 +430,11 @@ function QuestionsPage() {
 
     if (!selectedTopicName || !selectedObjectiveName) {
       setAiError("Select a topic and learning objective before requesting a draft.");
+      return;
+    }
+
+    if (!selectedAiModel) {
+      setAiError("Select an active AI model before requesting a draft.");
       return;
     }
 
@@ -401,11 +446,16 @@ function QuestionsPage() {
         questionType: type,
         difficulty,
         instructions: aiInstructions,
+        aiModelId: selectedAiModel.id,
       });
 
       setAiSuggestion(
-        response?.suggestion ||
+        `${response?.provider || selectedAiModel.provider} / ${
+          response?.model || selectedAiModel.modelName
+        }\n\n${
+          response?.suggestion ||
           "AI returned a response, but no suggestion text was included."
+        }`
       );
     } catch (error) {
       setAiError(
@@ -430,17 +480,27 @@ function QuestionsPage() {
       return;
     }
 
+    if (!selectedAiModel) {
+      setAiError("Select an active AI model before requesting an equivalence suggestion.");
+      return;
+    }
+
     try {
       setIsAiLoading(true);
       const response = await suggestQuestionEquivalence({
         questionAId,
         questionBId,
         instructions: aiInstructions,
+        aiModelId: selectedAiModel.id,
       });
 
       setAiSuggestion(
-        response?.suggestion ||
+        `${response?.provider || selectedAiModel.provider} / ${
+          response?.model || selectedAiModel.modelName
+        }\n\n${
+          response?.suggestion ||
           "AI returned a response, but no suggestion text was included."
+        }`
       );
     } catch (error) {
       setAiError(
@@ -925,6 +985,39 @@ function QuestionsPage() {
             </p>
 
             <div className="mt-5 grid gap-3">
+              <select
+                value={selectedAiModelId}
+                onChange={(event) => setSelectedAiModelId(event.target.value)}
+                className="app-input bg-white"
+              >
+                <option value="">Select AI model</option>
+                {activeAiModels.map((model) => (
+                  <option key={model.id} value={model.id}>
+                    {model.displayName || model.modelName} / {model.provider}
+                    {model.isLocal ? " / local" : " / cloud"}
+                  </option>
+                ))}
+              </select>
+
+              {activeAiModels.length === 0 ? (
+                <p className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+                  No active AI model is configured. Seed or activate an
+                  AiModel row before requesting AI suggestions.
+                </p>
+              ) : selectedAiModel?.provider !== "OLLAMA" ? (
+                <p className="rounded-lg border border-amber-200 bg-white p-3 text-sm text-amber-800">
+                  Only Ollama generation is currently implemented in this MVP.
+                  Select an active local Ollama model for draft and
+                  equivalence suggestions.
+                </p>
+              ) : (
+                <p className="rounded-lg border border-amber-200 bg-white p-3 text-sm text-amber-800">
+                  Selected model: {selectedAiModelLabel}. If Ollama is
+                  unavailable or the model is not installed locally, the
+                  backend will return a setup error.
+                </p>
+              )}
+
               <textarea
                 value={aiInstructions}
                 onChange={(event) => setAiInstructions(event.target.value)}
@@ -935,7 +1028,13 @@ function QuestionsPage() {
               <button
                 type="button"
                 onClick={handleGenerateDraft}
-                disabled={isAiLoading || !topicId || !learningObjectiveId}
+                disabled={
+                  isAiLoading ||
+                  !topicId ||
+                  !learningObjectiveId ||
+                  !selectedAiModel ||
+                  selectedAiModel.provider !== "OLLAMA"
+                }
                 className="app-button-primary disabled:opacity-50"
               >
                 {isAiLoading ? "Requesting AI..." : "Generate draft for review"}
@@ -972,7 +1071,13 @@ function QuestionsPage() {
               <button
                 type="button"
                 onClick={handleEquivalenceSuggestion}
-                disabled={isAiLoading || !equivalenceQuestionAId || !equivalenceQuestionBId}
+                disabled={
+                  isAiLoading ||
+                  !equivalenceQuestionAId ||
+                  !equivalenceQuestionBId ||
+                  !selectedAiModel ||
+                  selectedAiModel.provider !== "OLLAMA"
+                }
                 className="app-button-secondary disabled:opacity-50"
               >
                 Check equivalence for review

@@ -86,20 +86,75 @@ http://localhost:3000
 
 ## Backend AI configuration
 
-The backend has centralized AI provider configuration in `backend/config/ai.js`.
-This only prepares provider/model settings; it does not add AI routes or make AI calls.
+The backend has centralized AI provider configuration in `backend/config/ai.js`
+and exposes authenticated AI endpoints for instructor/admin use. Local demo
+generation uses Ollama only.
+
+Check local Ollama before the demo:
+
+```bash
+ollama list
+curl http://localhost:11434/api/tags
+```
+
+Confirmed local demo models:
+- `mistral-nemo:12b`
+- `qwen3:8b`
+- `llama3.1:8b`
+- `gemma3n:e4b`
+- `gpt-oss:20b`
+
+Recommended backend environment values:
+
+```env
+AI_PROVIDER=OLLAMA
+AI_DEFAULT_PROVIDER=OLLAMA
+AI_DEFAULT_MODEL=qwen3:8b
+OLLAMA_BASE_URL=http://localhost:11434
+```
+
+Alternative stronger/slower local model:
+
+```env
+AI_DEFAULT_MODEL=gpt-oss:20b
+```
+
+The matching `AiModel` row must exist and be active:
+
+```txt
+provider=OLLAMA
+modelName=qwen3:8b
+isActive=true
+isLocal=true
+```
 
 Example backend environment values:
 
 ```env
 AI_DEFAULT_PROVIDER=OLLAMA
-AI_DEFAULT_MODEL=llama3.1
+AI_DEFAULT_MODEL=qwen3:8b
 OLLAMA_BASE_URL=http://localhost:11434
 OPENAI_API_KEY=
 OPENAI_BASE_URL=
 DEEPSEEK_API_KEY=
 DEEPSEEK_BASE_URL=
 ```
+
+If `AI_DEFAULT_MODEL` is not set, the backend uses the first active local
+Ollama `AiModel` row from the database, then the first active `AiModel` row.
+It will not generate with inactive models. If Ollama `/api/tags` is reachable,
+the selected model must also be installed locally.
+
+Useful AI endpoints:
+- `GET /ai/models`
+- `GET /ai/ollama/status`
+- `POST /ai/models/:id/test`
+- `POST /ai/question-draft`
+- `POST /ai/equivalence-suggestion`
+
+Hosted backends cannot access Ollama running on your PC unless Ollama is
+hosted on the same server or exposed through a tunnel/VPS. AI suggestions are
+advisory only and must be reviewed by an instructor before use.
 
 ## Frontend setup
 

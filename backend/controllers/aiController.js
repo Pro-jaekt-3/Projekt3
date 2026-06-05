@@ -1,5 +1,22 @@
 const prisma = require("../prisma/client");
-const { AI_PROVIDERS, getDefaultAiModelConfig } = require("../config/ai");
+const {
+  AI_PROVIDERS,
+  DEFAULT_LOCAL_MODEL,
+  getDefaultAiModelConfig,
+  getProviderConfig,
+} = require("../config/ai");
+
+const AI_MODEL_SELECT = {
+  id: true,
+  provider: true,
+  modelName: true,
+  displayName: true,
+  baseUrl: true,
+  isLocal: true,
+  isActive: true,
+  createdAt: true,
+  updatedAt: true,
+};
 
 function missingRequiredFields(body) {
   return ["topic", "learningObjective", "questionType", "difficulty"].filter((field) => {
@@ -127,6 +144,193 @@ async function callOllama({ baseUrl, modelName, prompt }) {
   return data.response || "";
 }
 
+async function getOllamaTags(baseUrl) {
+  const response = await fetch(`${baseUrl.replace(/\/$/, "")}/api/tags`);
+
+  if (!response.ok) {
+    const responseText = await response.text();
+    throw new Error(`Ollama returned ${response.status}: ${responseText}`);
+  }
+
+  const data = await response.json();
+  return Array.isArray(data.models)
+    ? data.models.map((model) => model.name).filter(Boolean)
+    : [];
+}
+
+function getModelBaseUrl(aiModel) {
+  const providerConfig = getProviderConfig(aiModel.provider);
+  return aiModel.baseUrl || providerConfig.baseUrl;
+}
+
+async function ensureOllamaModelIsInstalled(aiModel) {
+  const baseUrl = getModelBaseUrl(aiModel);
+
+  try {
+    const installedModels = await getOllamaTags(baseUrl);
+
+    if (installedModels.length > 0 && !installedModels.includes(aiModel.modelName)) {
+      return {
+        error: `Ollama model ${aiModel.modelName} is active in the database but is not installed locally. Install it with ollama pull ${aiModel.modelName}, choose another model, or mark it inactive.`,
+        status: 400,
+      };
+    }
+  } catch (error) {
+    return {
+      error: "Ollama is unavailable. Confirm Ollama is running and OLLAMA_BASE_URL is correct.",
+      details: error.message,
+      status: 502,
+    };
+  }
+
+  return null;
+}
+
+async function resolveAiModel(body = {}) {
+  const requestedAiModelId = parsePositiveIntegerId(body.aiModelId);
+  const requestedModelName =
+    typeof body.modelName === "string" && body.modelName.trim()
+      ? body.modelName.trim()
+      : null;
+  const defaultConfig = getDefaultAiModelConfig();
+
+  let aiModel = null;
+
+  if (requestedAiModelId) {
+    aiModel = await prisma.aiModel.findFirst({
+      where: {
+        id: requestedAiModelId,
+        isActive: true,
+      },
+      select: AI_MODEL_SELECT,
+    });
+
+    if (!aiModel) {
+      return {
+        error: `AI model ${requestedAiModelId} is missing or inactive.`,
+        status: 400,
+      };
+    }
+  } else if (requestedModelName) {
+    aiModel = await prisma.aiModel.findFirst({
+      where: {
+        modelName: requestedModelName,
+        isActive: true,
+      },
+      orderBy: [
+        {
+          provider: "asc",
+        },
+        {
+          isLocal: "desc",
+        },
+      ],
+      select: AI_MODEL_SELECT,
+    });
+
+    if (!aiModel) {
+      return {
+        error: `AI model ${requestedModelName} is missing or inactive.`,
+        status: 400,
+      };
+    }
+  } else if (defaultConfig.modelName) {
+    aiModel = await prisma.aiModel.findFirst({
+      where: {
+        provider: defaultConfig.provider,
+        modelName: defaultConfig.modelName,
+        isActive: true,
+      },
+      select: AI_MODEL_SELECT,
+    });
+
+    if (!aiModel) {
+      return {
+        error: `AI_DEFAULT_MODEL ${defaultConfig.modelName} is missing or inactive in the database.`,
+        status: 400,
+      };
+    }
+  } else {
+    const localOllamaModels = await prisma.aiModel.findMany({
+      where: {
+        provider: AI_PROVIDERS.OLLAMA,
+        isLocal: true,
+        isActive: true,
+      },
+      orderBy: [
+        {
+          modelName: "asc",
+        },
+      ],
+      select: AI_MODEL_SELECT,
+    });
+    aiModel =
+      localOllamaModels.find((model) => model.modelName === DEFAULT_LOCAL_MODEL) ||
+      localOllamaModels[0];
+
+    if (!aiModel) {
+      aiModel = await prisma.aiModel.findFirst({
+        where: {
+          isActive: true,
+        },
+        orderBy: [
+          {
+            isLocal: "desc",
+          },
+          {
+            provider: "asc",
+          },
+          {
+            modelName: "asc",
+          },
+        ],
+        select: AI_MODEL_SELECT,
+      });
+    }
+  }
+
+  if (!aiModel) {
+    return {
+      error: "No active AI model is configured.",
+      status: 400,
+    };
+  }
+
+  if (aiModel.provider !== AI_PROVIDERS.OLLAMA) {
+    return {
+      aiModel,
+      error: "Only Ollama generation is currently implemented.",
+      status: 501,
+    };
+  }
+
+  const ollamaError = await ensureOllamaModelIsInstalled(aiModel);
+
+  if (ollamaError) {
+    return {
+      aiModel,
+      ...ollamaError,
+    };
+  }
+
+  return {
+    aiModel,
+    provider: aiModel.provider,
+    modelName: aiModel.modelName,
+    providerConfig: {
+      ...getProviderConfig(aiModel.provider),
+      baseUrl: getModelBaseUrl(aiModel),
+    },
+  };
+}
+
+function sendModelResolutionError(res, resolution) {
+  return res.status(resolution.status || 500).json({
+    error: resolution.error,
+    ...(resolution.details ? { details: resolution.details } : {}),
+  });
+}
+
 const generateQuestionDraft = async (req, res) => {
   try {
     const missingFields = missingRequiredFields(req.body);
@@ -155,29 +359,13 @@ const generateQuestionDraft = async (req, res) => {
       });
     }
 
-    const { provider, modelName, providerConfig } = getDefaultAiModelConfig();
+    const modelResolution = await resolveAiModel(req.body);
 
-    const aiModel = await prisma.aiModel.findUnique({
-      where: {
-        provider_modelName: {
-          provider,
-          modelName,
-        },
-      },
-    });
-
-    if (!aiModel || !aiModel.isActive) {
-      return res.status(500).json({
-        error: `Configured AI model is missing or inactive: ${provider}/${modelName}. Seed or configure AiModel before using this endpoint.`,
-      });
+    if (modelResolution.error) {
+      return sendModelResolutionError(res, modelResolution);
     }
 
-    if (provider !== AI_PROVIDERS.OLLAMA) {
-      return res.status(501).json({
-        error: `AI provider ${provider} is not implemented for question drafts yet.`,
-      });
-    }
-
+    const { aiModel, provider, modelName, providerConfig } = modelResolution;
     const prompt = buildQuestionDraftPrompt(req.body);
     let suggestion;
 
@@ -207,6 +395,7 @@ const generateQuestionDraft = async (req, res) => {
 
     res.status(201).json({
       suggestion,
+      aiModelId: aiModel.id,
       aiInteractionId: aiInteraction.id,
       provider,
       model: modelName,
@@ -287,29 +476,13 @@ const suggestQuestionEquivalence = async (req, res) => {
       });
     }
 
-    const { provider, modelName, providerConfig } = getDefaultAiModelConfig();
+    const modelResolution = await resolveAiModel(req.body);
 
-    const aiModel = await prisma.aiModel.findUnique({
-      where: {
-        provider_modelName: {
-          provider,
-          modelName,
-        },
-      },
-    });
-
-    if (!aiModel || !aiModel.isActive) {
-      return res.status(500).json({
-        error: `Configured AI model is missing or inactive: ${provider}/${modelName}. Seed or configure AiModel before using this endpoint.`,
-      });
+    if (modelResolution.error) {
+      return sendModelResolutionError(res, modelResolution);
     }
 
-    if (provider !== AI_PROVIDERS.OLLAMA) {
-      return res.status(501).json({
-        error: `AI provider ${provider} is not implemented for equivalence suggestions yet.`,
-      });
-    }
-
+    const { aiModel, provider, modelName, providerConfig } = modelResolution;
     const prompt = buildEquivalenceSuggestionPrompt({
       questionA,
       questionB,
@@ -344,6 +517,7 @@ const suggestQuestionEquivalence = async (req, res) => {
 
     res.status(201).json({
       aiInteractionId: aiInteraction.id,
+      aiModelId: aiModel.id,
       provider,
       model: modelName,
       reviewStatus: aiInteraction.reviewStatus,
@@ -455,17 +629,7 @@ const getAiModels = async (req, res) => {
           modelName: "asc",
         },
       ],
-      select: {
-        id: true,
-        provider: true,
-        modelName: true,
-        displayName: true,
-        baseUrl: true,
-        isLocal: true,
-        isActive: true,
-        createdAt: true,
-        updatedAt: true,
-      },
+      select: AI_MODEL_SELECT,
     });
 
     res.json(models);
@@ -476,9 +640,129 @@ const getAiModels = async (req, res) => {
   }
 };
 
+const getOllamaStatus = async (req, res) => {
+  const defaultConfig = getDefaultAiModelConfig();
+  const providerConfig = getProviderConfig(AI_PROVIDERS.OLLAMA);
+  const baseUrl = providerConfig.baseUrl;
+
+  try {
+    const [models, activeDatabaseModels] = await Promise.all([
+      getOllamaTags(baseUrl),
+      prisma.aiModel.findMany({
+        where: {
+          provider: AI_PROVIDERS.OLLAMA,
+          isActive: true,
+        },
+        orderBy: [
+          {
+            isLocal: "desc",
+          },
+          {
+            modelName: "asc",
+          },
+        ],
+        select: AI_MODEL_SELECT,
+      }),
+    ]);
+
+    res.json({
+      reachable: true,
+      baseUrl,
+      models,
+      configuredDefaultModel: defaultConfig.modelName || DEFAULT_LOCAL_MODEL,
+      activeDatabaseModels,
+    });
+  } catch (error) {
+    const activeDatabaseModels = await prisma.aiModel.findMany({
+      where: {
+        provider: AI_PROVIDERS.OLLAMA,
+        isActive: true,
+      },
+      orderBy: [
+        {
+          isLocal: "desc",
+        },
+        {
+          modelName: "asc",
+        },
+      ],
+      select: AI_MODEL_SELECT,
+    });
+
+    res.json({
+      reachable: false,
+      baseUrl,
+      models: [],
+      configuredDefaultModel: defaultConfig.modelName || DEFAULT_LOCAL_MODEL,
+      activeDatabaseModels,
+      error: `Ollama is not reachable at ${baseUrl}. ${error.message}`,
+    });
+  }
+};
+
+const testAiModel = async (req, res) => {
+  try {
+    const aiModelId = parsePositiveIntegerId(req.params.id);
+
+    if (!aiModelId) {
+      return res.status(400).json({
+        error: "AI model id must be a positive integer.",
+      });
+    }
+
+    const aiModel = await prisma.aiModel.findUnique({
+      where: {
+        id: aiModelId,
+      },
+      select: AI_MODEL_SELECT,
+    });
+
+    if (!aiModel || !aiModel.isActive) {
+      return res.status(400).json({
+        error: `AI model ${aiModelId} is missing or inactive.`,
+      });
+    }
+
+    if (aiModel.provider !== AI_PROVIDERS.OLLAMA) {
+      return res.status(501).json({
+        error: "Only Ollama generation is currently implemented.",
+      });
+    }
+
+    const ollamaError = await ensureOllamaModelIsInstalled(aiModel);
+
+    if (ollamaError) {
+      return res.status(ollamaError.status).json({
+        error: ollamaError.error,
+        ...(ollamaError.details ? { details: ollamaError.details } : {}),
+      });
+    }
+
+    const responseText = await callOllama({
+      baseUrl: getModelBaseUrl(aiModel),
+      modelName: aiModel.modelName,
+      prompt: "Reply with exactly: OK",
+    });
+
+    res.json({
+      success: true,
+      model: aiModel.modelName,
+      provider: aiModel.provider,
+      responsePreview: responseText.slice(0, 240),
+    });
+  } catch (error) {
+    res.status(502).json({
+      error: "AI model test failed.",
+      details: error.message,
+    });
+  }
+};
+
 module.exports = {
   generateQuestionDraft,
   suggestQuestionEquivalence,
   reviewAiInteraction,
   getAiModels,
+  getOllamaStatus,
+  testAiModel,
 };

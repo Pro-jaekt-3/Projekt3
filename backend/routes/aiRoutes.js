@@ -6,6 +6,8 @@ const {
   suggestQuestionEquivalence,
   reviewAiInteraction,
   getAiModels,
+  getOllamaStatus,
+  testAiModel,
 } = require("../controllers/aiController");
 const { firebaseAuthMiddleware } = require("../middleware/firebaseAuthMiddleware");
 const { requireRole } = require("../middleware/roleMiddleware");
@@ -15,6 +17,18 @@ router.get(
   firebaseAuthMiddleware,
   requireRole("ADMIN", "INSTRUCTOR"),
   getAiModels
+);
+router.get(
+  "/ollama/status",
+  firebaseAuthMiddleware,
+  requireRole("ADMIN", "INSTRUCTOR"),
+  getOllamaStatus
+);
+router.post(
+  "/models/:id/test",
+  firebaseAuthMiddleware,
+  requireRole("ADMIN", "INSTRUCTOR"),
+  testAiModel
 );
 router.post(
   "/question-draft",

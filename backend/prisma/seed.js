@@ -610,10 +610,55 @@ async function main() {
   ]);
 
   // AI MODELS AND INTERACTION TRACE EXAMPLES
-  const ollamaModel = await upsertAiModel({
+  await upsertAiModel({
     provider: "OLLAMA",
     modelName: "gpt-oss:120b",
-    displayName: "Ollama gpt-oss:120b",
+    displayName: "Ollama gpt-oss:120b (not installed locally)",
+    baseUrl: "http://localhost:11434",
+    isLocal: true,
+    isActive: false,
+  });
+
+  const ollamaModel = await upsertAiModel({
+    provider: "OLLAMA",
+    modelName: "qwen3:8b",
+    displayName: "Qwen 3 8B Local",
+    baseUrl: "http://localhost:11434",
+    isLocal: true,
+    isActive: true,
+  });
+
+  await upsertAiModel({
+    provider: "OLLAMA",
+    modelName: "gpt-oss:20b",
+    displayName: "GPT OSS 20B Local",
+    baseUrl: "http://localhost:11434",
+    isLocal: true,
+    isActive: true,
+  });
+
+  await upsertAiModel({
+    provider: "OLLAMA",
+    modelName: "llama3.1:8b",
+    displayName: "Llama 3.1 8B Local",
+    baseUrl: "http://localhost:11434",
+    isLocal: true,
+    isActive: true,
+  });
+
+  await upsertAiModel({
+    provider: "OLLAMA",
+    modelName: "mistral-nemo:12b",
+    displayName: "Mistral Nemo 12B Local",
+    baseUrl: "http://localhost:11434",
+    isLocal: true,
+    isActive: true,
+  });
+
+  await upsertAiModel({
+    provider: "OLLAMA",
+    modelName: "gemma3n:e4b",
+    displayName: "Gemma 3n E4B Local",
     baseUrl: "http://localhost:11434",
     isLocal: true,
     isActive: true,

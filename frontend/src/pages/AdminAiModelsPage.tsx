@@ -1,7 +1,16 @@
 import { useEffect, useState } from "react";
 
-import { getAiModels } from "../services/aiService";
-import { EmptyState, PageHeader, SectionCard, StatusBadge } from "../components/ui";
+import {
+  getAiModels,
+  getOllamaStatus,
+  testAiModel,
+} from "../services/aiService";
+import {
+  EmptyState,
+  PageHeader,
+  SectionCard,
+  StatusBadge,
+} from "../components/ui";
 
 type AiModel = {
   id: number;
@@ -14,29 +23,92 @@ type AiModel = {
   updatedAt?: string;
 };
 
+type OllamaStatus = {
+  reachable: boolean;
+  baseUrl: string;
+  models: string[];
+  configuredDefaultModel?: string;
+  activeDatabaseModels: AiModel[];
+  error?: string;
+};
+
+type TestResult = {
+  message: string;
+  tone: "success" | "error";
+};
+
 function AdminAiModelsPage() {
   const [models, setModels] = useState<AiModel[]>([]);
+  const [ollamaStatus, setOllamaStatus] =
+    useState<OllamaStatus | null>(null);
   const [error, setError] = useState("");
+  const [testResults, setTestResults] = useState<
+    Record<number, TestResult>
+  >({});
+  const [testingModelId, setTestingModelId] =
+    useState<number | null>(null);
 
   useEffect(() => {
-    const loadModels = async () => {
+    const loadAiState = async () => {
       try {
         setError("");
-        setModels(await getAiModels());
+        const [modelData, statusData] = await Promise.all([
+          getAiModels(),
+          getOllamaStatus(),
+        ]);
+
+        setModels(modelData);
+        setOllamaStatus(statusData);
       } catch (loadError) {
         setError(loadError instanceof Error ? loadError.message : "Failed to load AI models.");
       }
     };
 
-    loadModels();
+    loadAiState();
   }, []);
+
+  const handleTestModel = async (model: AiModel) => {
+    try {
+      setTestingModelId(model.id);
+      setTestResults((current) => ({
+        ...current,
+        [model.id]: {
+          tone: "success",
+          message: "Testing model...",
+        },
+      }));
+
+      const result = await testAiModel(model.id);
+
+      setTestResults((current) => ({
+        ...current,
+        [model.id]: {
+          tone: "success",
+          message: `Success: ${result.responsePreview || "Model responded."}`,
+        },
+      }));
+    } catch (testError) {
+      setTestResults((current) => ({
+        ...current,
+        [model.id]: {
+          tone: "error",
+          message:
+            testError instanceof Error
+              ? testError.message
+              : "AI model test failed.",
+        },
+      }));
+    } finally {
+      setTestingModelId(null);
+    }
+  };
 
   return (
     <div className="mx-auto max-w-7xl px-8 py-10">
       <PageHeader
         eyebrow="Admin AI"
         title="AI Models"
-        description="Read-only overview of configured AI models. Model creation, secrets and live testing are intentionally not exposed in this MVP."
+        description="Local AI readiness for the MVP. Only Ollama generation is implemented; AI output remains review-only."
         actions={
           <button type="button" disabled className="app-button-primary opacity-50">
             Add Model
@@ -51,8 +123,99 @@ function AdminAiModelsPage() {
       )}
 
       <SectionCard
+        title="Ollama status"
+        description="Checks the local Ollama service configured for backend AI generation."
+      >
+        {!ollamaStatus ? (
+          <EmptyState
+            title="Ollama status unavailable"
+            description="The status endpoint has not returned data yet."
+          />
+        ) : (
+          <div className="grid gap-5 lg:grid-cols-[0.8fr_1.2fr]">
+            <div className="app-card p-5">
+              <div className="mb-4 flex items-start justify-between gap-3">
+                <div>
+                  <h2 className="text-xl font-bold text-slate-950">
+                    {ollamaStatus.reachable
+                      ? "Ollama reachable"
+                      : "Ollama not reachable"}
+                  </h2>
+                  <p className="mt-1 text-sm text-slate-500">
+                    {ollamaStatus.baseUrl}
+                  </p>
+                </div>
+                <StatusBadge
+                  status={ollamaStatus.reachable ? "Reachable" : "Offline"}
+                  tone={ollamaStatus.reachable ? "success" : "danger"}
+                />
+              </div>
+
+              <div className="grid gap-2 text-sm text-slate-600">
+                <p>
+                  <strong>Configured default:</strong>{" "}
+                  {ollamaStatus.configuredDefaultModel || "Not set"}
+                </p>
+                <p>
+                  <strong>Active DB Ollama models:</strong>{" "}
+                  {ollamaStatus.activeDatabaseModels.length}
+                </p>
+              </div>
+
+              {ollamaStatus.activeDatabaseModels.length > 0 && (
+                <div className="mt-4 flex flex-wrap gap-2">
+                  {ollamaStatus.activeDatabaseModels.map((model) => (
+                    <span
+                      key={model.id}
+                      className="rounded-full bg-emerald-50 px-3 py-1 text-sm font-medium text-emerald-700"
+                    >
+                      {model.modelName}
+                    </span>
+                  ))}
+                </div>
+              )}
+
+              {ollamaStatus.error && (
+                <p className="mt-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+                  {ollamaStatus.error}
+                </p>
+              )}
+            </div>
+
+            <div className="app-card p-5">
+              <h2 className="text-xl font-bold text-slate-950">
+                Local models returned by Ollama
+              </h2>
+              {ollamaStatus.models.length === 0 ? (
+                <p className="mt-3 text-sm text-slate-600">
+                  No local models were returned by Ollama.
+                </p>
+              ) : (
+                <div className="mt-4 flex flex-wrap gap-2">
+                  {ollamaStatus.models.map((modelName) => (
+                    <span
+                      key={modelName}
+                      className="rounded-full bg-slate-100 px-3 py-1 text-sm font-medium text-slate-700"
+                    >
+                      {modelName}
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </SectionCard>
+
+      <div className="my-8 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+        Only Ollama generation is implemented in this MVP. OpenAI, DeepSeek
+        and other providers can be listed as metadata but cannot generate
+        suggestions yet.
+      </div>
+
+      <SectionCard
         title="Configured models"
-        description="The frontend displays model metadata only. API keys and provider secrets are never sent to the client."
+        description="API keys and provider secrets are never sent to the client. Use Test for active local Ollama models."
       >
         {models.length === 0 ? (
           <EmptyState
@@ -88,8 +251,37 @@ function AdminAiModelsPage() {
                   </p>
                 </div>
 
-                <button type="button" disabled className="app-button-secondary mt-5 w-full opacity-50">
-                  Test Model Coming Soon
+                <div className="mt-4 flex flex-wrap gap-2">
+                  <StatusBadge
+                    status={model.isLocal ? "Local" : "Cloud"}
+                    tone={model.isLocal ? "success" : "primary"}
+                  />
+                  <StatusBadge status={model.provider} tone="primary" />
+                </div>
+
+                {testResults[model.id] && (
+                  <p
+                    className={`mt-4 rounded-lg border p-3 text-sm ${
+                      testResults[model.id].tone === "success"
+                        ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                        : "border-red-200 bg-red-50 text-red-700"
+                    }`}
+                  >
+                    {testResults[model.id].message}
+                  </p>
+                )}
+
+                <button
+                  type="button"
+                  disabled={
+                    testingModelId === model.id ||
+                    !model.isActive ||
+                    model.provider !== "OLLAMA"
+                  }
+                  onClick={() => handleTestModel(model)}
+                  className="app-button-secondary mt-5 w-full disabled:opacity-50"
+                >
+                  {testingModelId === model.id ? "Testing..." : "Test Model"}
                 </button>
               </div>
             ))}
