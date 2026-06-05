@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 
+import { PageHeader, SectionCard } from "../components/ui";
+
 type QuestionType =
   | "OPEN"
   | "MULTIPLE_CHOICE"
@@ -22,39 +24,39 @@ function AiAssistantPage() {
 
   return (
     <div className="max-w-7xl mx-auto px-8 py-10">
-      <div className="mb-10">
-        <p className="mb-3 text-sm font-semibold uppercase tracking-wide text-blue-700">
-          Internal AI workspace
-        </p>
-
-        <h1 className="text-5xl font-bold mb-4">
-          AI Assistant is not a primary flow
-        </h1>
-
-        <p className="max-w-4xl text-lg leading-8 text-slate-600">
-          AI help now belongs inside question creation, review and
-          assessment workflows. This legacy page remains available for
-          internal maintenance, but it is not shown in primary navigation.
-          AI output is not automatically approved and must be reviewed by
-          an instructor.
-        </p>
-      </div>
+      <PageHeader
+        eyebrow="Internal AI workspace"
+        title="AI Assistant is contextual"
+        description={
+          <>
+            AI help belongs inside question creation, review and assessment
+            workflows. This legacy page remains directly accessible, but it is
+            not shown in primary navigation. AI output is never automatically
+            approved.
+          </>
+        }
+        actions={
+          <Link to="/questions" className="app-button-primary">
+            Open Question Bank AI Helper
+          </Link>
+        }
+      />
 
       <div className="mb-8 rounded-2xl border border-amber-200 bg-amber-50 p-6">
         <h2 className="text-xl font-semibold text-slate-950">
-          Backend AI is not connected yet
+          Legacy page limitation
         </h2>
 
         <p className="mt-2 max-w-4xl text-amber-800">
-          The frontend has no existing AI service for draft questions,
-          suggestion review, accept/reject actions or equivalence checks.
-          This page is ready for that workflow, but it does not fake AI
-          results.
+          Draft and equivalence AI requests are connected contextually from the
+          Question Bank. This standalone page does not create questions or
+          review AI interactions because that would duplicate the primary
+          instructor workflow.
         </p>
       </div>
 
       <div className="grid gap-8 lg:grid-cols-[1.1fr_0.9fr]">
-        <section className="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm">
+        <section className="app-card p-6">
           <div className="mb-6">
             <h2 className="text-2xl font-semibold text-slate-950">
               Generate draft question
@@ -80,7 +82,7 @@ function AiAssistantPage() {
                   setTopicText(event.target.value)
                 }
                 placeholder="Example: Relational databases"
-                className="w-full rounded-lg border border-gray-300 px-4 py-3"
+                className="app-input"
               />
             </div>
 
@@ -96,7 +98,7 @@ function AiAssistantPage() {
                   setObjectiveText(event.target.value)
                 }
                 placeholder="Example: Explain primary and foreign keys"
-                className="w-full rounded-lg border border-gray-300 px-4 py-3"
+                className="app-input"
               />
             </div>
 
@@ -113,7 +115,7 @@ function AiAssistantPage() {
                       event.target.value as QuestionType
                     )
                   }
-                  className="w-full rounded-lg border border-gray-300 px-4 py-3"
+                  className="app-input"
                 >
                   <option value="OPEN">
                     Open question
@@ -144,7 +146,7 @@ function AiAssistantPage() {
                       Number(event.target.value)
                     )
                   }
-                  className="w-full rounded-lg border border-gray-300 px-4 py-3"
+                  className="app-input"
                 />
               </div>
             </div>
@@ -161,14 +163,14 @@ function AiAssistantPage() {
                 }
                 placeholder="Example: Avoid trick wording. Include a short SQL example."
                 rows={5}
-                className="w-full rounded-lg border border-gray-300 px-4 py-3"
+                className="app-input"
               />
             </div>
 
             <button
               type="button"
               disabled={!isAiBackendConnected}
-              className="rounded-lg bg-blue-600 px-5 py-3 font-medium text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+              className="app-button-primary disabled:opacity-50"
             >
               Generate draft question
             </button>
@@ -176,7 +178,7 @@ function AiAssistantPage() {
         </section>
 
         <aside className="flex flex-col gap-6">
-          <section className="rounded-2xl border border-blue-100 bg-blue-50 p-6">
+          <SectionCard title="Review policy">
             <h2 className="text-xl font-semibold text-slate-950">
               Review policy
             </h2>
@@ -196,9 +198,9 @@ function AiAssistantPage() {
                 AI output is not automatically approved.
               </li>
             </ul>
-          </section>
+          </SectionCard>
 
-          <section className="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm">
+          <section className="app-card p-6">
             <h2 className="text-xl font-semibold text-slate-950">
               Suggested next steps
             </h2>
@@ -206,14 +208,14 @@ function AiAssistantPage() {
             <div className="mt-4 flex flex-wrap gap-3">
               <Link
                 to="/questions"
-                className="rounded-lg bg-slate-900 px-4 py-2 font-medium text-white transition hover:bg-slate-800"
+                className="app-button-primary"
               >
                 Review Question Bank
               </Link>
 
               <Link
                 to="/topics"
-                className="rounded-lg border border-slate-300 px-4 py-2 font-medium text-slate-700 transition hover:bg-slate-100"
+                className="app-button-secondary"
               >
                 Review Topics
               </Link>
@@ -222,7 +224,7 @@ function AiAssistantPage() {
         </aside>
       </div>
 
-      <section className="mt-8 rounded-2xl border border-gray-100 bg-white p-6 shadow-sm">
+      <section className="app-card mt-8 p-6">
         <div className="mb-5 flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
           <div>
             <h2 className="text-2xl font-semibold text-slate-950">
@@ -271,7 +273,7 @@ function AiAssistantPage() {
         </div>
       </section>
 
-      <section className="mt-8 rounded-2xl border border-gray-100 bg-white p-6 shadow-sm">
+      <section className="app-card mt-8 p-6">
         <h2 className="text-2xl font-semibold text-slate-950">
           Equivalence check
         </h2>
@@ -285,7 +287,7 @@ function AiAssistantPage() {
         <button
           type="button"
           disabled
-          className="mt-5 rounded-lg bg-slate-900 px-5 py-3 font-medium text-white opacity-50"
+          className="app-button-secondary mt-5 opacity-50"
         >
           Check equivalence
         </button>

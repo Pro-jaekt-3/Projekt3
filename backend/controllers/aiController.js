@@ -441,8 +441,44 @@ const reviewAiInteraction = async (req, res) => {
   }
 };
 
+const getAiModels = async (req, res) => {
+  try {
+    const models = await prisma.aiModel.findMany({
+      orderBy: [
+        {
+          isActive: "desc",
+        },
+        {
+          provider: "asc",
+        },
+        {
+          modelName: "asc",
+        },
+      ],
+      select: {
+        id: true,
+        provider: true,
+        modelName: true,
+        displayName: true,
+        baseUrl: true,
+        isLocal: true,
+        isActive: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    });
+
+    res.json(models);
+  } catch (error) {
+    res.status(500).json({
+      error: error.message,
+    });
+  }
+};
+
 module.exports = {
   generateQuestionDraft,
   suggestQuestionEquivalence,
   reviewAiInteraction,
+  getAiModels,
 };

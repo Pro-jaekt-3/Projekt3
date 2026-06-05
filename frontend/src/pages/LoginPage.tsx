@@ -101,15 +101,25 @@ function LoginPage() {
               <p className="mb-2 text-sm font-semibold text-slate-900">
                 Email & password
               </p>
-              
+              <p className="text-sm leading-6 text-slate-600">
+                Use a Firebase account that maps to a database user role.
+              </p>
             </div>
 
             <div className="rounded-2xl border border-slate-200 bg-white/80 p-5 shadow-sm backdrop-blur">
               <p className="mb-2 text-sm font-semibold text-slate-900">
                 Google sign-in
               </p>
-              
+              <p className="text-sm leading-6 text-slate-600">
+                Google sign-in keeps the same backend role lookup.
+              </p>
             </div>
+          </div>
+
+          <div className="mt-5 rounded-2xl border border-indigo-100 bg-indigo-50 p-5 text-sm leading-6 text-indigo-900">
+            Demo account emails may include admin@example.com,
+            instructor@example.com and participant@example.com when matching
+            users exist in the database.
           </div>
         </div>
 
@@ -164,7 +174,7 @@ function LoginPage() {
             <button
               type="submit"
               disabled={isLoading}
-              className="w-full rounded-xl bg-slate-900 px-4 py-3 font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+              className="app-button-primary w-full disabled:opacity-60"
             >
               {isLoading ? "Signing in..." : "Sign in"}
             </button>
@@ -182,7 +192,7 @@ function LoginPage() {
             type="button"
             disabled={isLoading}
             onClick={handleGoogleLogin}
-            className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 font-semibold text-slate-800 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+            className="app-button-secondary w-full disabled:opacity-60"
           >
             Continue with Google
           </button>

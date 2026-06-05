@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 
 import { getAttemptById } from "../services/assessmentAttemptService";
+import { MetricCard, PageHeader, StatusBadge } from "../components/ui";
 
 type Question = {
   id: number;
@@ -188,63 +189,31 @@ function ParticipantResultPage() {
 
   return (
     <div className="mx-auto max-w-5xl px-8 py-10">
-      <div className="mb-8">
-        <p className="mb-3 text-sm font-semibold uppercase tracking-wide text-blue-700">
-          Assessment result
-        </p>
+      <PageHeader
+        eyebrow="Assessment result"
+        title={attempt.assessment?.title || "Submitted attempt"}
+        actions={
+          <Link to="/my-assessments" className="app-button-secondary">
+            Back to My Assessments
+          </Link>
+        }
+      />
 
-        <h1 className="text-4xl font-bold text-slate-950">
-          {attempt.assessment?.title ||
-            "Submitted attempt"}
-        </h1>
-
-        {hasManualReviewAnswers && (
-          <div className="mt-5 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
-            Some answers may require manual review. Auto-graded
-            values are shown where available.
-          </div>
-        )}
-      </div>
+      {hasManualReviewAnswers && (
+        <div className="mb-8 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+          Some answers may require manual review. Auto-graded values are shown
+          where available.
+        </div>
+      )}
 
       <div className="mb-8 grid gap-4 md:grid-cols-4">
-        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-          <p className="text-sm font-medium text-slate-500">
-            Score
-          </p>
-          <p className="mt-2 text-2xl font-bold text-slate-950">
-            {formatScore(
-              attempt.score,
-              attempt.maxScore
-            )}
-          </p>
-        </div>
-
-        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-          <p className="text-sm font-medium text-slate-500">
-            Status
-          </p>
-          <p className="mt-2 text-2xl font-bold text-slate-950">
-            {attempt.status || "Not available"}
-          </p>
-        </div>
-
-        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-          <p className="text-sm font-medium text-slate-500">
-            Answered
-          </p>
-          <p className="mt-2 text-2xl font-bold text-slate-950">
-            {answers.length}
-          </p>
-        </div>
-
-        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-          <p className="text-sm font-medium text-slate-500">
-            Submitted
-          </p>
-          <p className="mt-2 text-base font-semibold text-slate-950">
-            {formatDate(attempt.submittedAt)}
-          </p>
-        </div>
+        <MetricCard label="Score" value={formatScore(attempt.score, attempt.maxScore)} />
+        <MetricCard
+          label="Status"
+          value={<StatusBadge status={attempt.status || "Not available"} />}
+        />
+        <MetricCard label="Answered" value={answers.length} />
+        <MetricCard label="Submitted" value={formatDate(attempt.submittedAt)} />
       </div>
 
       <div className="mb-4 flex items-center justify-between gap-4">
@@ -252,12 +221,6 @@ function ParticipantResultPage() {
           Answers
         </h2>
 
-        <Link
-          to="/my-assessments"
-          className="rounded-lg border border-slate-300 px-4 py-2 font-medium text-slate-700 transition hover:bg-slate-100"
-        >
-          Back to My Assessments
-        </Link>
       </div>
 
       {answers.length === 0 ? (
@@ -269,7 +232,7 @@ function ParticipantResultPage() {
           {answers.map((answer, index) => (
             <div
               key={answer.id}
-              className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm"
+              className="app-card p-6"
             >
               <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                 <div>
@@ -284,9 +247,7 @@ function ParticipantResultPage() {
                 </div>
 
                 {answer.question?.type && (
-                  <span className="w-fit rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">
-                    {answer.question.type}
-                  </span>
+                  <StatusBadge status={answer.question.type} tone="neutral" />
                 )}
               </div>
 
@@ -311,11 +272,15 @@ function ParticipantResultPage() {
                     Correctness
                   </p>
                   <p className="mt-2 font-medium text-slate-900">
-                    {answer.isCorrect == null
-                      ? "Pending review"
-                      : answer.isCorrect
-                        ? "Correct"
-                        : "Incorrect"}
+                    <StatusBadge
+                      status={
+                        answer.isCorrect == null
+                          ? "Pending review"
+                          : answer.isCorrect
+                            ? "Correct"
+                            : "Incorrect"
+                      }
+                    />
                   </p>
                 </div>
 

@@ -13,6 +13,14 @@ import { getQuestions } from "../services/questionService";
 import { getLearningObjectives } from "../services/learningObjectiveService";
 import { getTopics } from "../services/topicService";
 import { getTrainings } from "../services/trainingService";
+import {
+  EmptyState,
+  FormSection,
+  KeyValue,
+  PageHeader,
+  StatusBadge,
+  Stepper,
+} from "../components/ui";
 
 type Assessment = {
   id: number;
@@ -70,12 +78,6 @@ type LearningObjective = {
   topicId: number;
 };
 
-const statusBadgeClasses: Record<string, string> = {
-  DRAFT: "bg-slate-100 text-slate-700",
-  PUBLISHED: "bg-emerald-100 text-emerald-700",
-  ARCHIVED: "bg-amber-100 text-amber-800",
-};
-
 function AssessmentsPage() {
   const [searchParams] = useSearchParams();
   const initialTrainingId =
@@ -117,6 +119,12 @@ function AssessmentsPage() {
   const selectedTrainingId = trainingId
     ? Number(trainingId)
     : null;
+
+  const wizardStep = !title || !trainingId
+    ? 1
+    : selectedQuestions.length === 0
+      ? 2
+      : 3;
 
   const trainingTopics = useMemo(
     () =>
@@ -434,323 +442,241 @@ function AssessmentsPage() {
 
   return (
     <div className="max-w-7xl mx-auto px-8 py-10">
-      <div className="mb-10">
-        <p className="mb-3 text-sm font-semibold uppercase tracking-wide text-blue-700">
-          Instructor assessment flow
-        </p>
+      <PageHeader
+        eyebrow="Instructor assessment flow"
+        title="Create and manage assessments"
+        description={
+          <>
+            Create and manage assessments from approved questions. Participants
+            start and solve available assessments from My Assessments.
+          </>
+        }
+      />
 
-        <h1 className="text-5xl font-bold mb-4">
-          Create and manage assessments
-        </h1>
-
-        <p className="max-w-3xl text-lg leading-8 text-slate-600">
-          Create and manage assessments. Assessments are built from
-          approved questions in the question bank. Participants start and
-          solve available assessments from My Assessments, not from this
-          management page.
-        </p>
+      <div className="mb-6">
+        <Stepper
+          currentStep={wizardStep}
+          steps={["Basic info", "Select questions", "Preview", "Availability"]}
+        />
       </div>
 
       <form
         onSubmit={handleSubmit}
-        className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 flex flex-col gap-6 max-w-4xl mb-10"
+        className="mb-10 grid gap-6 lg:grid-cols-[1fr_20rem]"
       >
-        <section className="flex flex-col gap-4">
-          <div>
-            <h2 className="text-xl font-semibold text-slate-950">
-              {editingAssessmentId
-                ? "Edit draft assessment"
-                : "Step 1: Basic info"}
-            </h2>
-
-            <p className="mt-1 text-sm text-slate-500">
-              Name the assessment and add optional context for participants.
-            </p>
-
+        <div className="grid gap-5">
+          <FormSection
+            title={editingAssessmentId ? "Edit draft assessment" : "Step 1: Basic info"}
+            description="Name the assessment and add optional participant-facing context."
+          >
             {formError && (
-              <div className="mt-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+              <div className="mb-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
                 {formError}
               </div>
             )}
-          </div>
 
-          <input
-            type="text"
-            placeholder="Assessment title"
-            value={title}
-            onChange={(e) =>
-              setTitle(e.target.value)
-            }
-            className="border border-gray-300 rounded-lg px-4 py-3"
-          />
+            <div className="grid gap-4">
+              <input
+                type="text"
+                placeholder="Assessment title"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                className="app-input"
+              />
 
-          <textarea
-            placeholder="Description"
-            value={description}
-            onChange={(e) =>
-              setDescription(e.target.value)
-            }
-            className="border border-gray-300 rounded-lg px-4 py-3"
-          />
-        </section>
+              <textarea
+                placeholder="Description"
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                className="app-input min-h-[96px]"
+              />
 
-        <section className="grid gap-4 md:grid-cols-2">
-          <div>
-            <label className="mb-2 block text-sm font-semibold text-slate-700">
-              Assessment type
-            </label>
-
-            <select
-              value={type}
-              onChange={(e) =>
-                setType(e.target.value)
-              }
-              className="w-full border border-gray-300 rounded-lg px-4 py-3"
-            >
-              <option value="QUIZ">
-                Quiz
-              </option>
-
-              <option value="PRE_TEST">
-                Pre Test
-              </option>
-
-              <option value="POST_TEST">
-                Post Test
-              </option>
-            </select>
-          </div>
-
-          <div>
-            <label className="mb-2 block text-sm font-semibold text-slate-700">
-              Training
-            </label>
-
-            <select
-              value={trainingId}
-              onChange={(e) =>
-                handleTrainingChange(e.target.value)
-              }
-              className="w-full border border-gray-300 rounded-lg px-4 py-3"
-            >
-              <option value="">
-                Select Training
-              </option>
-
-              {trainings.map((training) => (
-                <option
-                  key={training.id}
-                  value={training.id}
-                >
-                  {training.title}
-                </option>
-              ))}
-            </select>
-          </div>
-        </section>
-
-        <section>
-          <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-            <div>
-              <h2 className="text-xl font-semibold text-slate-950">
-                Step 2: Select questions
-              </h2>
-
-              <p className="mt-1 text-sm text-slate-500">
-                Selected questions: {selectedQuestions.length}
-              </p>
-            </div>
-
-            <span className="rounded-full bg-emerald-50 px-3 py-1 text-sm font-medium text-emerald-700">
-              Showing approved questions from selected training
-            </span>
-          </div>
-
-          {selectedTrainingId && (
-            <div className="mb-4 grid gap-3 md:grid-cols-3">
-              <select
-                value={topicFilter}
-                onChange={(e) => {
-                  setTopicFilter(e.target.value);
-                  setLearningObjectiveFilter("");
-                }}
-                className="border border-gray-300 rounded-lg px-4 py-3"
-              >
-                <option value="">
-                  All topics
-                </option>
-
-                {trainingTopics.map((topic) => (
-                  <option
-                    key={topic.id}
-                    value={topic.id}
+              <div className="grid gap-4 md:grid-cols-2">
+                <div>
+                  <label className="mb-2 block text-sm font-semibold text-slate-700">
+                    Assessment type
+                  </label>
+                  <select
+                    value={type}
+                    onChange={(e) => setType(e.target.value)}
+                    className="app-input"
                   >
-                    {topic.name}
-                  </option>
-                ))}
-              </select>
+                    <option value="QUIZ">Quiz</option>
+                    <option value="PRE_TEST">Pre Test</option>
+                    <option value="POST_TEST">Post Test</option>
+                  </select>
+                </div>
 
-              <select
-                value={learningObjectiveFilter}
-                onChange={(e) =>
-                  setLearningObjectiveFilter(
-                    e.target.value
-                  )
-                }
-                className="border border-gray-300 rounded-lg px-4 py-3"
-              >
-                <option value="">
-                  All learning objectives
-                </option>
+                <div>
+                  <label className="mb-2 block text-sm font-semibold text-slate-700">
+                    Training
+                  </label>
+                  <select
+                    value={trainingId}
+                    onChange={(e) => handleTrainingChange(e.target.value)}
+                    className="app-input"
+                  >
+                    <option value="">Select Training</option>
+                    {trainings.map((training) => (
+                      <option key={training.id} value={training.id}>
+                        {training.title}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            </div>
+          </FormSection>
 
-                {filteredLearningObjectives.map(
-                  (objective) => (
-                    <option
-                      key={objective.id}
-                      value={objective.id}
-                    >
+          <FormSection
+            title="Step 2: Select questions"
+            description={`Selected questions: ${selectedQuestions.length}. Only approved questions from the selected training are eligible.`}
+          >
+            {selectedTrainingId && (
+              <div className="mb-4 grid gap-3 md:grid-cols-3">
+                <select
+                  value={topicFilter}
+                  onChange={(e) => {
+                    setTopicFilter(e.target.value);
+                    setLearningObjectiveFilter("");
+                  }}
+                  className="app-input"
+                >
+                  <option value="">All topics</option>
+                  {trainingTopics.map((topic) => (
+                    <option key={topic.id} value={topic.id}>
+                      {topic.name}
+                    </option>
+                  ))}
+                </select>
+
+                <select
+                  value={learningObjectiveFilter}
+                  onChange={(e) => setLearningObjectiveFilter(e.target.value)}
+                  className="app-input"
+                >
+                  <option value="">All learning objectives</option>
+                  {filteredLearningObjectives.map((objective) => (
+                    <option key={objective.id} value={objective.id}>
                       {objective.title}
                     </option>
-                  )
-                )}
-              </select>
+                  ))}
+                </select>
 
-              <select
-                value={difficultyFilter}
-                onChange={(e) =>
-                  setDifficultyFilter(e.target.value)
-                }
-                className="border border-gray-300 rounded-lg px-4 py-3"
-              >
-                <option value="">
-                  All difficulties
-                </option>
-                {[1, 2, 3, 4, 5].map((value) => (
-                  <option
-                    key={value}
-                    value={value}
-                  >
-                    Difficulty {value}
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
-
-          {!selectedTrainingId ? (
-            <div className="rounded-lg border border-blue-200 bg-blue-50 p-4 text-sm text-blue-800">
-              Select a training to choose approved questions from its
-              curriculum.
-            </div>
-          ) : questions.length === 0 ? (
-            <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
-              No questions are available yet. Add questions before creating
-              an assessment.
-            </div>
-          ) : availableQuestions.length === 0 ? (
-            <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
-              No approved questions are available for this training.
-            </div>
-          ) : (
-            <div className="flex flex-col gap-2 max-h-72 overflow-y-auto border border-gray-200 rounded-lg p-4">
-              {availableQuestions.map((question) => (
-                <label
-                  key={question.id}
-                  className="flex items-center gap-3 rounded-md px-2 py-1.5 hover:bg-slate-50"
+                <select
+                  value={difficultyFilter}
+                  onChange={(e) => setDifficultyFilter(e.target.value)}
+                  className="app-input"
                 >
-                  <input
-                    type="checkbox"
-                    checked={selectedQuestions.includes(
-                      question.id
-                    )}
-                    onChange={() =>
-                      handleQuestionToggle(
-                        question.id
-                      )
-                    }
-                  />
+                  <option value="">All difficulties</option>
+                  {[1, 2, 3, 4, 5].map((value) => (
+                    <option key={value} value={value}>
+                      Difficulty {value}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
 
-                  <span>{question.title}</span>
-
-                  {question.status && (
-                    <span className="ml-auto rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600">
-                      {question.status}
+            {!selectedTrainingId ? (
+              <EmptyState
+                title="Select a training"
+                description="Choose a training to select approved questions from its curriculum."
+              />
+            ) : questions.length === 0 ? (
+              <EmptyState
+                title="No questions available"
+                description="Add questions before creating an assessment."
+              />
+            ) : availableQuestions.length === 0 ? (
+              <EmptyState
+                title="No approved questions"
+                description="Approve questions for this training before building an assessment."
+              />
+            ) : (
+              <div className="grid max-h-80 gap-2 overflow-y-auto rounded-lg border border-slate-200 p-3">
+                {availableQuestions.map((question) => (
+                  <label
+                    key={question.id}
+                    className={`flex items-start gap-3 rounded-lg border p-3 transition ${
+                      selectedQuestions.includes(question.id)
+                        ? "border-indigo-200 bg-indigo-50"
+                        : "border-slate-200 bg-white hover:bg-slate-50"
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={selectedQuestions.includes(question.id)}
+                      onChange={() => handleQuestionToggle(question.id)}
+                      className="mt-1"
+                    />
+                    <span className="min-w-0 flex-1">
+                      <span className="block font-semibold text-slate-950">
+                        {question.title}
+                      </span>
+                      <span className="mt-1 flex flex-wrap gap-2 text-xs text-slate-500">
+                        <span>{question.learningObjective?.title || "No learning objective"}</span>
+                        <span>Difficulty {question.difficulty ?? "N/A"}</span>
+                      </span>
                     </span>
-                  )}
-                </label>
-              ))}
-            </div>
-          )}
-        </section>
+                    <StatusBadge status={question.status || "APPROVED"} tone="success" />
+                  </label>
+                ))}
+              </div>
+            )}
+          </FormSection>
 
-        <section className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-          <h2 className="text-xl font-semibold text-slate-950">
-            Step 3: Preview
-          </h2>
-
-          <p className="mt-1 text-sm text-slate-500">
-            Review the assessment structure before creating it.
-          </p>
-
-          <div className="mt-4 grid gap-3 text-sm text-slate-700 md:grid-cols-2">
-            <p>
-              <strong>Title:</strong>{" "}
-              {title || "Not set"}
-            </p>
-
-            <p>
-              <strong>Type:</strong> {type}
-            </p>
-
-            <p>
-              <strong>Training:</strong>{" "}
-              {trainings.find(
-                (training) =>
-                  training.id === Number(trainingId)
-              )?.title || "Not selected"}
-            </p>
-
-            <p>
-              <strong>Questions:</strong>{" "}
-              {selectedQuestions.length} selected
-            </p>
-          </div>
-        </section>
-
-        <section className="rounded-xl border border-amber-200 bg-amber-50 p-4">
-          <h2 className="text-xl font-semibold text-slate-950">
-            Step 4: Availability
-          </h2>
-
-          <p className="mt-2 text-sm leading-6 text-amber-800">
-            New assessments are saved as drafts. Published assessments are
-            visible to demo participants. Assignment to specific
-            participants is a later step.
-          </p>
-        </section>
-
-        <button
-          type="submit"
-          className="bg-blue-600 hover:bg-blue-700 text-white rounded-lg py-3 font-medium transition disabled:cursor-not-allowed disabled:opacity-60"
-          disabled={
-            !selectedTrainingId ||
-            availableQuestions.length === 0
-          }
-        >
-          {editingAssessmentId
-            ? "Save Draft Assessment"
-            : "Create Assessment"}
-        </button>
-
-        {editingAssessmentId && (
-          <button
-            type="button"
-            onClick={resetForm}
-            className="rounded-lg border border-slate-300 px-4 py-3 font-medium text-slate-700 transition hover:bg-slate-100"
+          <FormSection
+            title="Step 4: Availability"
+            description="New assessments are saved as drafts. Publishing uses the existing status endpoint."
           >
-            Cancel edit
-          </button>
-        )}
+            <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-800">
+              Published assessments are visible to demo participants.
+              Participant-specific assignment, QR access and live sessions are
+              future work.
+            </div>
+          </FormSection>
+        </div>
+
+        <aside className="space-y-4">
+          <section className="sticky top-28 rounded-xl border border-[var(--app-border)] bg-white p-5 shadow-sm">
+            <h2 className="text-lg font-bold text-slate-950">Step 3: Preview</h2>
+            <p className="mt-1 text-sm text-slate-600">
+              Review structure before saving the draft.
+            </p>
+
+            <div className="mt-4 grid gap-3">
+              <KeyValue label="Title" value={title || "Not set"} />
+              <KeyValue label="Type" value={type} />
+              <KeyValue
+                label="Training"
+                value={
+                  trainings.find((training) => training.id === Number(trainingId))?.title ||
+                  "Not selected"
+                }
+              />
+              <KeyValue label="Questions" value={`${selectedQuestions.length} selected`} />
+            </div>
+
+            <button
+              type="submit"
+              className="app-button-primary mt-5 w-full disabled:opacity-60"
+              disabled={!selectedTrainingId || availableQuestions.length === 0}
+            >
+              {editingAssessmentId ? "Save Draft Assessment" : "Create Assessment"}
+            </button>
+
+            {editingAssessmentId && (
+              <button
+                type="button"
+                onClick={resetForm}
+                className="app-button-secondary mt-3 w-full"
+              >
+                Cancel edit
+              </button>
+            )}
+          </section>
+        </aside>
       </form>
 
       <div className="mb-5">
@@ -765,7 +691,12 @@ function AssessmentsPage() {
       </div>
 
       <div className="grid gap-6">
-        {assessments.map(
+        {assessments.length === 0 ? (
+          <EmptyState
+            title="No assessments yet"
+            description="Create a draft assessment from approved questions, then publish it when ready."
+          />
+        ) : assessments.map(
           (assessment) => {
             const isPreviewOpen =
               previewAssessmentId === assessment.id;
@@ -773,7 +704,7 @@ function AssessmentsPage() {
             return (
               <div
                 key={assessment.id}
-                className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6"
+                className="app-card p-6"
               >
                 <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
                   <div>
@@ -790,20 +721,11 @@ function AssessmentsPage() {
                     )}
                   </div>
 
-                  <span className="w-fit bg-blue-100 text-blue-700 text-sm px-3 py-1 rounded-full">
-                    {assessment.type}
-                  </span>
+                  <StatusBadge status={assessment.type} tone="primary" />
                 </div>
 
                 <div className="mt-4 flex flex-wrap items-center gap-2">
-                  <span
-                    className={`w-fit rounded-full px-3 py-1 text-sm font-semibold ${
-                      statusBadgeClasses[assessment.status || "DRAFT"] ||
-                      statusBadgeClasses.DRAFT
-                    }`}
-                  >
-                    {assessment.status || "DRAFT"}
-                  </span>
+                  <StatusBadge status={assessment.status || "DRAFT"} />
 
                   <span className="text-sm text-slate-500">
                     {assessment.status === "PUBLISHED"
@@ -845,7 +767,7 @@ function AssessmentsPage() {
                           : assessment.id
                       )
                     }
-                    className="bg-slate-900 hover:bg-slate-800 text-white px-4 py-2 rounded-lg transition"
+                    className="app-button-secondary"
                   >
                     {isPreviewOpen
                       ? "Hide Preview"
@@ -854,7 +776,7 @@ function AssessmentsPage() {
 
                   <Link
                     to={`/assessments/${assessment.id}/results`}
-                    className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition"
+                    className="app-button-primary"
                   >
                     View Results
                   </Link>
@@ -865,7 +787,7 @@ function AssessmentsPage() {
                       onClick={() =>
                         handleEdit(assessment)
                       }
-                      className="bg-slate-600 hover:bg-slate-700 text-white px-4 py-2 rounded-lg transition"
+                      className="app-button-secondary"
                     >
                       Edit
                     </button>
@@ -880,7 +802,7 @@ function AssessmentsPage() {
                           "PUBLISHED"
                         )
                       }
-                      className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg transition"
+                      className="app-button-success"
                     >
                       Publish
                     </button>
@@ -895,7 +817,7 @@ function AssessmentsPage() {
                           "ARCHIVED"
                         )
                       }
-                      className="bg-amber-600 hover:bg-amber-700 text-white px-4 py-2 rounded-lg transition"
+                      className="app-button-secondary"
                     >
                       Archive
                     </button>
@@ -910,7 +832,7 @@ function AssessmentsPage() {
                           "DRAFT"
                         )
                       }
-                      className="bg-slate-600 hover:bg-slate-700 text-white px-4 py-2 rounded-lg transition"
+                      className="app-button-secondary"
                     >
                       Move to Draft
                     </button>
@@ -922,7 +844,7 @@ function AssessmentsPage() {
                         assessment.id
                       )
                     }
-                    className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg transition"
+                    className="app-button-danger"
                   >
                     Delete
                   </button>

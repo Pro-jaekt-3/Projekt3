@@ -2,6 +2,13 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 
 import { getAssessmentResults } from "../services/assessmentService";
+import {
+  EmptyState,
+  MetricCard,
+  PageHeader,
+  SectionCard,
+  StatusBadge,
+} from "../components/ui";
 
 type AssessmentResults = {
   assessment: {
@@ -41,12 +48,6 @@ type AssessmentResults = {
     correctRate?: number | null;
     averagePoints?: number | null;
   }[];
-};
-
-const statusBadgeClasses: Record<string, string> = {
-  DRAFT: "bg-slate-100 text-slate-700",
-  PUBLISHED: "bg-emerald-100 text-emerald-700",
-  ARCHIVED: "bg-amber-100 text-amber-800",
 };
 
 const formatNumber = (value?: number | null) => {
@@ -98,32 +99,6 @@ const formatScore = (
 
   return `${formatNumber(score)} / ${formatNumber(maxScore)}`;
 };
-
-function SummaryCard({
-  label,
-  value,
-  helper,
-}: {
-  label: string;
-  value: string | number;
-  helper: string;
-}) {
-  return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-      <p className="text-sm font-medium text-slate-500">
-        {label}
-      </p>
-
-      <p className="mt-2 text-3xl font-bold text-slate-950">
-        {value}
-      </p>
-
-      <p className="mt-3 text-sm leading-6 text-slate-600">
-        {helper}
-      </p>
-    </div>
-  );
-}
 
 function AssessmentResultsPage() {
   const { id } = useParams();
@@ -234,94 +209,64 @@ function AssessmentResultsPage() {
 
   return (
     <div className="mx-auto max-w-7xl px-8 py-10">
-      <div className="mb-10">
-        <p className="mb-3 text-sm font-semibold uppercase tracking-wide text-blue-700">
-          Assessment results
-        </p>
-
-        <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-          <div>
-            <h1 className="text-5xl font-bold text-slate-950">
-              {results.assessment.title}
-            </h1>
-
-            <p className="mt-4 text-lg leading-8 text-slate-600">
-              {results.assessment.training?.title
-                ? `${results.assessment.training.title} | ${results.assessment.type}`
-                : results.assessment.type}
-            </p>
-          </div>
-
-          <span
-            className={`w-fit rounded-full px-3 py-1 text-sm font-semibold ${
-              statusBadgeClasses[results.assessment.status] ||
-              statusBadgeClasses.DRAFT
-            }`}
-          >
-            {results.assessment.status}
-          </span>
-        </div>
-      </div>
+      <PageHeader
+        eyebrow="Assessment results"
+        title={results.assessment.title}
+        description={
+          results.assessment.training?.title
+            ? `${results.assessment.training.title} | ${results.assessment.type}`
+            : results.assessment.type
+        }
+        actions={<StatusBadge status={results.assessment.status} />}
+      />
 
       {!hasSubmittedAttempts && (
-        <div className="mb-8 rounded-2xl border border-amber-200 bg-amber-50 p-6">
-          <h2 className="text-2xl font-semibold text-slate-950">
-            No submitted results yet
-          </h2>
-
-          <p className="mt-2 text-amber-800">
-            Results will appear after participants submit this assessment.
-          </p>
+        <div className="mb-8">
+          <EmptyState
+            title="No submitted results yet"
+            description="Results will appear after participants submit this assessment."
+          />
         </div>
       )}
 
       <div className="mb-10 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <SummaryCard
+        <MetricCard
           label="Submitted attempts"
           value={results.summary.submittedAttempts}
           helper="Attempts with submitted status."
         />
 
-        <SummaryCard
+        <MetricCard
           label="Average score"
           value={formatNumber(results.summary.averageScore)}
           helper="Average across submitted attempts with scores."
         />
 
-        <SummaryCard
+        <MetricCard
           label="Average percentage"
           value={formatPercentage(results.summary.averagePercentage)}
           helper="Calculated when submitted attempts include max score."
         />
 
-        <SummaryCard
+        <MetricCard
           label="Questions answered"
           value={`${answeredQuestionCount} / ${questionStats.length}`}
           helper="Questions with at least one submitted answer."
         />
       </div>
 
-      <section className="mb-8 rounded-2xl border border-gray-100 bg-white p-6 shadow-sm">
-        <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-          <div>
-            <h2 className="text-2xl font-semibold text-slate-950">
-              Attempts
-            </h2>
-
-            <p className="mt-2 text-slate-600">
-              Training assignment counts are not implemented yet, so this
-              table lists recorded attempts only.
-            </p>
-          </div>
-        </div>
-
+      <SectionCard
+        title="Attempts"
+        description="Training assignment counts are not implemented yet, so this table lists recorded attempts only."
+      >
         {results.attempts.length === 0 ? (
-          <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-5 text-slate-600">
-            Results will appear after participants submit this assessment.
-          </div>
+          <EmptyState
+            title="No attempts recorded"
+            description="Results will appear after participants submit this assessment."
+          />
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[760px]">
+            <table className="app-table min-w-[760px]">
               <thead>
                 <tr className="border-b text-sm text-slate-500">
                   <th className="py-3 text-left">
@@ -360,9 +305,7 @@ function AssessmentResultsPage() {
                       {formatScore(attempt.score, attempt.maxScore)}
                     </td>
                     <td className="py-4">
-                      <span className="rounded-full bg-slate-100 px-3 py-1 text-sm font-medium text-slate-700">
-                        {attempt.status}
-                      </span>
+                      <StatusBadge status={attempt.status} />
                     </td>
                     <td className="py-4 text-slate-700">
                       {formatDate(attempt.submittedAt)}
@@ -379,22 +322,17 @@ function AssessmentResultsPage() {
             </table>
           </div>
         )}
-      </section>
+      </SectionCard>
 
       {questionStats.length > 0 && (
-        <section className="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm">
-          <div className="mb-5">
-            <h2 className="text-2xl font-semibold text-slate-950">
-              Question statistics
-            </h2>
-
-            <p className="mt-2 text-slate-600">
-              Based on submitted answers for this assessment.
-            </p>
-          </div>
+        <div className="mt-8">
+          <SectionCard
+            title="Question statistics"
+            description="Based on submitted answers for this assessment."
+          >
 
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[760px]">
+            <table className="app-table min-w-[760px]">
               <thead>
                 <tr className="border-b text-sm text-slate-500">
                   <th className="py-3 text-left">
@@ -443,12 +381,13 @@ function AssessmentResultsPage() {
               </tbody>
             </table>
           </div>
-        </section>
+          </SectionCard>
+        </div>
       )}
 
       <Link
         to="/assessments"
-        className="mt-8 inline-flex rounded-lg border border-slate-300 px-5 py-3 font-medium text-slate-700 transition hover:bg-slate-100"
+        className="app-button-secondary mt-8"
       >
         Back to Assessments
       </Link>

@@ -6,6 +6,7 @@ import {
   createTraining,
   deleteTraining,
 } from "../services/trainingService";
+import { EmptyState, PageHeader } from "../components/ui";
 
 type Training = {
   id: number;
@@ -75,28 +76,26 @@ function TrainingsPage() {
 
   return (
     <div className="max-w-7xl mx-auto px-8 py-10">
-      <div className="mb-10">
-        <h1 className="text-5xl font-bold mb-4">
-          Trainings
-        </h1>
-
-        <p className="max-w-3xl text-lg leading-8 text-slate-600">
-          Trainings are the central workspace for curriculum, question
-          bank, assessments and results. Open a workspace to build and
-          monitor the full product flow for that training.
-        </p>
-
-        <Link
-          to="/questions"
-          className="mt-5 inline-flex rounded-lg bg-slate-900 px-5 py-3 font-medium text-white transition hover:bg-slate-800"
-        >
-          Open Question Bank
-        </Link>
-      </div>
+      <PageHeader
+        eyebrow="Instructor workspace"
+        title="My Trainings"
+        description={
+          <>
+            Trainings are the central workspace for curriculum, question
+            bank, assessments and results. Open a workspace to build and
+            monitor the full product flow for that training.
+          </>
+        }
+        actions={
+          <Link to="/questions" className="app-button-secondary">
+            Open Question Bank
+          </Link>
+        }
+      />
 
       <form
         onSubmit={handleSubmit}
-        className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 flex flex-col gap-4 max-w-xl mb-10"
+        className="app-card mb-10 grid gap-4 p-6 lg:grid-cols-[1fr_1.4fr_auto]"
       >
         <input
           type="text"
@@ -105,7 +104,7 @@ function TrainingsPage() {
           onChange={(e) =>
             setTitle(e.target.value)
           }
-          className="border border-gray-300 rounded-lg px-4 py-3"
+          className="app-input"
         />
 
         <textarea
@@ -114,22 +113,27 @@ function TrainingsPage() {
           onChange={(e) =>
             setDescription(e.target.value)
           }
-          className="border border-gray-300 rounded-lg px-4 py-3 min-h-[120px]"
+          className="app-input min-h-[48px]"
         />
 
         <button
           type="submit"
-          className="bg-blue-600 hover:bg-blue-700 text-white rounded-lg py-3 font-medium transition"
+          className="app-button-primary"
         >
-          Add Training
+          Create Training
         </button>
       </form>
 
       <div className="grid gap-6">
-        {trainings.map((training) => (
+        {trainings.length === 0 ? (
+          <EmptyState
+            title="No trainings yet"
+            description="Create a training to start building curriculum, questions and assessments in one workspace."
+          />
+        ) : trainings.map((training) => (
           <div
             key={training.id}
-            className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6"
+            className="app-card p-6"
           >
             <div className="flex flex-col gap-5 md:flex-row md:items-start md:justify-between">
               <div>
@@ -147,14 +151,14 @@ function TrainingsPage() {
               <div className="flex flex-wrap gap-3">
                 <Link
                   to={`/trainings/${training.id}`}
-                  className="rounded-lg bg-blue-600 px-4 py-2 font-medium text-white transition hover:bg-blue-700"
+                  className="app-button-primary"
                 >
                   Open Workspace
                 </Link>
 
                 <Link
                   to={`/topics?trainingId=${training.id}`}
-                  className="rounded-lg border border-slate-300 px-4 py-2 font-medium text-slate-700 transition hover:bg-slate-100"
+                  className="app-button-secondary"
                 >
                   Manage Topics
                 </Link>
@@ -163,7 +167,7 @@ function TrainingsPage() {
                   onClick={() =>
                     handleDelete(training.id)
                   }
-                  className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg transition"
+                  className="app-button-danger"
                 >
                   Delete
                 </button>

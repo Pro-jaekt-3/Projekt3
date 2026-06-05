@@ -5,10 +5,17 @@ const {
   generateQuestionDraft,
   suggestQuestionEquivalence,
   reviewAiInteraction,
+  getAiModels,
 } = require("../controllers/aiController");
 const { firebaseAuthMiddleware } = require("../middleware/firebaseAuthMiddleware");
 const { requireRole } = require("../middleware/roleMiddleware");
 
+router.get(
+  "/models",
+  firebaseAuthMiddleware,
+  requireRole("ADMIN", "INSTRUCTOR"),
+  getAiModels
+);
 router.post(
   "/question-draft",
   firebaseAuthMiddleware,

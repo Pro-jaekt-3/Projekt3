@@ -6,6 +6,13 @@ import {
   getAnalyticsByLearningObjective,
   getAnalyticsByDifficulty,
 } from "../services/analyticsService";
+import {
+  EmptyState,
+  MetricCard,
+  PageHeader,
+  SectionCard,
+  StatusBadge,
+} from "../components/ui";
 
 type TopicAnalytics = {
   topicId?: number | string;
@@ -91,44 +98,6 @@ function formatPercentage(value?: number | string) {
   return `${Math.round(percentage)}%`;
 }
 
-function SummaryCard({
-  label,
-  value,
-  helper,
-}: {
-  label: string;
-  value: string | number;
-  helper: string;
-}) {
-  return (
-    <div className="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm">
-      <p className="text-sm font-medium text-slate-500">
-        {label}
-      </p>
-
-      <h2 className="mt-2 text-4xl font-bold text-slate-950">
-        {value}
-      </h2>
-
-      <p className="mt-3 text-sm leading-6 text-slate-600">
-        {helper}
-      </p>
-    </div>
-  );
-}
-
-function EmptySection({
-  message,
-}: {
-  message: string;
-}) {
-  return (
-    <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-5 text-sm text-slate-600">
-      {message}
-    </div>
-  );
-}
-
 function AnalyticsTable({
   rows,
   labelHeader,
@@ -138,13 +107,16 @@ function AnalyticsTable({
 }) {
   if (rows.length === 0) {
     return (
-      <EmptySection message="No analytics data is available for this section yet." />
+      <EmptyState
+        title="No analytics data"
+        description="No analytics data is available for this section yet."
+      />
     );
   }
 
   return (
     <div className="overflow-x-auto">
-      <table className="w-full min-w-[640px]">
+      <table className="app-table min-w-[640px]">
         <thead>
           <tr className="border-b text-sm text-gray-500">
             <th className="text-left py-3">
@@ -190,9 +162,18 @@ function AnalyticsTable({
                 </td>
 
                 <td className="py-4">
-                  <span className={`rounded-full px-3 py-1 text-sm font-medium ${health.className}`}>
-                    {health.label}
-                  </span>
+                  <StatusBadge
+                    status={health.label}
+                    tone={
+                      health.label === "Strong"
+                        ? "success"
+                        : health.label === "No data"
+                          ? "neutral"
+                          : health.label === "Critical"
+                            ? "danger"
+                            : "warning"
+                    }
+                  />
                 </td>
               </tr>
             );
@@ -340,88 +321,78 @@ function AnalyticsPage() {
 
   return (
     <div className="max-w-7xl mx-auto px-8 py-10">
-      <div className="mb-10">
-        <p className="mb-3 text-sm font-semibold uppercase tracking-wide text-blue-700">
-          Instructor analytics
-        </p>
-
-        <h1 className="text-5xl font-bold mb-4">
-          Analytics dashboard
-        </h1>
-
-        <p className="max-w-4xl text-lg leading-8 text-slate-600">
-          Use analytics to identify weak topics, weak learning objectives,
-          difficulty gaps and problematic questions. Current backend data
-          supports topic, learning objective and difficulty summaries. Use
-          this page to review results by topic, learning objective and
-          difficulty.
-        </p>
-
-        <div className="mt-6 flex flex-wrap gap-3">
+      <PageHeader
+        eyebrow="Instructor analytics"
+        title="Analytics dashboard"
+        description={
+          <>
+            Use analytics to identify weak topics, weak learning objectives,
+            difficulty gaps and problematic questions. Current backend data
+            supports topic, learning objective and difficulty summaries.
+          </>
+        }
+        actions={
+          <>
           <Link
             to="/assessments"
-            className="rounded-lg bg-slate-900 px-5 py-3 font-medium text-white transition hover:bg-slate-800"
+            className="app-button-primary"
           >
             Review Assessments
           </Link>
 
           <Link
             to="/questions"
-            className="rounded-lg border border-slate-300 px-5 py-3 font-medium text-slate-700 transition hover:bg-slate-100"
+            className="app-button-secondary"
           >
             Review Questions
           </Link>
 
           <Link
             to="/trainings"
-            className="rounded-lg border border-slate-300 px-5 py-3 font-medium text-slate-700 transition hover:bg-slate-100"
+            className="app-button-secondary"
           >
             Improve Content
           </Link>
-        </div>
-      </div>
+          </>
+        }
+      />
 
       {!hasAnyAnalytics && (
-        <div className="mb-8 rounded-2xl border border-amber-200 bg-amber-50 p-6">
-          <h2 className="text-2xl font-semibold text-slate-950">
-            No analytics data yet
-          </h2>
-
-          <p className="mt-2 max-w-3xl text-amber-800">
-            Analytics will appear after participants submit assessments.
-            Create assessments, have participants solve them, then return
-            here to review performance.
-          </p>
+        <div className="mb-8">
+          <EmptyState
+            title="No analytics data yet"
+            description="Analytics will appear after participants submit assessments. Create assessments, have participants solve them, then return here to review performance."
+          />
         </div>
       )}
 
       <div className="grid gap-6 mb-10 md:grid-cols-2 xl:grid-cols-4">
-        <SummaryCard
+        <MetricCard
           label="Topic analytics"
           value={topicRows.length}
           helper="Topics with submitted assessment performance."
         />
 
-        <SummaryCard
+        <MetricCard
           label="Learning objectives"
           value={objectiveRows.length}
           helper="Objectives with measurable assessment outcomes."
         />
 
-        <SummaryCard
+        <MetricCard
           label="Difficulty levels"
           value={difficultyRows.length}
           helper="Difficulty bands represented in analytics."
         />
 
-        <SummaryCard
+        <MetricCard
           label="Question statistics"
           value="N/A"
           helper="Weakest-question data is not available from the current analytics API."
         />
       </div>
 
-      <div className="mb-10 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+      <div className="app-card mb-10 p-6">
         <h2 className="text-2xl font-semibold text-slate-950">
           Recommended next action
         </h2>
@@ -435,72 +406,45 @@ function AnalyticsPage() {
         </p>
       </div>
 
-      <section className="bg-white p-8 rounded-2xl shadow-sm border border-gray-100 mb-8">
-        <div className="mb-6">
-          <h2 className="text-2xl font-semibold">
-            Results by topic
-          </h2>
-
-          <p className="mt-2 text-slate-600">
-            Use this to find broad content areas where participants are
-            struggling.
-          </p>
-        </div>
-
+      <SectionCard
+        title="Results by topic"
+        description="Use this to find broad content areas where participants are struggling."
+      >
         <AnalyticsTable
           rows={topicRows}
           labelHeader="Topic"
         />
-      </section>
+      </SectionCard>
 
-      <section className="bg-white p-8 rounded-2xl shadow-sm border border-gray-100 mb-8">
-        <div className="mb-6">
-          <h2 className="text-2xl font-semibold">
-            Results by learning objective
-          </h2>
-
-          <p className="mt-2 text-slate-600">
-            Use this to identify specific outcomes that need clearer
-            instruction or better practice questions.
-          </p>
-        </div>
-
+      <div className="mt-8">
+      <SectionCard
+        title="Results by learning objective"
+        description="Use this to identify specific outcomes that need clearer instruction or better practice questions."
+      >
         <AnalyticsTable
           rows={objectiveRows}
           labelHeader="Learning Objective"
         />
-      </section>
+      </SectionCard>
+      </div>
 
-      <section className="bg-white p-8 rounded-2xl shadow-sm border border-gray-100 mb-8">
-        <div className="mb-6">
-          <h2 className="text-2xl font-semibold">
-            Results by difficulty
-          </h2>
-
-          <p className="mt-2 text-slate-600">
-            Use this to check whether assessments are too easy, too hard
-            or uneven across difficulty levels.
-          </p>
-        </div>
-
+      <div className="mt-8">
+      <SectionCard
+        title="Results by difficulty"
+        description="Use this to check whether assessments are too easy, too hard or uneven across difficulty levels."
+      >
         <AnalyticsTable
           rows={difficultyRows}
           labelHeader="Difficulty"
         />
-      </section>
+      </SectionCard>
+      </div>
 
-      <section className="bg-white p-8 rounded-2xl shadow-sm border border-gray-100">
-        <div className="mb-6">
-          <h2 className="text-2xl font-semibold">
-            Question statistics
-          </h2>
-
-          <p className="mt-2 text-slate-600">
-            Weakest-question analytics would help identify individual
-            questions that cause repeated mistakes.
-          </p>
-        </div>
-
+      <div className="mt-8">
+      <SectionCard
+        title="Question statistics"
+        description="Weakest-question analytics would help identify individual questions that cause repeated mistakes."
+      >
         <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-5">
           <p className="text-slate-700">
             The current frontend service only exposes analytics by topic,
@@ -510,12 +454,13 @@ function AnalyticsPage() {
 
           <Link
             to="/questions"
-            className="mt-4 inline-flex rounded-lg bg-slate-900 px-5 py-3 font-medium text-white transition hover:bg-slate-800"
+            className="app-button-primary mt-4"
           >
             Go to Question Bank
           </Link>
         </div>
-      </section>
+      </SectionCard>
+      </div>
     </div>
   );
 }

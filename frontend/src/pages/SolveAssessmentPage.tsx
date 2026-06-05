@@ -304,6 +304,27 @@ function SolveAssessmentPage() {
               }}
             />
           </div>
+
+          <div className="mt-4 flex flex-wrap gap-2">
+            {assessment.questions.map((assessmentQuestion, index) => {
+              const questionId = assessmentQuestion.question.id;
+              const isAnswered = Boolean(answers[questionId]?.trim());
+
+              return (
+                <a
+                  key={questionId}
+                  href={`#question-${questionId}`}
+                  className={`flex h-9 w-9 items-center justify-center rounded-lg border text-sm font-bold transition ${
+                    isAnswered
+                      ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                      : "border-slate-200 bg-white text-slate-500 hover:bg-slate-50"
+                  }`}
+                >
+                  {index + 1}
+                </a>
+              );
+            })}
+          </div>
         </div>
       </div>
 
@@ -324,7 +345,8 @@ function SolveAssessmentPage() {
             return (
               <div
                 key={question.id}
-                className="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm"
+                id={`question-${question.id}`}
+                className="scroll-mt-28 bg-white rounded-2xl border border-gray-100 p-6 shadow-sm"
               >
                 <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                   <div>

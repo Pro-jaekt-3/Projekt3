@@ -7,6 +7,7 @@ import {
 } from "../services/equivalentGroupService";
 
 import { getQuestions } from "../services/questionService";
+import { EmptyState, PageHeader } from "../components/ui";
 
 type EquivalentGroup = {
   id: number;
@@ -114,13 +115,15 @@ function EquivalentGroupsPage() {
 
   return (
     <div className="max-w-7xl mx-auto px-8 py-10">
-      <h1 className="text-6xl font-bold text-center mb-12">
-        Equivalent Groups
-      </h1>
+      <PageHeader
+        eyebrow="Contextual question maintenance"
+        title="Equivalent Groups"
+        description="Maintain equivalent question groups for comparable assessment variants. This route stays out of primary navigation."
+      />
 
       <form
         onSubmit={handleSubmit}
-        className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 flex flex-col gap-4 max-w-xl mb-10"
+        className="app-card mb-10 grid max-w-3xl gap-4 p-6 md:grid-cols-[1fr_1fr_auto]"
       >
         <input
           type="text"
@@ -129,7 +132,7 @@ function EquivalentGroupsPage() {
           onChange={(e) =>
             setName(e.target.value)
           }
-          className="border border-gray-300 rounded-lg px-4 py-3"
+          className="app-input"
         />
 
         <textarea
@@ -138,22 +141,27 @@ function EquivalentGroupsPage() {
           onChange={(e) =>
             setDescription(e.target.value)
           }
-          className="border border-gray-300 rounded-lg px-4 py-3"
+          className="app-input"
         />
 
         <button
           type="submit"
-          className="bg-blue-600 hover:bg-blue-700 text-white rounded-lg py-3 font-medium transition"
+          className="app-button-primary"
         >
           Create Group
         </button>
       </form>
 
       <div className="grid gap-6">
-        {groups.map((group) => (
+        {groups.length === 0 ? (
+          <EmptyState
+            title="No equivalent groups yet"
+            description="Create a group, then add questions that should be treated as equivalent variants."
+          />
+        ) : groups.map((group) => (
           <div
             key={group.id}
-            className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6"
+            className="app-card p-6"
           >
             <h3 className="text-2xl font-semibold mb-2">
             {group.name}
@@ -190,7 +198,7 @@ function EquivalentGroupsPage() {
                     e.target.value
                   )
                 }
-                className="border border-gray-300 rounded-lg px-4 py-2"
+                className="app-input max-w-md"
               >
                 <option value="">
                   Select Question
@@ -211,7 +219,7 @@ function EquivalentGroupsPage() {
                 onClick={() =>
                   handleAddQuestion(group.id)
                 }
-                className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg transition"
+                className="app-button-success"
               >
                 Add Question
               </button>

@@ -262,7 +262,7 @@ function TrainingDetailPage() {
 
           <div className="flex flex-wrap gap-3 lg:justify-end">
             <Link
-              to="/assessments"
+              to={`/assessments?trainingId=${training.id}`}
               className="rounded-lg bg-blue-600 px-5 py-3 font-medium text-white transition hover:bg-blue-700"
             >
               Create Assessment
@@ -276,7 +276,7 @@ function TrainingDetailPage() {
             </Link>
 
             <Link
-              to="/questions"
+              to={`/questions?trainingId=${training.id}`}
               className="rounded-lg border border-slate-300 px-5 py-3 font-medium text-slate-700 transition hover:bg-slate-100"
             >
               Add Question
@@ -292,7 +292,26 @@ function TrainingDetailPage() {
         </div>
       </header>
 
-      <section className="mb-8">
+      <nav className="mb-8 flex flex-wrap gap-2 rounded-xl border border-slate-200 bg-white p-2 shadow-sm">
+        {[
+          ["Overview", "#overview"],
+          ["Curriculum", "#curriculum"],
+          ["Question Bank", "#question-bank"],
+          ["Assessments", "#assessments"],
+          ["Results", "#results"],
+          ["Participants", "#participants"],
+        ].map(([label, href]) => (
+          <a
+            key={href}
+            href={href}
+            className="rounded-lg px-4 py-2 text-sm font-semibold text-slate-600 transition hover:bg-indigo-50 hover:text-indigo-700"
+          >
+            {label}
+          </a>
+        ))}
+      </nav>
+
+      <section id="overview" className="mb-8 scroll-mt-28">
         <h2 className="mb-4 text-2xl font-semibold text-slate-950">
           Overview
         </h2>
@@ -346,7 +365,7 @@ function TrainingDetailPage() {
         </div>
       </section>
 
-      <section className="mb-8 rounded-2xl border border-gray-100 bg-white p-6 shadow-sm">
+      <section id="curriculum" className="mb-8 scroll-mt-28 rounded-2xl border border-gray-100 bg-white p-6 shadow-sm">
         <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <h2 className="text-2xl font-semibold text-slate-950">
@@ -418,7 +437,7 @@ function TrainingDetailPage() {
         )}
       </section>
 
-      <section className="mb-8 rounded-2xl border border-gray-100 bg-white p-6 shadow-sm">
+      <section id="question-bank" className="mb-8 scroll-mt-28 rounded-2xl border border-gray-100 bg-white p-6 shadow-sm">
         <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <h2 className="text-2xl font-semibold text-slate-950">
@@ -431,7 +450,7 @@ function TrainingDetailPage() {
           </div>
 
           <Link
-            to="/questions"
+            to={`/questions?trainingId=${training.id}`}
             className="rounded-lg bg-slate-900 px-4 py-2 font-medium text-white transition hover:bg-slate-800"
           >
             Manage Question Bank
@@ -475,7 +494,7 @@ function TrainingDetailPage() {
         )}
       </section>
 
-      <section className="mb-8 rounded-2xl border border-gray-100 bg-white p-6 shadow-sm">
+      <section id="assessments" className="mb-8 scroll-mt-28 rounded-2xl border border-gray-100 bg-white p-6 shadow-sm">
         <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <h2 className="text-2xl font-semibold text-slate-950">
@@ -489,7 +508,7 @@ function TrainingDetailPage() {
           </div>
 
           <Link
-            to="/assessments"
+            to={`/assessments?trainingId=${training.id}`}
             className="rounded-lg bg-blue-600 px-4 py-2 font-medium text-white transition hover:bg-blue-700"
           >
             Create Assessment
@@ -529,7 +548,7 @@ function TrainingDetailPage() {
       </section>
 
       <div className="grid gap-8 lg:grid-cols-2">
-        <section className="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm">
+        <section id="results" className="scroll-mt-28 rounded-2xl border border-gray-100 bg-white p-6 shadow-sm">
           <h2 className="text-2xl font-semibold text-slate-950">
             Results
           </h2>
@@ -547,7 +566,7 @@ function TrainingDetailPage() {
           </Link>
         </section>
 
-        <section className="rounded-2xl border border-amber-200 bg-amber-50 p-6">
+        <section id="participants" className="scroll-mt-28 rounded-2xl border border-amber-200 bg-amber-50 p-6">
           <h2 className="text-2xl font-semibold text-slate-950">
             Participants
           </h2>

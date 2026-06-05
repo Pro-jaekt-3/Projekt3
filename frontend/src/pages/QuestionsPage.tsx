@@ -7,6 +7,10 @@ import {
   getQuestions,
   updateQuestionStatus,
 } from "../services/questionService";
+import {
+  generateQuestionDraft,
+  suggestQuestionEquivalence,
+} from "../services/aiService";
 import { getEquivalentGroups } from "../services/equivalentGroupService";
 import { getLearningObjectives } from "../services/learningObjectiveService";
 import { getTopics } from "../services/topicService";
@@ -106,6 +110,8 @@ function QuestionsPage() {
   const [equivalentGroupId, setEquivalentGroupId] =
     useState("");
   const [type, setType] = useState("OPEN");
+  const [statusFilter, setStatusFilter] = useState("");
+  const [typeFilter, setTypeFilter] = useState("");
   const [options, setOptions] = useState<QuestionOption[]>([
     {
       text: "",
@@ -113,6 +119,12 @@ function QuestionsPage() {
     },
   ]);
   const [formError, setFormError] = useState("");
+  const [aiInstructions, setAiInstructions] = useState("");
+  const [aiSuggestion, setAiSuggestion] = useState("");
+  const [aiError, setAiError] = useState("");
+  const [isAiLoading, setIsAiLoading] = useState(false);
+  const [equivalenceQuestionAId, setEquivalenceQuestionAId] = useState("");
+  const [equivalenceQuestionBId, setEquivalenceQuestionBId] = useState("");
 
   const loadQuestions = async () => {
     try {
@@ -190,7 +202,7 @@ function QuestionsPage() {
     );
   }, [learningObjectives, topicId]);
 
-  const filteredQuestions = useMemo(
+  const contextQuestions = useMemo(
     () =>
       questions.filter((question) => {
         const questionTopicId =
@@ -235,6 +247,22 @@ function QuestionsPage() {
       questions,
       topics,
     ]
+  );
+
+  const filteredQuestions = useMemo(
+    () =>
+      contextQuestions.filter((question) => {
+        if (statusFilter && question.status !== statusFilter) {
+          return false;
+        }
+
+        if (typeFilter && question.type !== typeFilter) {
+          return false;
+        }
+
+        return true;
+      }),
+    [contextQuestions, statusFilter, typeFilter]
   );
 
   const reviewQueue = filteredQuestions.filter(
@@ -347,6 +375,82 @@ function QuestionsPage() {
           `Variant group ${groupId}`
         : "No variants yet")
     );
+  };
+
+  const selectedTopicName = topicId
+    ? topicNameById.get(Number(topicId)) || ""
+    : "";
+  const selectedObjectiveName = learningObjectiveId
+    ? objectiveNameById.get(Number(learningObjectiveId)) || ""
+    : "";
+
+  const handleGenerateDraft = async () => {
+    setAiError("");
+    setAiSuggestion("");
+
+    if (!selectedTopicName || !selectedObjectiveName) {
+      setAiError("Select a topic and learning objective before requesting a draft.");
+      return;
+    }
+
+    try {
+      setIsAiLoading(true);
+      const response = await generateQuestionDraft({
+        topic: selectedTopicName,
+        learningObjective: selectedObjectiveName,
+        questionType: type,
+        difficulty,
+        instructions: aiInstructions,
+      });
+
+      setAiSuggestion(
+        response?.suggestion ||
+          "AI returned a response, but no suggestion text was included."
+      );
+    } catch (error) {
+      setAiError(
+        error instanceof Error
+          ? error.message
+          : "Failed to request an AI draft."
+      );
+    } finally {
+      setIsAiLoading(false);
+    }
+  };
+
+  const handleEquivalenceSuggestion = async () => {
+    setAiError("");
+    setAiSuggestion("");
+
+    const questionAId = Number(equivalenceQuestionAId);
+    const questionBId = Number(equivalenceQuestionBId);
+
+    if (!questionAId || !questionBId) {
+      setAiError("Select two questions before requesting an equivalence suggestion.");
+      return;
+    }
+
+    try {
+      setIsAiLoading(true);
+      const response = await suggestQuestionEquivalence({
+        questionAId,
+        questionBId,
+        instructions: aiInstructions,
+      });
+
+      setAiSuggestion(
+        response?.suggestion ||
+          "AI returned a response, but no suggestion text was included."
+      );
+    } catch (error) {
+      setAiError(
+        error instanceof Error
+          ? error.message
+          : "Failed to request an equivalence suggestion."
+      );
+    } finally {
+      setIsAiLoading(false);
+    }
   };
 
   const handleSubmit = async (
@@ -545,6 +649,46 @@ function QuestionsPage() {
             </div>
           </div>
         )}
+      </div>
+
+      <div className="mb-8 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+        <div className="grid gap-3 md:grid-cols-[1fr_1fr_auto]">
+          <select
+            value={statusFilter}
+            onChange={(event) => setStatusFilter(event.target.value)}
+            className="app-input"
+          >
+            <option value="">All statuses</option>
+            <option value="DRAFT">Draft</option>
+            <option value="NEEDS_REVIEW">Needs Review</option>
+            <option value="REVIEW">Review</option>
+            <option value="APPROVED">Approved</option>
+            <option value="REJECTED">Rejected</option>
+            <option value="ARCHIVED">Archived</option>
+          </select>
+
+          <select
+            value={typeFilter}
+            onChange={(event) => setTypeFilter(event.target.value)}
+            className="app-input"
+          >
+            <option value="">All question types</option>
+            <option value="OPEN">Open Question</option>
+            <option value="MULTIPLE_CHOICE">Multiple Choice</option>
+            <option value="CODE">Code Question</option>
+          </select>
+
+          <button
+            type="button"
+            onClick={() => {
+              setStatusFilter("");
+              setTypeFilter("");
+            }}
+            className="app-button-secondary"
+          >
+            Clear Filters
+          </button>
+        </div>
       </div>
 
       <div className="mb-10 grid gap-8 xl:grid-cols-[1.1fr_0.9fr]">
@@ -780,27 +924,81 @@ function QuestionsPage() {
               questions should become Draft or Needs Review.
             </p>
 
-            <div className="mt-5 grid gap-3 sm:grid-cols-2">
-              {[
-                "Generate draft",
-                "Improve wording",
-                "Generate equivalent variant",
-                "Check quality",
-              ].map((label) => (
-                <button
-                  key={label}
-                  type="button"
-                  disabled
-                  className="rounded-lg bg-slate-900 px-4 py-2 font-medium text-white opacity-45"
+            <div className="mt-5 grid gap-3">
+              <textarea
+                value={aiInstructions}
+                onChange={(event) => setAiInstructions(event.target.value)}
+                placeholder="Optional AI instructions for this draft or equivalence check"
+                className="app-input min-h-[92px] bg-white"
+              />
+
+              <button
+                type="button"
+                onClick={handleGenerateDraft}
+                disabled={isAiLoading || !topicId || !learningObjectiveId}
+                className="app-button-primary disabled:opacity-50"
+              >
+                {isAiLoading ? "Requesting AI..." : "Generate draft for review"}
+              </button>
+
+              <div className="grid gap-3 sm:grid-cols-2">
+                <select
+                  value={equivalenceQuestionAId}
+                  onChange={(event) => setEquivalenceQuestionAId(event.target.value)}
+                  className="app-input bg-white"
                 >
-                  {label}
-                </button>
-              ))}
+                  <option value="">Question A</option>
+                  {filteredQuestions.map((question) => (
+                    <option key={question.id} value={question.id}>
+                      {question.title}
+                    </option>
+                  ))}
+                </select>
+
+                <select
+                  value={equivalenceQuestionBId}
+                  onChange={(event) => setEquivalenceQuestionBId(event.target.value)}
+                  className="app-input bg-white"
+                >
+                  <option value="">Question B</option>
+                  {filteredQuestions.map((question) => (
+                    <option key={question.id} value={question.id}>
+                      {question.title}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <button
+                type="button"
+                onClick={handleEquivalenceSuggestion}
+                disabled={isAiLoading || !equivalenceQuestionAId || !equivalenceQuestionBId}
+                className="app-button-secondary disabled:opacity-50"
+              >
+                Check equivalence for review
+              </button>
             </div>
 
+            {aiError && (
+              <p className="mt-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+                {aiError}
+              </p>
+            )}
+
+            {aiSuggestion && (
+              <div className="mt-4 rounded-lg border border-slate-200 bg-white p-4">
+                <p className="text-xs font-bold uppercase tracking-wide text-slate-500">
+                  Review-only AI suggestion
+                </p>
+                <pre className="mt-3 whitespace-pre-wrap text-sm leading-6 text-slate-700">
+                  {aiSuggestion}
+                </pre>
+              </div>
+            )}
+
             <p className="mt-4 text-sm text-amber-800">
-              No safe frontend AI service is connected in this flow, so
-              these actions are disabled.
+              AI output is shown only for instructor review. It does not create,
+              modify or approve questions automatically.
             </p>
           </section>
 

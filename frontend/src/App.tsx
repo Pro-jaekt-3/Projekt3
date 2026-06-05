@@ -1,6 +1,6 @@
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 
-import Navbar from "./components/Navbar";
+import AppShell from "./components/AppShell";
 
 import HomePage from "./pages/HomePage";
 import QuestionsPage from "./pages/QuestionsPage";
@@ -17,6 +17,10 @@ import AiAssistantPage from "./pages/AiAssistantPage";
 import LoginPage from "./pages/LoginPage";
 import MyAssessmentsPage from "./pages/MyAssessmentsPage";
 import ParticipantResultPage from "./pages/ParticipantResultPage";
+import AdminUsersPage from "./pages/AdminUsersPage";
+import AdminTrainingsPage from "./pages/AdminTrainingsPage";
+import AdminAssessmentsPage from "./pages/AdminAssessmentsPage";
+import AdminAiModelsPage from "./pages/AdminAiModelsPage";
 import ProtectedRoute from "./components/ProtectedRoute";
 import { AuthProvider } from "./auth/AuthProvider";
 
@@ -25,10 +29,9 @@ function App() {
   return (
     <AuthProvider>
       <BrowserRouter>
-        <Navbar />
-
-        <Routes>
-          <Route path="/" element={<HomePage />} />
+        <AppShell>
+          <Routes>
+            <Route path="/" element={<HomePage />} />
 
           <Route
             path="/questions"
@@ -197,6 +200,71 @@ function App() {
           />
 
           <Route
+            path="/admin/users"
+            element={
+              <ProtectedRoute
+                allowedRoles={[
+                  "ADMIN",
+                ]}
+              >
+                <AdminUsersPage />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/admin/trainings"
+            element={
+              <ProtectedRoute
+                allowedRoles={[
+                  "ADMIN",
+                ]}
+              >
+                <AdminTrainingsPage />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/admin/assessments"
+            element={
+              <ProtectedRoute
+                allowedRoles={[
+                  "ADMIN",
+                ]}
+              >
+                <AdminAssessmentsPage />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/admin/ai-models"
+            element={
+              <ProtectedRoute
+                allowedRoles={[
+                  "ADMIN",
+                ]}
+              >
+                <AdminAiModelsPage />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/admin/system-analytics"
+            element={
+              <ProtectedRoute
+                allowedRoles={[
+                  "ADMIN",
+                ]}
+              >
+                <AnalyticsPage />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
             path="/ai-assistant"
             element={
               <ProtectedRoute
@@ -209,7 +277,8 @@ function App() {
               </ProtectedRoute>
             }
           />
-        </Routes>
+          </Routes>
+        </AppShell>
       </BrowserRouter>
     </AuthProvider>
   );

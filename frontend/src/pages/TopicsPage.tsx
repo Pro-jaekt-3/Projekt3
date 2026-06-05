@@ -8,6 +8,7 @@ import {
 } from "../services/topicService";
 
 import { getTrainings } from "../services/trainingService";
+import { EmptyState, PageHeader } from "../components/ui";
 
 type Topic = {
   id: number;
@@ -103,27 +104,28 @@ function TopicsPage() {
 
   return (
     <div className="max-w-7xl mx-auto px-8 py-10">
-      <div className="mb-10">
-        <h1 className="text-5xl font-bold mb-4">
-          Topics
-        </h1>
-
-        <p className="max-w-3xl text-lg leading-8 text-slate-600">
-          Topics belong to trainings and organize the subject areas that
-          later connect learning objectives, questions and assessments.
-        </p>
-
+      <PageHeader
+        eyebrow="Contextual curriculum setup"
+        title="Topics"
+        description={
+          <>
+            Topics belong to trainings and organize the subject areas that
+            later connect learning objectives, questions and assessments.
+          </>
+        }
+        actions={
         <Link
           to="/learning-objectives"
-          className="mt-5 inline-flex rounded-lg bg-slate-900 px-5 py-3 font-medium text-white transition hover:bg-slate-800"
+          className="app-button-secondary"
         >
           Next: Add learning objectives
         </Link>
-      </div>
+        }
+      />
 
       <form
         onSubmit={handleSubmit}
-        className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 flex flex-col gap-4 max-w-xl mb-10"
+        className="app-card mb-10 grid max-w-2xl gap-4 p-6 md:grid-cols-[1fr_1fr_auto]"
       >
         <input
           type="text"
@@ -132,7 +134,7 @@ function TopicsPage() {
           onChange={(e) =>
             setName(e.target.value)
           }
-          className="border border-gray-300 rounded-lg px-4 py-3"
+          className="app-input"
         />
 
         <select
@@ -140,7 +142,7 @@ function TopicsPage() {
           onChange={(e) =>
             setTrainingId(e.target.value)
           }
-          className="border border-gray-300 rounded-lg px-4 py-3"
+          className="app-input"
         >
           <option value="">
             Select Training
@@ -158,17 +160,22 @@ function TopicsPage() {
 
         <button
           type="submit"
-          className="bg-blue-600 hover:bg-blue-700 text-white rounded-lg py-3 font-medium transition"
+          className="app-button-primary"
         >
           Add Topic
         </button>
       </form>
 
       <div className="grid gap-6">
-        {topics.map((topic) => (
+        {topics.length === 0 ? (
+          <EmptyState
+            title="No topics yet"
+            description="Create a topic for a training before adding learning objectives."
+          />
+        ) : topics.map((topic) => (
           <div
             key={topic.id}
-            className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 flex items-center justify-between"
+            className="app-card flex items-center justify-between p-6"
           >
             <div>
               <h3 className="text-2xl font-semibold">
@@ -183,7 +190,7 @@ function TopicsPage() {
             <div className="flex flex-wrap gap-3">
               <Link
                 to={`/learning-objectives?topicId=${topic.id}`}
-                className="rounded-lg bg-slate-900 px-4 py-2 text-white transition hover:bg-slate-800"
+                className="app-button-primary"
               >
                 Manage Objectives
               </Link>
@@ -192,7 +199,7 @@ function TopicsPage() {
                 onClick={() =>
                   handleDelete(topic.id)
                 }
-                className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg transition"
+                className="app-button-danger"
               >
                 Delete
               </button>
