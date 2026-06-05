@@ -1,5 +1,28 @@
 const prisma = require("../prisma/client");
 
+const ASSESSMENT_STATUSES = ["DRAFT", "PUBLISHED", "ARCHIVED"];
+
+const assessmentDetailInclude = {
+  training: true,
+  questions: {
+    orderBy: { orderIndex: "asc" },
+    include: {
+      question: {
+        include: {
+          answerOptions: {
+            orderBy: {
+              orderIndex: "asc",
+            },
+          },
+        },
+      },
+    },
+  },
+};
+
+const canManageAssessments = (user) =>
+  user?.role === "ADMIN" || user?.role === "INSTRUCTOR";
+
 const normalizeQuestionItems = (questions) => {
   return questions.map((item, index) => {
     if (typeof item === "number") {
@@ -25,22 +48,31 @@ const normalizeQuestionItems = (questions) => {
 const getAssessments = async (req, res) => {
   try {
     const assessments = await prisma.assessment.findMany({
+      where: canManageAssessments(req.user)
+        ? undefined
+        : {
+            status: "PUBLISHED",
+          },
+      include: assessmentDetailInclude,
+    });
+
+    res.json(assessments);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+const getAvailableAssessments = async (req, res) => {
+  try {
+    const assessments = await prisma.assessment.findMany({
+      where: {
+        status: "PUBLISHED",
+      },
       include: {
         training: true,
-        questions: {
-          orderBy: { orderIndex: "asc" },
-          include: {
-            question: {
-              include: {
-                answerOptions: {
-                  orderBy: {
-                    orderIndex: "asc",
-                  },
-                },
-              },
-            },
-          },
-        },
+      },
+      orderBy: {
+        updatedAt: "desc",
       },
     });
 
@@ -56,27 +88,15 @@ const getAssessment = async (req, res) => {
 
     const assessment = await prisma.assessment.findUnique({
       where: { id: Number(id) },
-      include: {
-        training: true,
-        questions: {
-          orderBy: { orderIndex: "asc" },
-          include: {
-            question: {
-              include: {
-                answerOptions: {
-                  orderBy: {
-                    orderIndex: "asc",
-                  },
-                },
-              },
-            },
-          },
-        },
-      },
+      include: assessmentDetailInclude,
     });
 
     if (!assessment) {
       return res.status(404).json({ error: "Assessment not found" });
+    }
+
+    if (!canManageAssessments(req.user) && assessment.status !== "PUBLISHED") {
+      return res.status(403).json({ error: "This assessment is not available." });
     }
 
     res.json(assessment);
@@ -139,6 +159,7 @@ const createAssessment = async (req, res) => {
         description,
         trainingId: Number(trainingId),
         type,
+        status: "DRAFT",
         questions: {
           create: questionItems.map((item) => ({
             questionId: item.questionId,
@@ -276,6 +297,7 @@ const generateAssessment = async (req, res) => {
         description,
         trainingId: Number(trainingId),
         type: "QUIZ",
+        status: "DRAFT",
         questions: {
           create: selectedQuestions.slice(0, parsedCount).map((question, index) => ({
             questionId: question.id,
@@ -365,6 +387,39 @@ const updateAssessment = async (req, res) => {
   }
 };
 
+const updateAssessmentStatus = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status } = req.body;
+
+    if (!ASSESSMENT_STATUSES.includes(status)) {
+      return res.status(400).json({
+        error: `status must be one of: ${ASSESSMENT_STATUSES.join(", ")}`,
+      });
+    }
+
+    const existing = await prisma.assessment.findUnique({
+      where: { id: Number(id) },
+    });
+
+    if (!existing) {
+      return res.status(404).json({ error: "Assessment not found" });
+    }
+
+    const assessment = await prisma.assessment.update({
+      where: { id: Number(id) },
+      data: {
+        status,
+      },
+      include: assessmentDetailInclude,
+    });
+
+    res.json(assessment);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
 const deleteAssessment = async (req, res) => {
   try {
     const { id } = req.params;
@@ -389,9 +444,11 @@ const deleteAssessment = async (req, res) => {
 
 module.exports = {
   getAssessments,
+  getAvailableAssessments,
   getAssessment,
   createAssessment,
   generateAssessment,
   updateAssessment,
+  updateAssessmentStatus,
   deleteAssessment,
 };

@@ -7,6 +7,10 @@ export const getAssessments = async () => {
   return apiJsonFetch("/assessments");
 };
 
+export const getAvailableAssessments = async () => {
+  return apiJsonFetch("/assessments/available");
+};
+
 export const createAssessment = async (
   assessmentData: {
     title: string;
@@ -50,6 +54,21 @@ export const deleteAssessment = async (
 ) => {
   await apiEnsureOk(`/assessments/${id}`, {
     method: "DELETE",
+  });
+};
+
+export const updateAssessmentStatus = async (
+  id: number,
+  status: "DRAFT" | "PUBLISHED" | "ARCHIVED"
+) => {
+  return apiJsonFetch(`/assessments/${id}/status`, {
+    method: "PATCH",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      status,
+    }),
   });
 };
 

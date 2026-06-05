@@ -83,6 +83,10 @@ const startAttempt = async (req, res) => {
       return res.status(404).json({ error: "Assessment not found" });
     }
 
+    if (assessment.status !== "PUBLISHED") {
+      return res.status(403).json({ error: "This assessment is not available." });
+    }
+
     if (participantId && !participant) {
       return res.status(404).json({ error: "Participant not found" });
     }

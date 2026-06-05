@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 
-import { getAssessments } from "../services/assessmentService";
+import { getAvailableAssessments } from "../services/assessmentService";
 
 type Assessment = {
   id: number;
@@ -20,7 +20,7 @@ function MyAssessmentsPage() {
 
   const loadAssessments = async () => {
     try {
-      const data = await getAssessments();
+      const data = await getAvailableAssessments();
 
       setAssessments(data);
     } catch (error) {
@@ -45,8 +45,8 @@ function MyAssessmentsPage() {
         </p>
 
         <div className="mt-5 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
-          For the current MVP demo, available assessments may not yet be
-          filtered by assignment.
+          This MVP shows published assessments. Specific participant
+          assignment is planned next.
         </div>
       </div>
 

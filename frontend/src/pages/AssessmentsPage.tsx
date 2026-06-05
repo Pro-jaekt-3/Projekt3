@@ -4,6 +4,7 @@ import {
   getAssessments,
   createAssessment,
   deleteAssessment,
+  updateAssessmentStatus,
 } from "../services/assessmentService";
 
 import { getQuestions } from "../services/questionService";
@@ -14,6 +15,7 @@ type Assessment = {
   title: string;
   description?: string | null;
   type: string;
+  status?: "DRAFT" | "PUBLISHED" | "ARCHIVED";
   questions?: {
     id: number;
     question: {
@@ -32,6 +34,12 @@ type Question = {
 type Training = {
   id: number;
   title: string;
+};
+
+const statusBadgeClasses: Record<string, string> = {
+  DRAFT: "bg-slate-100 text-slate-700",
+  PUBLISHED: "bg-emerald-100 text-emerald-700",
+  ARCHIVED: "bg-amber-100 text-amber-800",
 };
 
 function AssessmentsPage() {
@@ -168,6 +176,19 @@ function AssessmentsPage() {
   ) => {
     try {
       await deleteAssessment(id);
+
+      loadAssessments();
+    } catch (error) {
+      console.error(error);
+    }
+  };
+
+  const handleStatusUpdate = async (
+    id: number,
+    status: "DRAFT" | "PUBLISHED" | "ARCHIVED"
+  ) => {
+    try {
+      await updateAssessmentStatus(id, status);
 
       loadAssessments();
     } catch (error) {
@@ -385,9 +406,9 @@ function AssessmentsPage() {
           </h2>
 
           <p className="mt-2 text-sm leading-6 text-amber-800">
-            In this MVP, created assessments are available for demo
-            participants. In the full version, assessments will be assigned
-            to a training or selected participants.
+            New assessments are saved as drafts. Published assessments are
+            visible to demo participants. Assignment to specific
+            participants is a later step.
           </p>
         </section>
 
@@ -442,6 +463,23 @@ function AssessmentsPage() {
                   </span>
                 </div>
 
+                <div className="mt-4 flex flex-wrap items-center gap-2">
+                  <span
+                    className={`w-fit rounded-full px-3 py-1 text-sm font-semibold ${
+                      statusBadgeClasses[assessment.status || "DRAFT"] ||
+                      statusBadgeClasses.DRAFT
+                    }`}
+                  >
+                    {assessment.status || "DRAFT"}
+                  </span>
+
+                  <span className="text-sm text-slate-500">
+                    {assessment.status === "PUBLISHED"
+                      ? "Visible to demo participants"
+                      : "Not available to participants"}
+                  </span>
+                </div>
+
                 {isPreviewOpen && (
                   <div className="mt-5 rounded-xl border border-slate-200 bg-slate-50 p-4">
                     <p className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-500">
@@ -481,6 +519,51 @@ function AssessmentsPage() {
                       ? "Hide Preview"
                       : "Preview"}
                   </button>
+
+                  {(assessment.status || "DRAFT") === "DRAFT" && (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        handleStatusUpdate(
+                          assessment.id,
+                          "PUBLISHED"
+                        )
+                      }
+                      className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg transition"
+                    >
+                      Publish
+                    </button>
+                  )}
+
+                  {assessment.status === "PUBLISHED" && (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        handleStatusUpdate(
+                          assessment.id,
+                          "ARCHIVED"
+                        )
+                      }
+                      className="bg-amber-600 hover:bg-amber-700 text-white px-4 py-2 rounded-lg transition"
+                    >
+                      Archive
+                    </button>
+                  )}
+
+                  {assessment.status === "ARCHIVED" && (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        handleStatusUpdate(
+                          assessment.id,
+                          "DRAFT"
+                        )
+                      }
+                      className="bg-slate-600 hover:bg-slate-700 text-white px-4 py-2 rounded-lg transition"
+                    >
+                      Move to Draft
+                    </button>
+                  )}
 
                   <button
                     onClick={() =>

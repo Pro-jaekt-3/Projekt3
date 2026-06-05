@@ -69,16 +69,21 @@ function SolveAssessmentPage() {
       const assessmentData =
         await getAssessment(Number(id));
 
-      setAssessment(assessmentData);
-
       const attempt =
         await startAttempt(Number(id));
 
+      setAssessment(assessmentData);
       setAttemptId(attempt.id);
     } catch (error) {
       console.error(error);
+      setAssessment(null);
+      setAttemptId(null);
       setSubmitError(
-        "Failed to load this assessment. Please try again later."
+        error instanceof Error &&
+          error.message ===
+            "This assessment is not available."
+          ? error.message
+          : "Failed to load this assessment. Please try again later."
       );
     }
   };
@@ -195,11 +200,15 @@ function SolveAssessmentPage() {
       <div className="mx-auto max-w-4xl px-8 py-10">
         <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
           <h1 className="text-3xl font-bold mb-2">
-            Loading assessment
+            {submitError
+              ? "Assessment unavailable"
+              : "Loading assessment"}
           </h1>
 
           <p className="text-slate-600">
-            Preparing your attempt...
+            {submitError
+              ? "This assessment cannot be started from this page."
+              : "Preparing your attempt..."}
           </p>
 
           {submitError && (
