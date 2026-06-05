@@ -4,6 +4,7 @@ const router = express.Router();
 const {
   generateQuestionDraft,
   suggestQuestionEquivalence,
+  generatePrePostInsights,
   reviewAiInteraction,
   getAiModels,
   getOllamaStatus,
@@ -41,6 +42,12 @@ router.post(
   firebaseAuthMiddleware,
   requireRole("ADMIN", "INSTRUCTOR"),
   suggestQuestionEquivalence
+);
+router.post(
+  "/pre-post-insights",
+  firebaseAuthMiddleware,
+  requireRole("ADMIN", "INSTRUCTOR"),
+  generatePrePostInsights
 );
 router.patch(
   "/interactions/:id/review",

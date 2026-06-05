@@ -199,12 +199,45 @@ Seed data creates these database users:
 - `admin@example.com` - `ADMIN`
 - `instructor@example.com` - `INSTRUCTOR`
 - `participant@example.com` - `PARTICIPANT`
+- `ana.student@example.com` - `PARTICIPANT`
+- `marko.student@example.com` - `PARTICIPANT`
+- `sara.student@example.com` - `PARTICIPANT`
+- `luka.student@example.com` - `PARTICIPANT`
+- `nina.student@example.com` - `PARTICIPANT`
 
 For demo login, create Firebase Authentication users with emails that match the seeded database users above. The backend links a Firebase user to an existing database user by email on first login.
 
 If a Firebase user signs in with an email that does not exist in the database, the backend creates a new database user with role `PARTICIPANT`. That account can use participant pages, but instructor/admin pages will show access denied until the database role matches the requested access. Do not expect Google or email/password demo accounts to receive instructor/admin access unless their Firebase email matches a database user with the correct role.
 
 Demo assessments should use `MULTIPLE_CHOICE` questions when automatic scoring is needed. `OPEN` and `CODE` answers are saved, but they are not automatically graded in the current MVP.
+
+## Final demo seed
+
+Run the idempotent demo seed from the backend directory:
+
+```bash
+cd backend
+npx prisma db seed
+```
+
+The final demo seed creates:
+- Training: `Introduction to Databases`
+- Topics: `SQL Basics`, `Joins`, `Normalization`
+- Linked series: `Database Fundamentals Pre/Post Series`
+- Published assessments: `Database Fundamentals Pre-test` and `Database Fundamentals Post-test`
+- Six participant users with completed linked pre-test and post-test attempts
+- Approved multiple-choice questions with comparable equivalent groups
+- Active local Ollama model rows including `qwen3:8b`, `gpt-oss:20b`, `llama3.1:8b`, `mistral-nemo:12b`, and `gemma3n:e4b`
+
+For AI insights, keep Ollama running locally and use `qwen3:8b` as the default:
+
+```env
+AI_DEFAULT_PROVIDER=OLLAMA
+AI_DEFAULT_MODEL=qwen3:8b
+OLLAMA_BASE_URL=http://localhost:11434
+```
+
+The Analytics page shows the linked pre/post comparison, participant improvement table, topic/objective/difficulty improvement, and an advisory AI insights action. AI insights are advisory only and should be reviewed by an instructor.
 
 ## API endpointi
 

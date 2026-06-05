@@ -5,6 +5,7 @@ const {
   getDefaultAiModelConfig,
   getProviderConfig,
 } = require("../config/ai");
+const { buildPrePostSeriesAnalytics } = require("./analyticsController");
 
 const AI_MODEL_SELECT = {
   id: true,
@@ -120,6 +121,67 @@ function buildEquivalenceSuggestionPrompt({ questionA, questionB, instructions }
   ]
     .filter(Boolean)
     .join("\n");
+}
+
+function buildPrePostInsightsPrompt(analytics) {
+  const topicLines = analytics.byTopic
+    .map(
+      (topic) =>
+        `- ${topic.topicName}: pre ${topic.prePercentage}%, post ${topic.postPercentage}%, improvement ${topic.improvement} points`
+    )
+    .join("\n");
+  const objectiveLines = analytics.byLearningObjective
+    .map(
+      (objective) =>
+        `- ${objective.title}: pre ${objective.prePercentage}%, post ${objective.postPercentage}%, improvement ${objective.improvement} points`
+    )
+    .join("\n");
+  const participantLines = analytics.participants
+    .map(
+      (participant) =>
+        `- ${participant.name} (${participant.email}): ${participant.preScore} to ${participant.postScore}, ${participant.status}`
+    )
+    .join("\n");
+
+  return [
+    "You are helping an instructor review linked pre-test and post-test analytics.",
+    "Produce concise instructor-facing insights. The output is advisory only and must say it should be reviewed by an instructor.",
+    "",
+    `Series: ${analytics.series.title}`,
+    `Training: ${analytics.series.training?.title || "Unknown"}`,
+    `Pre-test: ${analytics.preAssessment.title}`,
+    `Post-test: ${analytics.postAssessment.title}`,
+    "",
+    "Summary:",
+    `- Participants with both attempts: ${analytics.summary.participantCount}`,
+    `- Average pre score: ${analytics.summary.averagePreScore}`,
+    `- Average post score: ${analytics.summary.averagePostScore}`,
+    `- Average score improvement: ${analytics.summary.averageImprovement}`,
+    `- Average pre percentage: ${analytics.summary.averagePrePercentage}%`,
+    `- Average post percentage: ${analytics.summary.averagePostPercentage}%`,
+    `- Average percentage improvement: ${analytics.summary.averagePercentageImprovement} points`,
+    `- Strongest topic: ${analytics.summary.strongestTopic || "N/A"}`,
+    `- Weakest pre-test topic: ${analytics.summary.weakestPreTopic || "N/A"}`,
+    `- Most improved topic: ${analytics.summary.mostImprovedTopic || "N/A"}`,
+    "",
+    "Topic performance:",
+    topicLines || "- No topic data",
+    "",
+    "Learning objective performance:",
+    objectiveLines || "- No objective data",
+    "",
+    "Participant progress:",
+    participantLines || "- No participant data",
+    "",
+    "Return sections for:",
+    "1. Overall improvement",
+    "2. Weak topics",
+    "3. Strongest improvement",
+    "4. Recommended next teaching actions",
+    "5. Advisory caution",
+    "",
+    "Do not suggest changing recorded scores. Do not modify assessments, questions, or results.",
+  ].join("\n");
 }
 
 async function callOllama({ baseUrl, modelName, prompt }) {
@@ -532,6 +594,83 @@ const suggestQuestionEquivalence = async (req, res) => {
   }
 };
 
+const generatePrePostInsights = async (req, res) => {
+  try {
+    const seriesId = parsePositiveIntegerId(req.body.seriesId);
+
+    if (!seriesId) {
+      return res.status(400).json({
+        error: "seriesId is required and must be a positive numeric id.",
+      });
+    }
+
+    const requesterId = getRequesterId(req);
+
+    if (!requesterId) {
+      return res.status(400).json({
+        error: "Authenticated requester user is required.",
+      });
+    }
+
+    const requester = await prisma.user.findUnique({
+      where: { id: requesterId },
+    });
+
+    if (!requester) {
+      return res.status(400).json({
+        error: `Requester user ${requesterId} was not found.`,
+      });
+    }
+
+    const analytics = await buildPrePostSeriesAnalytics(seriesId);
+    const modelResolution = await resolveAiModel(req.body);
+
+    if (modelResolution.error) {
+      return sendModelResolutionError(res, modelResolution);
+    }
+
+    const { aiModel, modelName, providerConfig } = modelResolution;
+    const prompt = buildPrePostInsightsPrompt(analytics);
+    let insightsText;
+
+    try {
+      insightsText = await callOllama({
+        baseUrl: providerConfig.baseUrl,
+        modelName,
+        prompt,
+      });
+    } catch (error) {
+      return res.status(502).json({
+        error: "AI provider request failed.",
+        details: error.message,
+      });
+    }
+
+    const aiInteraction = await prisma.aiInteraction.create({
+      data: {
+        aiModelId: aiModel.id,
+        requestedById: requesterId,
+        action: "REVIEW_TEST",
+        prompt,
+        resultText: insightsText,
+        reviewStatus: "PENDING",
+      },
+    });
+
+    res.status(201).json({
+      aiInteractionId: aiInteraction.id,
+      model: modelName,
+      reviewStatus: aiInteraction.reviewStatus,
+      insightsText,
+      analyticsSummary: analytics.summary,
+    });
+  } catch (error) {
+    res.status(error.status || 500).json({
+      error: error.message,
+    });
+  }
+};
+
 const reviewAiInteraction = async (req, res) => {
   try {
     const { id } = req.params;
@@ -761,6 +900,7 @@ const testAiModel = async (req, res) => {
 module.exports = {
   generateQuestionDraft,
   suggestQuestionEquivalence,
+  generatePrePostInsights,
   reviewAiInteraction,
   getAiModels,
   getOllamaStatus,

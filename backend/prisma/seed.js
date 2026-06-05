@@ -2,964 +2,876 @@ const { PrismaClient } = require("@prisma/client");
 
 const prisma = new PrismaClient();
 
-async function main() {
-  const findOrCreateTopic = async (name, trainingId) => {
-    const existingTopic = await prisma.topic.findFirst({
-      where: {
-        name,
-        trainingId,
-      },
+const OLLAMA_BASE_URL = "http://localhost:11434";
+const REVIEWED_AT = new Date("2026-06-01T10:00:00.000Z");
+const DEMO_STARTED_AT = new Date("2026-06-03T08:00:00.000Z");
+const COMPLETED_STATUSES = ["SUBMITTED", "GRADED"];
+
+async function upsertUser({ email, name, externalAuthId, role }) {
+  return prisma.user.upsert({
+    where: { email },
+    update: { name, externalAuthId, role },
+    create: { email, name, externalAuthId, role },
+  });
+}
+
+async function upsertByFirst(model, where, data) {
+  const existing = await prisma[model].findFirst({ where });
+
+  if (existing) {
+    return prisma[model].update({
+      where: { id: existing.id },
+      data,
     });
+  }
 
-    if (existingTopic) {
-      return existingTopic;
-    }
+  return prisma[model].create({
+    data: {
+      ...where,
+      ...data,
+    },
+  });
+}
 
-    return prisma.topic.create({
-      data: {
-        name,
-        trainingId,
-      },
-    });
-  };
+async function upsertTopic(name, trainingId) {
+  return upsertByFirst("topic", { name, trainingId }, {});
+}
 
-  const findOrCreateLearningObjective = async (
-    title,
-    description,
-    topicId
-  ) => {
-    const existingLearningObjective =
-      await prisma.learningObjective.findFirst({
-        where: {
-          title,
-        },
-      });
+async function upsertLearningObjective({ title, description, topicId }) {
+  return upsertByFirst(
+    "learningObjective",
+    { title },
+    { description, topicId }
+  );
+}
 
-    if (existingLearningObjective) {
-      return prisma.learningObjective.update({
-        where: {
-          id: existingLearningObjective.id,
-        },
-        data: {
-          description,
-          topicId,
-        },
-      });
-    }
+async function upsertEquivalentGroup({ name, description }) {
+  return upsertByFirst("equivalentQuestionGroup", { name }, { description });
+}
 
-    return prisma.learningObjective.create({
-      data: {
-        title,
-        description,
-        topicId,
-      },
-    });
-  };
+async function upsertQuestion({
+  title,
+  description,
+  difficulty,
+  topicId,
+  learningObjectiveId,
+  createdById,
+  reviewedById,
+  equivalentGroupId,
+  answerOptions,
+}) {
+  const correctCount = answerOptions.filter((option) => option.isCorrect).length;
 
-  const findOrCreateQuestion = async ({
-    title,
-    description,
-    difficulty,
-    type,
-    status,
-    topicId,
-    learningObjectiveId,
-    createdById,
-    reviewedById,
-    reviewedAt,
-    equivalentGroupId,
-  }) => {
-    const existingQuestion = await prisma.question.findFirst({
-      where: {
-        title,
-      },
-    });
+  if (answerOptions.length < 4 || correctCount !== 1) {
+    throw new Error(`Question "${title}" must have 4+ options and exactly 1 correct option.`);
+  }
 
-    const data = {
+  const question = await upsertByFirst(
+    "question",
+    { title },
+    {
       description,
       difficulty,
-      type,
-      status,
+      type: "MULTIPLE_CHOICE",
+      status: "APPROVED",
       topicId,
       learningObjectiveId,
       createdById,
       reviewedById,
-      reviewedAt,
+      reviewedAt: REVIEWED_AT,
       equivalentGroupId,
-    };
-
-    if (existingQuestion) {
-      return prisma.question.update({
-        where: {
-          id: existingQuestion.id,
-        },
-        data,
-      });
     }
+  );
 
-    return prisma.question.create({
-      data: {
-        title,
-        ...data,
-      },
-    });
-  };
-
-  const upsertAnswerOptions = async (questionId, options) => {
-    for (const option of options) {
-      await prisma.answerOption.upsert({
-        where: {
-          questionId_orderIndex: {
-            questionId,
-            orderIndex: option.orderIndex,
-          },
-        },
-        update: {
-          text: option.text,
-          isCorrect: option.isCorrect,
-        },
-        create: {
-          questionId,
-          text: option.text,
-          isCorrect: option.isCorrect,
+  for (const option of answerOptions) {
+    await prisma.answerOption.upsert({
+      where: {
+        questionId_orderIndex: {
+          questionId: question.id,
           orderIndex: option.orderIndex,
-        },
-      });
-    }
-  };
-
-  const findOrCreateEquivalentQuestionGroup = async (
-    name,
-    description
-  ) => {
-    const existingGroup =
-      await prisma.equivalentQuestionGroup.findFirst({
-        where: {
-          name,
-        },
-      });
-
-    if (existingGroup) {
-      return prisma.equivalentQuestionGroup.update({
-        where: {
-          id: existingGroup.id,
-        },
-        data: {
-          description,
-        },
-      });
-    }
-
-    return prisma.equivalentQuestionGroup.create({
-      data: {
-        name,
-        description,
-      },
-    });
-  };
-
-  const findOrCreateAssessment = async ({
-    title,
-    description,
-    trainingId,
-    type,
-    status,
-    timeLimitMinutes,
-  }) => {
-    const existingAssessment = await prisma.assessment.findFirst({
-      where: {
-        title,
-        trainingId,
-      },
-    });
-
-    const data = {
-      description,
-      trainingId,
-      type,
-      status,
-      timeLimitMinutes,
-    };
-
-    if (existingAssessment) {
-      return prisma.assessment.update({
-        where: {
-          id: existingAssessment.id,
-        },
-        data,
-      });
-    }
-
-    return prisma.assessment.create({
-      data: {
-        title,
-        ...data,
-      },
-    });
-  };
-
-  const findOrCreateAssessmentBlueprint = async ({
-    title,
-    description,
-    trainingId,
-    targetQuestionCount,
-    configJson,
-  }) => {
-    const existingBlueprint = await prisma.assessmentBlueprint.findFirst({
-      where: {
-        title,
-        trainingId,
-      },
-    });
-
-    const data = {
-      description,
-      trainingId,
-      targetQuestionCount,
-      configJson,
-    };
-
-    if (existingBlueprint) {
-      return prisma.assessmentBlueprint.update({
-        where: {
-          id: existingBlueprint.id,
-        },
-        data,
-      });
-    }
-
-    return prisma.assessmentBlueprint.create({
-      data: {
-        title,
-        ...data,
-      },
-    });
-  };
-
-  const findOrCreateAssessmentAttempt = async ({
-    assessmentId,
-    userId,
-    startedAt,
-    submittedAt,
-    score,
-    status,
-  }) => {
-    const existingAttempt = await prisma.assessmentAttempt.findFirst({
-      where: {
-        assessmentId,
-        userId,
-        startedAt,
-      },
-    });
-
-    const data = {
-      assessmentId,
-      userId,
-      startedAt,
-      submittedAt,
-      score,
-      status,
-    };
-
-    if (existingAttempt) {
-      return prisma.assessmentAttempt.update({
-        where: {
-          id: existingAttempt.id,
-        },
-        data,
-      });
-    }
-
-    return prisma.assessmentAttempt.create({
-      data,
-    });
-  };
-
-  const upsertAiModel = async ({
-    provider,
-    modelName,
-    displayName,
-    baseUrl,
-    isLocal,
-    isActive,
-  }) =>
-    prisma.aiModel.upsert({
-      where: {
-        provider_modelName: {
-          provider,
-          modelName,
         },
       },
       update: {
-        displayName,
-        baseUrl,
-        isLocal,
-        isActive,
+        text: option.text,
+        isCorrect: option.isCorrect,
       },
       create: {
-        provider,
-        modelName,
-        displayName,
-        baseUrl,
-        isLocal,
-        isActive,
-      },
-    });
-
-  const findOrCreateAiInteraction = async ({
-    aiModelId,
-    requestedById,
-    action,
-    prompt,
-    resultText,
-    resultJson,
-    sourceQuestionId,
-    generatedQuestionId,
-    reviewStatus,
-    reviewedById,
-    reviewedAt,
-  }) => {
-    const existingInteraction = await prisma.aiInteraction.findFirst({
-      where: {
-        aiModelId,
-        requestedById,
-        action,
-        prompt,
-      },
-    });
-
-    const data = {
-      aiModelId,
-      requestedById,
-      action,
-      prompt,
-      resultText,
-      resultJson,
-      sourceQuestionId,
-      generatedQuestionId,
-      reviewStatus,
-      reviewedById,
-      reviewedAt,
-    };
-
-    if (existingInteraction) {
-      return prisma.aiInteraction.update({
-        where: {
-          id: existingInteraction.id,
-        },
-        data,
-      });
-    }
-
-    return prisma.aiInteraction.create({
-      data,
-    });
-  };
-
-  // USERS
-  const admin = await prisma.user.upsert({
-    where: {
-      email: "admin@example.com",
-    },
-    update: {
-      name: "Demo Admin",
-      externalAuthId: "demo-admin-auth-id",
-      role: "ADMIN",
-    },
-    create: {
-      email: "admin@example.com",
-      name: "Demo Admin",
-      externalAuthId: "demo-admin-auth-id",
-      role: "ADMIN",
-    },
-  });
-
-  const instructor = await prisma.user.upsert({
-    where: {
-      email: "instructor@example.com",
-    },
-    update: {
-      name: "Demo Instructor",
-      externalAuthId: "demo-instructor-auth-id",
-      role: "INSTRUCTOR",
-    },
-    create: {
-      email: "instructor@example.com",
-      name: "Demo Instructor",
-      externalAuthId: "demo-instructor-auth-id",
-      role: "INSTRUCTOR",
-    },
-  });
-
-  const participant = await prisma.user.upsert({
-    where: {
-      email: "participant@example.com",
-    },
-    update: {
-      name: "Demo Participant",
-      externalAuthId: "demo-participant-auth-id",
-      role: "PARTICIPANT",
-    },
-    create: {
-      email: "participant@example.com",
-      name: "Demo Participant",
-      externalAuthId: "demo-participant-auth-id",
-      role: "PARTICIPANT",
-    },
-  });
-
-  // TRAININGS
-  let training = await prisma.training.findFirst({
-    where: {
-      title: "Osnove informatike",
-    },
-  });
-
-  if (!training) {
-    training = await prisma.training.create({
-      data: {
-        title: "Osnove informatike",
-        description: "Demo izobraževanje za MVP testne podatke",
+        questionId: question.id,
+        text: option.text,
+        isCorrect: option.isCorrect,
+        orderIndex: option.orderIndex,
       },
     });
   }
 
-  // TOPICS
-  const uml = await findOrCreateTopic("UML", training.id);
+  return question;
+}
 
-  const sql = await findOrCreateTopic("SQL", training.id);
-
-  const networking = await findOrCreateTopic(
-    "Networking",
-    training.id
-  );
-
-  // LEARNING OBJECTIVES
-  const lo1 = await findOrCreateLearningObjective(
-    "Understand UML diagrams",
-    "Student understands UML class diagrams.",
-    uml.id
-  );
-
-  const lo2 = await findOrCreateLearningObjective(
-    "Write SQL queries",
-    "Student can write basic SQL queries.",
-    sql.id
-  );
-
-  // QUESTIONS
-  const reviewedAt = new Date("2026-05-28T00:00:00.000Z");
-
-  const sqlSelectGroup = await findOrCreateEquivalentQuestionGroup(
-    "SQL SELECT osnovne variante",
-    "Primerljive variante vprasanj za preverjanje osnovnega razumevanja stavka SELECT."
-  );
-
-  await findOrCreateQuestion({
-    title: "What is UML?",
-    description: "Explain UML and its purpose.",
-    difficulty: 2,
-    type: "OPEN",
-    status: "APPROVED",
-    topicId: uml.id,
-    learningObjectiveId: lo1.id,
-    createdById: instructor.id,
-    reviewedById: admin.id,
-    reviewedAt,
-  });
-
-  await findOrCreateQuestion({
-    title: "What is a class diagram?",
-    description: "Describe UML class diagrams.",
-    difficulty: 3,
-    type: "OPEN",
-    status: "APPROVED",
-    topicId: uml.id,
-    learningObjectiveId: lo1.id,
-    createdById: instructor.id,
-    reviewedById: admin.id,
-    reviewedAt,
-  });
-
-  const sqlSelectQuestion = await findOrCreateQuestion({
-    title: "SQL SELECT",
-    description: "Write a SELECT query.",
-    difficulty: 2,
-    type: "CODE",
-    status: "APPROVED",
-    topicId: sql.id,
-    learningObjectiveId: lo2.id,
-    createdById: instructor.id,
-    reviewedById: admin.id,
-    reviewedAt,
-    equivalentGroupId: sqlSelectGroup.id,
-  });
-
-  const primaryKeyQuestion = await findOrCreateQuestion({
-    title: "Primary Key",
-    description: "Explain primary keys in SQL.",
-    difficulty: 1,
-    type: "OPEN",
-    status: "APPROVED",
-    topicId: sql.id,
-    learningObjectiveId: lo2.id,
-    createdById: instructor.id,
-    reviewedById: admin.id,
-    reviewedAt,
-  });
-
-  const tcpIpQuestion = await findOrCreateQuestion({
-    title: "What is TCP/IP?",
-    description: "Explain TCP/IP protocol.",
-    difficulty: 3,
-    type: "OPEN",
-    status: "APPROVED",
-    topicId: networking.id,
-    createdById: instructor.id,
-    reviewedById: admin.id,
-    reviewedAt,
-  });
-
-  const sqlMultipleChoice = await findOrCreateQuestion({
-    title: "Which SQL statement is used to read data from a table?",
-    description: "Select the SQL statement used to read data from a table.",
-    difficulty: 1,
-    type: "MULTIPLE_CHOICE",
-    status: "APPROVED",
-    topicId: sql.id,
-    learningObjectiveId: lo2.id,
-    createdById: instructor.id,
-    reviewedById: admin.id,
-    reviewedAt,
-    equivalentGroupId: sqlSelectGroup.id,
-  });
-
-  await upsertAnswerOptions(sqlMultipleChoice.id, [
-    {
-      text: "SELECT",
-      isCorrect: true,
-      orderIndex: 1,
-    },
-    {
-      text: "INSERT",
-      isCorrect: false,
-      orderIndex: 2,
-    },
-    {
-      text: "UPDATE",
-      isCorrect: false,
-      orderIndex: 3,
-    },
-    {
-      text: "DELETE",
-      isCorrect: false,
-      orderIndex: 4,
-    },
-  ]);
-
-  await findOrCreateQuestion({
-    title: "SQL SELECT basic variant",
-    description: "Write a query that returns all columns from a table named Students.",
-    difficulty: 2,
-    type: "CODE",
-    status: "APPROVED",
-    topicId: sql.id,
-    learningObjectiveId: lo2.id,
-    createdById: instructor.id,
-    reviewedById: admin.id,
-    reviewedAt,
-    equivalentGroupId: sqlSelectGroup.id,
-  });
-
-  const umlMultipleChoice = await findOrCreateQuestion({
-    title:
-      "Which UML diagram is commonly used to show classes and their relationships?",
-    description:
-      "Select the UML diagram commonly used to show classes and their relationships.",
-    difficulty: 2,
-    type: "MULTIPLE_CHOICE",
-    status: "APPROVED",
-    topicId: uml.id,
-    learningObjectiveId: lo1.id,
-    createdById: instructor.id,
-    reviewedById: admin.id,
-    reviewedAt,
-  });
-
-  await upsertAnswerOptions(umlMultipleChoice.id, [
-    {
-      text: "Class diagram",
-      isCorrect: true,
-      orderIndex: 1,
-    },
-    {
-      text: "Sequence diagram",
-      isCorrect: false,
-      orderIndex: 2,
-    },
-    {
-      text: "Deployment diagram",
-      isCorrect: false,
-      orderIndex: 3,
-    },
-    {
-      text: "Activity diagram",
-      isCorrect: false,
-      orderIndex: 4,
-    },
-  ]);
-
-  // AI MODELS AND INTERACTION TRACE EXAMPLES
-  await upsertAiModel({
-    provider: "OLLAMA",
-    modelName: "gpt-oss:120b",
-    displayName: "Ollama gpt-oss:120b (not installed locally)",
-    baseUrl: "http://localhost:11434",
-    isLocal: true,
-    isActive: false,
-  });
-
-  const ollamaModel = await upsertAiModel({
-    provider: "OLLAMA",
-    modelName: "qwen3:8b",
-    displayName: "Qwen 3 8B Local",
-    baseUrl: "http://localhost:11434",
-    isLocal: true,
-    isActive: true,
-  });
-
-  await upsertAiModel({
-    provider: "OLLAMA",
-    modelName: "gpt-oss:20b",
-    displayName: "GPT OSS 20B Local",
-    baseUrl: "http://localhost:11434",
-    isLocal: true,
-    isActive: true,
-  });
-
-  await upsertAiModel({
-    provider: "OLLAMA",
-    modelName: "llama3.1:8b",
-    displayName: "Llama 3.1 8B Local",
-    baseUrl: "http://localhost:11434",
-    isLocal: true,
-    isActive: true,
-  });
-
-  await upsertAiModel({
-    provider: "OLLAMA",
-    modelName: "mistral-nemo:12b",
-    displayName: "Mistral Nemo 12B Local",
-    baseUrl: "http://localhost:11434",
-    isLocal: true,
-    isActive: true,
-  });
-
-  await upsertAiModel({
-    provider: "OLLAMA",
-    modelName: "gemma3n:e4b",
-    displayName: "Gemma 3n E4B Local",
-    baseUrl: "http://localhost:11434",
-    isLocal: true,
-    isActive: true,
-  });
-
-  const openAiModel = await upsertAiModel({
-    provider: "OPENAI",
-    modelName: "gpt-4.1",
-    displayName: "OpenAI GPT-4.1",
-    baseUrl: null,
-    isLocal: false,
-    isActive: true,
-  });
-
-  const deepSeekModel = await upsertAiModel({
-    provider: "DEEPSEEK",
-    modelName: "deepseek-chat",
-    displayName: "DeepSeek Chat",
-    baseUrl: null,
-    isLocal: false,
-    isActive: true,
-  });
-
-  await findOrCreateAiInteraction({
-    aiModelId: ollamaModel.id,
-    requestedById: instructor.id,
-    action: "GENERATE_QUESTION",
-    prompt:
-      "Demo AI trace: propose one draft SQL question about SELECT with expected answer guidance.",
-    resultText: null,
-    resultJson: {
-      title: "SQL SELECT projection",
-      description:
-        "Write a query that returns the name and email columns from the Students table.",
-      type: "CODE",
-      difficulty: 2,
-      suggestedStatus: "DRAFT",
-      expectedAnswer: "SELECT name, email FROM Students;",
-    },
-    sourceQuestionId: null,
-    generatedQuestionId: null,
-    reviewStatus: "PENDING",
-    reviewedById: null,
-    reviewedAt: null,
-  });
-
-  await findOrCreateAiInteraction({
-    aiModelId: openAiModel.id,
-    requestedById: instructor.id,
-    action: "CHECK_QUESTION_QUALITY",
-    prompt:
-      "Demo AI trace: review the quality of the approved SQL SELECT question for clarity and assessment fit.",
-    resultText:
-      "The question is clear for basic SQL recall, but the expected table structure should be stated before use in an assessment.",
-    resultJson: {
-      clarity: "good",
-      difficultyFit: "appropriate",
-      recommendation:
-        "Keep as approved demo content; add schema context in future revisions.",
-    },
-    sourceQuestionId: sqlSelectQuestion.id,
-    generatedQuestionId: null,
-    reviewStatus: "ACCEPTED",
-    reviewedById: admin.id,
-    reviewedAt: new Date("2026-05-30T10:00:00.000Z"),
-  });
-
-  await findOrCreateAiInteraction({
-    aiModelId: deepSeekModel.id,
-    requestedById: instructor.id,
-    action: "GENERATE_EQUIVALENT_QUESTION",
-    prompt:
-      "Demo AI trace: propose an equivalent variant of the approved SQL SELECT question without creating a question record.",
-    resultText: null,
-    resultJson: {
-      title: "SQL SELECT all rows",
-      description:
-        "Write a query that returns all rows and columns from a table named Courses.",
-      type: "CODE",
-      difficulty: 2,
-      suggestedStatus: "NEEDS_REVIEW",
-      equivalenceRationale:
-        "The proposal checks the same basic SELECT syntax skill with a different table name.",
-    },
-    sourceQuestionId: sqlSelectQuestion.id,
-    generatedQuestionId: null,
-    reviewStatus: "PENDING",
-    reviewedById: null,
-    reviewedAt: null,
-  });
-
-  const demoAssessment = await findOrCreateAssessment({
-    title: "Demo predtest - Osnove informatike",
-    description: "Demo preverjanje za testiranje MVP modela preverjanj.",
-    type: "PRE_TEST",
-    status: "PUBLISHED",
-    timeLimitMinutes: 30,
-    trainingId: training.id,
-  });
-
-  await findOrCreateAssessmentBlueprint({
-    title: "Blueprint predtest - Osnove informatike",
-    description:
-      "Demo blueprint za generiranje preverjanja po tematikah, ucnih ciljih in tezavnosti.",
-    trainingId: training.id,
-    targetQuestionCount: 5,
-    configJson: {
-      topics: [
-        {
-          topicName: "SQL",
-          topicId: sql.id,
-          questionCount: 3,
-        },
-        {
-          topicName: "UML",
-          topicId: uml.id,
-          questionCount: 2,
-        },
-      ],
-      learningObjectives: [
-        {
-          title: "Write SQL queries",
-          learningObjectiveId: lo2.id,
-          questionCount: 3,
-        },
-        {
-          title: "Understand UML diagrams",
-          learningObjectiveId: lo1.id,
-          questionCount: 2,
-        },
-      ],
-      difficulty: {
-        easy: 2,
-        medium: 2,
-        hard: 1,
-      },
-    },
-  });
-
-  const demoAssessmentQuestions = [
-    {
-      questionId: sqlSelectQuestion.id,
-      orderIndex: 1,
-      points: 2,
-    },
-    {
-      questionId: primaryKeyQuestion.id,
-      orderIndex: 2,
-      points: 1,
-    },
-    {
-      questionId: tcpIpQuestion.id,
-      orderIndex: 3,
-      points: 2,
-    },
-    {
-      questionId: sqlMultipleChoice.id,
-      orderIndex: 4,
-      points: 1,
-    },
-    {
-      questionId: umlMultipleChoice.id,
-      orderIndex: 5,
-      points: 1,
-    },
-  ];
-
-  const approvedDemoQuestions = await prisma.question.findMany({
+async function upsertAiModel({
+  modelName,
+  displayName,
+  isActive = true,
+  isLocal = true,
+}) {
+  return prisma.aiModel.upsert({
     where: {
-      id: {
-        in: demoAssessmentQuestions.map((question) => question.questionId),
+      provider_modelName: {
+        provider: "OLLAMA",
+        modelName,
       },
-      status: "APPROVED",
     },
-    select: {
-      id: true,
+    update: {
+      displayName,
+      baseUrl: OLLAMA_BASE_URL,
+      isLocal,
+      isActive,
+    },
+    create: {
+      provider: "OLLAMA",
+      modelName,
+      displayName,
+      baseUrl: OLLAMA_BASE_URL,
+      isLocal,
+      isActive,
     },
   });
+}
 
-  const approvedQuestionIds = new Set(
-    approvedDemoQuestions.map((question) => question.id)
-  );
+async function upsertAssessmentQuestion({
+  assessmentId,
+  questionId,
+  orderIndex,
+  points,
+}) {
+  return prisma.assessmentQuestion.upsert({
+    where: {
+      assessmentId_questionId: {
+        assessmentId,
+        questionId,
+      },
+    },
+    update: {
+      orderIndex,
+      points,
+    },
+    create: {
+      assessmentId,
+      questionId,
+      orderIndex,
+      points,
+    },
+  });
+}
+
+async function syncAssessmentQuestions(assessmentId, questions) {
+  const questionIds = questions.map((question) => question.id);
 
   await prisma.assessmentQuestion.deleteMany({
     where: {
-      assessmentId: demoAssessment.id,
+      assessmentId,
+      questionId: {
+        notIn: questionIds,
+      },
     },
   });
 
-  await prisma.assessmentQuestion.createMany({
-    data: demoAssessmentQuestions
-      .filter((question) => approvedQuestionIds.has(question.questionId))
-      .map((question) => ({
-        assessmentId: demoAssessment.id,
-        questionId: question.questionId,
-        orderIndex: question.orderIndex,
-        points: question.points,
-      })),
-  });
+  for (const [index, question] of questions.entries()) {
+    await upsertAssessmentQuestion({
+      assessmentId,
+      questionId: question.id,
+      orderIndex: index,
+      points: 1,
+    });
+  }
+}
 
-  const sqlSelectedOption = await prisma.answerOption.findFirst({
+async function getOptionByCorrectness(questionId, shouldBeCorrect) {
+  const option = await prisma.answerOption.findFirst({
     where: {
-      questionId: sqlMultipleChoice.id,
-      orderIndex: 1,
+      questionId,
+      isCorrect: shouldBeCorrect,
+    },
+    orderBy: {
+      orderIndex: "asc",
     },
   });
 
-  const umlSelectedOption = await prisma.answerOption.findFirst({
+  if (!option) {
+    throw new Error(`Missing ${shouldBeCorrect ? "correct" : "incorrect"} option for question ${questionId}.`);
+  }
+
+  return option;
+}
+
+async function upsertSolvedAttempt({
+  assessmentId,
+  userId,
+  questions,
+  correctCount,
+  submittedAt,
+}) {
+  const attempts = await prisma.assessmentAttempt.findMany({
     where: {
-      questionId: umlMultipleChoice.id,
-      orderIndex: 1,
+      assessmentId,
+      userId,
+    },
+    orderBy: {
+      id: "asc",
     },
   });
 
-  const demoAttemptAnswers = [
-    {
-      questionId: sqlSelectQuestion.id,
-      answerText: "SELECT * FROM Students;",
-      isCorrect: true,
-      pointsAwarded: 2,
-    },
-    {
-      questionId: primaryKeyQuestion.id,
-      answerText: "A primary key uniquely identifies each row in a table.",
-      isCorrect: true,
-      pointsAwarded: 1,
-    },
-    {
-      questionId: tcpIpQuestion.id,
-      answerText: "TCP/IP is a set of network protocols used for communication between devices.",
-      isCorrect: false,
-      pointsAwarded: 0,
-    },
-    {
-      questionId: sqlMultipleChoice.id,
-      selectedOptionId: sqlSelectedOption?.id,
-      isCorrect: true,
-      pointsAwarded: 1,
-    },
-    {
-      questionId: umlMultipleChoice.id,
-      selectedOptionId: umlSelectedOption?.id,
-      isCorrect: true,
-      pointsAwarded: 1,
-    },
-  ];
+  const existingAttempt = attempts[0];
+  const duplicateAttemptIds = attempts.slice(1).map((attempt) => attempt.id);
 
-  const seededAssessmentQuestionIds = new Set(
-    (
-      await prisma.assessmentQuestion.findMany({
-        where: {
-          assessmentId: demoAssessment.id,
+  if (duplicateAttemptIds.length > 0) {
+    await prisma.assessmentAttempt.deleteMany({
+      where: {
+        id: {
+          in: duplicateAttemptIds,
         },
-        select: {
-          questionId: true,
+      },
+    });
+  }
+
+  const attempt = existingAttempt
+    ? await prisma.assessmentAttempt.update({
+        where: { id: existingAttempt.id },
+        data: {
+          startedAt: DEMO_STARTED_AT,
+          submittedAt,
+          score: correctCount,
+          maxScore: questions.length,
+          status: "GRADED",
         },
       })
-    ).map((assessmentQuestion) => assessmentQuestion.questionId)
-  );
+    : await prisma.assessmentAttempt.create({
+        data: {
+          assessmentId,
+          userId,
+          startedAt: DEMO_STARTED_AT,
+          submittedAt,
+          score: correctCount,
+          maxScore: questions.length,
+          status: "GRADED",
+        },
+      });
 
-  const validDemoAttemptAnswers = demoAttemptAnswers.filter((answer) =>
-    seededAssessmentQuestionIds.has(answer.questionId)
-  );
+  for (const [index, question] of questions.entries()) {
+    const isCorrect = index < correctCount;
+    const selectedOption = await getOptionByCorrectness(question.id, isCorrect);
 
-  const demoAttemptScore = validDemoAttemptAnswers.reduce(
-    (total, answer) => total + (answer.pointsAwarded ?? 0),
-    0
-  );
-
-  const demoAttempt = await findOrCreateAssessmentAttempt({
-    assessmentId: demoAssessment.id,
-    userId: participant.id,
-    startedAt: new Date("2026-05-29T08:00:00.000Z"),
-    submittedAt: new Date("2026-05-29T08:22:00.000Z"),
-    score: demoAttemptScore,
-    status: "GRADED",
-  });
+    await prisma.participantAnswer.upsert({
+      where: {
+        attemptId_questionId: {
+          attemptId: attempt.id,
+          questionId: question.id,
+        },
+      },
+      update: {
+        selectedOptionId: selectedOption.id,
+        answerText: null,
+        isCorrect,
+        pointsAwarded: isCorrect ? 1 : 0,
+        needsManualReview: false,
+      },
+      create: {
+        attemptId: attempt.id,
+        questionId: question.id,
+        selectedOptionId: selectedOption.id,
+        answerText: null,
+        isCorrect,
+        pointsAwarded: isCorrect ? 1 : 0,
+        needsManualReview: false,
+      },
+    });
+  }
 
   await prisma.participantAnswer.deleteMany({
     where: {
-      attemptId: demoAttempt.id,
+      attemptId: attempt.id,
+      questionId: {
+        notIn: questions.map((question) => question.id),
+      },
     },
   });
 
-  await prisma.participantAnswer.createMany({
-    data: validDemoAttemptAnswers.map((answer) => ({
-      attemptId: demoAttempt.id,
-      questionId: answer.questionId,
-      selectedOptionId: answer.selectedOptionId,
-      answerText: answer.answerText,
-      isCorrect: answer.isCorrect,
-      pointsAwarded: answer.pointsAwarded,
-    })),
+  return attempt;
+}
+
+function questionSpec({
+  title,
+  description,
+  difficulty,
+  topic,
+  objective,
+  group,
+  correct,
+  distractors,
+}) {
+  return {
+    title,
+    description,
+    difficulty,
+    topic,
+    objective,
+    group,
+    answerOptions: [
+      { orderIndex: 1, text: correct, isCorrect: true },
+      ...distractors.map((text, index) => ({
+        orderIndex: index + 2,
+        text,
+        isCorrect: false,
+      })),
+    ],
+  };
+}
+
+async function main() {
+  const admin = await upsertUser({
+    email: "admin@example.com",
+    name: "Demo Admin",
+    externalAuthId: "demo-admin-auth-id",
+    role: "ADMIN",
   });
 
-  console.log("Seed data inserted.");
+  const instructor = await upsertUser({
+    email: "instructor@example.com",
+    name: "Demo Instructor",
+    externalAuthId: "demo-instructor-auth-id",
+    role: "INSTRUCTOR",
+  });
+
+  const participants = await Promise.all([
+    upsertUser({
+      email: "participant@example.com",
+      name: "Demo Participant",
+      externalAuthId: "demo-participant-auth-id",
+      role: "PARTICIPANT",
+    }),
+    upsertUser({
+      email: "ana.student@example.com",
+      name: "Ana Student",
+      externalAuthId: "demo-ana-student-auth-id",
+      role: "PARTICIPANT",
+    }),
+    upsertUser({
+      email: "marko.student@example.com",
+      name: "Marko Student",
+      externalAuthId: "demo-marko-student-auth-id",
+      role: "PARTICIPANT",
+    }),
+    upsertUser({
+      email: "sara.student@example.com",
+      name: "Sara Student",
+      externalAuthId: "demo-sara-student-auth-id",
+      role: "PARTICIPANT",
+    }),
+    upsertUser({
+      email: "luka.student@example.com",
+      name: "Luka Student",
+      externalAuthId: "demo-luka-student-auth-id",
+      role: "PARTICIPANT",
+    }),
+    upsertUser({
+      email: "nina.student@example.com",
+      name: "Nina Student",
+      externalAuthId: "demo-nina-student-auth-id",
+      role: "PARTICIPANT",
+    }),
+  ]);
+
+  await upsertAiModel({
+    modelName: "qwen3:8b",
+    displayName: "Qwen 3 8B Local - Recommended Default",
+  });
+  await upsertAiModel({
+    modelName: "gpt-oss:20b",
+    displayName: "GPT OSS 20B Local",
+  });
+  await upsertAiModel({
+    modelName: "llama3.1:8b",
+    displayName: "Llama 3.1 8B Local",
+  });
+  await upsertAiModel({
+    modelName: "mistral-nemo:12b",
+    displayName: "Mistral Nemo 12B Local",
+  });
+  await upsertAiModel({
+    modelName: "gemma3n:e4b",
+    displayName: "Gemma 3n E4B Local",
+  });
+  await upsertAiModel({
+    modelName: "gpt-oss:120b",
+    displayName: "GPT OSS 120B Local - Not Installed",
+    isActive: false,
+  });
+
+  const training = await upsertByFirst(
+    "training",
+    { title: "Introduction to Databases" },
+    {
+      description:
+        "Demo training for database fundamentals: SQL basics, joins, and normalization.",
+    }
+  );
+
+  const sqlBasics = await upsertTopic("SQL Basics", training.id);
+  const joins = await upsertTopic("Joins", training.id);
+  const normalization = await upsertTopic("Normalization", training.id);
+
+  const selectObjective = await upsertLearningObjective({
+    title: "Write basic SELECT queries",
+    description:
+      "Use SELECT, FROM, WHERE, ORDER BY, and aggregate functions in simple queries.",
+    topicId: sqlBasics.id,
+  });
+  const keysObjective = await upsertLearningObjective({
+    title: "Explain primary and foreign keys",
+    description:
+      "Identify primary keys and foreign keys and explain how they preserve relationships.",
+    topicId: sqlBasics.id,
+  });
+  const joinObjective = await upsertLearningObjective({
+    title: "Use INNER JOIN correctly",
+    description:
+      "Combine related rows from two tables using matching key columns.",
+    topicId: joins.id,
+  });
+  const normalizeObjective = await upsertLearningObjective({
+    title: "Normalize a table to 3NF",
+    description:
+      "Recognize partial and transitive dependencies and restructure tables to third normal form.",
+    topicId: normalization.id,
+  });
+
+  const context = {
+    topics: {
+      sqlBasics,
+      joins,
+      normalization,
+    },
+    objectives: {
+      selectObjective,
+      keysObjective,
+      joinObjective,
+      normalizeObjective,
+    },
+  };
+
+  const groupNames = [
+    ["select-columns", "SELECT column selection"],
+    ["select-all", "SELECT all columns"],
+    ["where-filter", "WHERE filtering"],
+    ["primary-key", "Primary key purpose"],
+    ["foreign-key", "Foreign key relationship"],
+    ["join-keyword", "JOIN keyword"],
+    ["inner-join", "INNER JOIN semantics"],
+    ["join-condition", "Join condition"],
+    ["normalization-purpose", "Normalization purpose"],
+    ["third-normal-form", "Third normal form"],
+    ["transitive-dependency", "Transitive dependency"],
+    ["group-by", "GROUP BY aggregation"],
+    ["order-by", "ORDER BY sorting"],
+    ["referential-integrity", "Referential integrity"],
+    ["partial-dependency", "Partial dependency"],
+    ["many-to-many", "Many-to-many relationship"],
+  ];
+
+  const groups = {};
+  for (const [key, name] of groupNames) {
+    groups[key] = await upsertEquivalentGroup({
+      name: `Database Fundamentals - ${name}`,
+      description: `Comparable pre/post demo group for ${name}.`,
+    });
+  }
+
+  const preSpecs = [
+    questionSpec({
+      title: "Pre-test: Which SQL clause lists returned columns?",
+      description: "Choose the clause that defines which columns appear in a query result.",
+      difficulty: 1,
+      topic: context.topics.sqlBasics,
+      objective: context.objectives.selectObjective,
+      group: groups["select-columns"],
+      correct: "SELECT",
+      distractors: ["FROM", "WHERE", "GROUP BY"],
+    }),
+    questionSpec({
+      title: "Pre-test: Which query returns every column from Students?",
+      description: "Select the valid SQL statement returning all rows and all columns from Students.",
+      difficulty: 1,
+      topic: context.topics.sqlBasics,
+      objective: context.objectives.selectObjective,
+      group: groups["select-all"],
+      correct: "SELECT * FROM Students;",
+      distractors: ["GET * FROM Students;", "SELECT Students FROM *;", "FROM Students SELECT *;"],
+    }),
+    questionSpec({
+      title: "Pre-test: What does a WHERE clause do?",
+      description: "Choose the purpose of WHERE in a SELECT statement.",
+      difficulty: 1,
+      topic: context.topics.sqlBasics,
+      objective: context.objectives.selectObjective,
+      group: groups["where-filter"],
+      correct: "Filters rows that meet a condition",
+      distractors: ["Renames a table permanently", "Creates a database user", "Deletes duplicate columns"],
+    }),
+    questionSpec({
+      title: "Pre-test: What is the role of a primary key?",
+      description: "Choose the best description of a primary key in a relational table.",
+      difficulty: 1,
+      topic: context.topics.sqlBasics,
+      objective: context.objectives.keysObjective,
+      group: groups["primary-key"],
+      correct: "It uniquely identifies each row in a table",
+      distractors: ["It stores the longest text value", "It sorts every query by default", "It blocks SELECT queries"],
+    }),
+    questionSpec({
+      title: "Pre-test: What does a foreign key reference?",
+      description: "Choose what a foreign key normally points to in a relational database.",
+      difficulty: 2,
+      topic: context.topics.sqlBasics,
+      objective: context.objectives.keysObjective,
+      group: groups["foreign-key"],
+      correct: "A candidate or primary key in another related table",
+      distractors: ["The database server hostname", "A backup file", "The color of a table diagram"],
+    }),
+    questionSpec({
+      title: "Pre-test: Which SQL keyword combines related rows from two tables?",
+      description: "Choose the keyword commonly used with ON to combine rows from related tables.",
+      difficulty: 2,
+      topic: context.topics.joins,
+      objective: context.objectives.joinObjective,
+      group: groups["join-keyword"],
+      correct: "JOIN",
+      distractors: ["MERGEFILE", "CONNECTDB", "PACK"],
+    }),
+    questionSpec({
+      title: "Pre-test: What does an INNER JOIN return?",
+      description: "Choose the result produced by an INNER JOIN between two tables.",
+      difficulty: 2,
+      topic: context.topics.joins,
+      objective: context.objectives.joinObjective,
+      group: groups["inner-join"],
+      correct: "Only rows where the join condition matches in both tables",
+      distractors: ["Every row from both tables", "Only rows with no matching key", "A table with no columns"],
+    }),
+    questionSpec({
+      title: "Pre-test: Which condition joins Orders to Customers by id?",
+      description: "Orders has customer_id and Customers has id. Choose the correct join condition.",
+      difficulty: 2,
+      topic: context.topics.joins,
+      objective: context.objectives.joinObjective,
+      group: groups["join-condition"],
+      correct: "Orders.customer_id = Customers.id",
+      distractors: ["Orders.id = Customers.customer_id", "Orders.customer_id > Customers.id", "Orders.name = Customers.total"],
+    }),
+    questionSpec({
+      title: "Pre-test: What problem does normalization primarily reduce?",
+      description: "Choose the database design problem normalization is meant to reduce.",
+      difficulty: 2,
+      topic: context.topics.normalization,
+      objective: context.objectives.normalizeObjective,
+      group: groups["normalization-purpose"],
+      correct: "Redundant data and update anomalies",
+      distractors: ["The need for primary keys", "All network latency", "Every SQL syntax error"],
+    }),
+    questionSpec({
+      title: "Pre-test: Which statement best describes third normal form?",
+      description: "Choose the statement that best describes a table in third normal form.",
+      difficulty: 3,
+      topic: context.topics.normalization,
+      objective: context.objectives.normalizeObjective,
+      group: groups["third-normal-form"],
+      correct: "Non-key attributes depend on the key, the whole key, and nothing but the key",
+      distractors: ["Every table must contain exactly three columns", "Foreign keys are not allowed", "All text fields must be stored in one table"],
+    }),
+    questionSpec({
+      title: "Pre-test: Which dependency creates a 3NF problem?",
+      description: "In Course(id, instructor_id, instructor_name), instructor_name depends on instructor_id. Choose the issue.",
+      difficulty: 3,
+      topic: context.topics.normalization,
+      objective: context.objectives.normalizeObjective,
+      group: groups["transitive-dependency"],
+      correct: "A transitive dependency",
+      distractors: ["A valid primary key dependency", "A missing JOIN keyword", "A required ORDER BY clause"],
+    }),
+  ];
+
+  const postSpecs = [
+    questionSpec({
+      title: "Post-test: Which clause chooses the output columns?",
+      description: "Pick the SQL clause that controls which columns are shown in the result.",
+      difficulty: 1,
+      topic: context.topics.sqlBasics,
+      objective: context.objectives.selectObjective,
+      group: groups["select-columns"],
+      correct: "SELECT",
+      distractors: ["HAVING", "FROM", "ORDER BY"],
+    }),
+    questionSpec({
+      title: "Post-test: Which statement reads all Product columns?",
+      description: "Choose the valid SQL statement returning all columns from Products.",
+      difficulty: 1,
+      topic: context.topics.sqlBasics,
+      objective: context.objectives.selectObjective,
+      group: groups["select-all"],
+      correct: "SELECT * FROM Products;",
+      distractors: ["READ * FROM Products;", "SELECT Products FROM *;", "FROM Products GET *;"],
+    }),
+    questionSpec({
+      title: "Post-test: Which clause filters employees with salary over 2000?",
+      description: "Choose the clause that limits rows to employees matching a salary condition.",
+      difficulty: 1,
+      topic: context.topics.sqlBasics,
+      objective: context.objectives.selectObjective,
+      group: groups["where-filter"],
+      correct: "WHERE salary > 2000",
+      distractors: ["FROM salary > 2000", "SELECT salary > 2000", "TABLE salary > 2000"],
+    }),
+    questionSpec({
+      title: "Post-test: Why should Customer.id be a primary key?",
+      description: "Choose why Customer.id works as a primary key.",
+      difficulty: 1,
+      topic: context.topics.sqlBasics,
+      objective: context.objectives.keysObjective,
+      group: groups["primary-key"],
+      correct: "It uniquely identifies each customer row",
+      distractors: ["It stores every customer order", "It removes the need for joins", "It encrypts customer names"],
+    }),
+    questionSpec({
+      title: "Post-test: What is the purpose of Orders.customer_id?",
+      description: "Choose the purpose of a customer_id column in Orders.",
+      difficulty: 2,
+      topic: context.topics.sqlBasics,
+      objective: context.objectives.keysObjective,
+      group: groups["foreign-key"],
+      correct: "It links each order to a customer row",
+      distractors: ["It stores the customer's full address", "It sorts orders alphabetically", "It prevents indexes"],
+    }),
+    questionSpec({
+      title: "Post-test: Which keyword joins Enrollments to Students?",
+      description: "Choose the SQL keyword used to combine matching rows from Enrollments and Students.",
+      difficulty: 2,
+      topic: context.topics.joins,
+      objective: context.objectives.joinObjective,
+      group: groups["join-keyword"],
+      correct: "JOIN",
+      distractors: ["APPEND", "CHAIN", "ZIP"],
+    }),
+    questionSpec({
+      title: "Post-test: What rows appear in an INNER JOIN result?",
+      description: "Choose which rows are returned when an INNER JOIN condition is applied.",
+      difficulty: 2,
+      topic: context.topics.joins,
+      objective: context.objectives.joinObjective,
+      group: groups["inner-join"],
+      correct: "Rows with matching values on both sides of the join",
+      distractors: ["All rows from the left table only", "Rows that fail the ON condition", "Rows from neither table"],
+    }),
+    questionSpec({
+      title: "Post-test: Which ON condition joins LineItems to Products?",
+      description: "LineItems has product_id and Products has id. Choose the correct ON condition.",
+      difficulty: 2,
+      topic: context.topics.joins,
+      objective: context.objectives.joinObjective,
+      group: groups["join-condition"],
+      correct: "LineItems.product_id = Products.id",
+      distractors: ["LineItems.id = Products.product_id", "LineItems.product_id <> Products.id", "LineItems.quantity = Products.name"],
+    }),
+    questionSpec({
+      title: "Post-test: What problem does normalization reduce?",
+      description: "Choose the design problem normalization is meant to reduce.",
+      difficulty: 2,
+      topic: context.topics.normalization,
+      objective: context.objectives.normalizeObjective,
+      group: groups["normalization-purpose"],
+      correct: "Redundant data and update anomalies",
+      distractors: ["The need for primary keys", "All network latency", "Every SQL syntax error"],
+    }),
+    questionSpec({
+      title: "Post-test: Which statement describes third normal form?",
+      description: "Choose the statement that best describes a table in third normal form.",
+      difficulty: 3,
+      topic: context.topics.normalization,
+      objective: context.objectives.normalizeObjective,
+      group: groups["third-normal-form"],
+      correct: "Non-key attributes depend on the key, the whole key, and nothing but the key",
+      distractors: ["Every table has exactly three columns", "Foreign keys are forbidden", "All text fields live in one table"],
+    }),
+    questionSpec({
+      title: "Post-test: Which dependency violates third normal form?",
+      description: "In Student(id, department_id, department_name), department_name depends on department_id. Choose the issue.",
+      difficulty: 3,
+      topic: context.topics.normalization,
+      objective: context.objectives.normalizeObjective,
+      group: groups["transitive-dependency"],
+      correct: "A transitive dependency",
+      distractors: ["A valid primary key dependency", "A missing SELECT clause", "A natural join requirement"],
+    }),
+    questionSpec({
+      title: "Post-test: Which clause groups rows for aggregate results?",
+      description: "Choose the clause used before applying aggregate summaries by category.",
+      difficulty: 2,
+      topic: context.topics.sqlBasics,
+      objective: context.objectives.selectObjective,
+      group: groups["group-by"],
+      correct: "GROUP BY",
+      distractors: ["ORDER BY", "WHERE", "DISTINCT DATABASE"],
+    }),
+  ];
+
+  const allSpecs = [...preSpecs, ...postSpecs];
+  const questionsByTitle = {};
+
+  for (const spec of allSpecs) {
+    questionsByTitle[spec.title] = await upsertQuestion({
+      title: spec.title,
+      description: spec.description,
+      difficulty: spec.difficulty,
+      topicId: spec.topic.id,
+      learningObjectiveId: spec.objective.id,
+      createdById: instructor.id,
+      reviewedById: admin.id,
+      equivalentGroupId: spec.group.id,
+      answerOptions: spec.answerOptions,
+    });
+  }
+
+  const preAssessmentQuestionTitles = [
+    "Pre-test: Which SQL clause lists returned columns?",
+    "Pre-test: Which query returns every column from Students?",
+    "Pre-test: What is the role of a primary key?",
+    "Pre-test: What does a foreign key reference?",
+    "Pre-test: What does an INNER JOIN return?",
+    "Pre-test: Which condition joins Orders to Customers by id?",
+    "Pre-test: What problem does normalization primarily reduce?",
+    "Pre-test: Which statement best describes third normal form?",
+  ];
+  const postAssessmentQuestionTitles = [
+    "Post-test: Which clause chooses the output columns?",
+    "Post-test: Which statement reads all Product columns?",
+    "Post-test: Why should Customer.id be a primary key?",
+    "Post-test: What is the purpose of Orders.customer_id?",
+    "Post-test: What rows appear in an INNER JOIN result?",
+    "Post-test: Which ON condition joins LineItems to Products?",
+    "Post-test: What problem does normalization reduce?",
+    "Post-test: Which statement describes third normal form?",
+  ];
+  const preQuestions = preAssessmentQuestionTitles.map((title) => questionsByTitle[title]);
+  const postQuestions = postAssessmentQuestionTitles.map((title) => questionsByTitle[title]);
+
+  const preAssessment = await upsertByFirst(
+    "assessment",
+    {
+      title: "Database Fundamentals Pre-test",
+      trainingId: training.id,
+    },
+    {
+      description:
+        "Published demo pre-test covering SQL basics, joins, keys, and normalization.",
+      type: "PRE_TEST",
+      status: "PUBLISHED",
+      timeLimitMinutes: 30,
+    }
+  );
+
+  const postAssessment = await upsertByFirst(
+    "assessment",
+    {
+      title: "Database Fundamentals Post-test",
+      trainingId: training.id,
+    },
+    {
+      description:
+        "Published demo post-test with comparable questions for measuring progress.",
+      type: "POST_TEST",
+      status: "PUBLISHED",
+      timeLimitMinutes: 30,
+    }
+  );
+
+  await syncAssessmentQuestions(preAssessment.id, preQuestions);
+  await syncAssessmentQuestions(postAssessment.id, postQuestions);
+
+  const scorePlan = {
+    "participant@example.com": { pre: 4, post: 6 },
+    "ana.student@example.com": { pre: 3, post: 7 },
+    "marko.student@example.com": { pre: 5, post: 6 },
+    "sara.student@example.com": { pre: 2, post: 6 },
+    "luka.student@example.com": { pre: 4, post: 5 },
+    "nina.student@example.com": { pre: 6, post: 8 },
+  };
+
+  for (const participant of participants) {
+    const plan = scorePlan[participant.email];
+
+    await upsertSolvedAttempt({
+      assessmentId: preAssessment.id,
+      userId: participant.id,
+      questions: preQuestions,
+      correctCount: plan.pre,
+      submittedAt: new Date("2026-06-03T09:00:00.000Z"),
+    });
+
+    await upsertSolvedAttempt({
+      assessmentId: postAssessment.id,
+      userId: participant.id,
+      questions: postQuestions,
+      correctCount: plan.post,
+      submittedAt: new Date("2026-06-04T09:00:00.000Z"),
+    });
+  }
+
+  const topicIds = [sqlBasics.id, joins.id, normalization.id];
+  const learningObjectiveIds = [
+    selectObjective.id,
+    keysObjective.id,
+    joinObjective.id,
+    normalizeObjective.id,
+  ];
+
+  await upsertByFirst(
+    "assessmentBlueprint",
+    {
+      title: "Database Fundamentals Pre/Post Series",
+      trainingId: training.id,
+    },
+    {
+      description: "Demo linked pre/post series for final presentation",
+      targetQuestionCount: 8,
+      configJson: {
+        kind: "PRE_POST_SERIES",
+        seriesKey: "database-fundamentals",
+        preAssessmentId: preAssessment.id,
+        postAssessmentId: postAssessment.id,
+        topicIds,
+        learningObjectiveIds,
+        description: "Demo linked pre/post series for final presentation",
+      },
+    }
+  );
+
+  const completedAttempts = await prisma.assessmentAttempt.count({
+    where: {
+      assessmentId: {
+        in: [preAssessment.id, postAssessment.id],
+      },
+      status: {
+        in: COMPLETED_STATUSES,
+      },
+    },
+  });
+
+  console.log(
+    `Demo seed data upserted: ${participants.length} participants, ${allSpecs.length} approved questions, 2 assessments, ${completedAttempts} completed attempts.`
+  );
 }
 
 main()
-  .catch((e) => {
-    console.error(e);
+  .catch((error) => {
+    console.error(error);
+    process.exitCode = 1;
   })
   .finally(async () => {
     await prisma.$disconnect();

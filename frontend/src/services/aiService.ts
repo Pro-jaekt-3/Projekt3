@@ -18,6 +18,11 @@ type EquivalenceSuggestionPayload = {
   modelName?: string;
 };
 
+type PrePostInsightsPayload = {
+  seriesId: number;
+  aiModelId?: number;
+};
+
 export const generateQuestionDraft = async (
   payload: QuestionDraftPayload
 ) => {
@@ -34,6 +39,18 @@ export const suggestQuestionEquivalence = async (
   payload: EquivalenceSuggestionPayload
 ) => {
   return apiJsonFetch("/ai/equivalence-suggestion", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+};
+
+export const generatePrePostInsights = async (
+  payload: PrePostInsightsPayload
+) => {
+  return apiJsonFetch("/ai/pre-post-insights", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",

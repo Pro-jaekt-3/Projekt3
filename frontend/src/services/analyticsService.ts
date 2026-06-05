@@ -20,3 +20,17 @@ export const getAnalyticsByDifficulty =
       "/analytics/by-difficulty"
     );
   };
+
+export const getPrePostSeries =
+  async () => {
+    return apiJsonFetch(
+      "/analytics/pre-post-series"
+    );
+  };
+
+export const getPrePostSeriesDetail =
+  async (seriesId: number) => {
+    return apiJsonFetch(
+      `/analytics/pre-post-series/${seriesId}`
+    );
+  };
