@@ -38,6 +38,7 @@ type Question = {
 type Topic = {
   id: number;
   name: string;
+  trainingId?: number;
 };
 
 type LearningObjective = {
@@ -77,10 +78,17 @@ const STATUS_UPDATE_ACTIONS = [
 
 function QuestionsPage() {
   const [searchParams] = useSearchParams();
+  const initialTrainingId =
+    searchParams.get("trainingId") || "";
   const initialTopicId =
     searchParams.get("topicId") || "";
   const initialLearningObjectiveId =
     searchParams.get("learningObjectiveId") || "";
+  const hasUrlContext = Boolean(
+    initialTrainingId ||
+      initialTopicId ||
+      initialLearningObjectiveId
+  );
 
   const [questions, setQuestions] = useState<Question[]>([]);
   const [topics, setTopics] = useState<Topic[]>([]);
@@ -171,20 +179,89 @@ function QuestionsPage() {
     [equivalentGroups]
   );
 
-  const reviewQueue = questions.filter(
+  const filteredLearningObjectives = useMemo(() => {
+    if (!topicId) {
+      return learningObjectives;
+    }
+
+    return learningObjectives.filter(
+      (objective) =>
+        objective.topicId === Number(topicId)
+    );
+  }, [learningObjectives, topicId]);
+
+  const filteredQuestions = useMemo(
+    () =>
+      questions.filter((question) => {
+        const questionTopicId =
+          question.topicId ?? question.topic?.id;
+        const questionLearningObjectiveId =
+          question.learningObjectiveId ??
+          question.learningObjective?.id;
+
+        if (
+          initialTrainingId &&
+          !topics.some(
+            (topic) =>
+              topic.id === questionTopicId &&
+              topic.trainingId ===
+                Number(initialTrainingId)
+          )
+        ) {
+          return false;
+        }
+
+        if (
+          initialTopicId &&
+          questionTopicId !== Number(initialTopicId)
+        ) {
+          return false;
+        }
+
+        if (
+          initialLearningObjectiveId &&
+          questionLearningObjectiveId !==
+            Number(initialLearningObjectiveId)
+        ) {
+          return false;
+        }
+
+        return true;
+      }),
+    [
+      initialLearningObjectiveId,
+      initialTopicId,
+      initialTrainingId,
+      questions,
+      topics,
+    ]
+  );
+
+  const reviewQueue = filteredQuestions.filter(
     (question) =>
       question.status === "DRAFT" ||
       question.status === "NEEDS_REVIEW" ||
       question.status === "REVIEW"
   );
 
-  const approvedCount = questions.filter(
+  const approvedCount = filteredQuestions.filter(
     (question) => question.status === "APPROVED"
   ).length;
 
+  const contextTrainingId =
+    initialTrainingId ||
+    (initialTopicId
+      ? String(
+          topics.find(
+            (topic) =>
+              topic.id === Number(initialTopicId)
+          )?.trainingId || ""
+        )
+      : "");
+
   const groupedVariants = equivalentGroups.map((group) => ({
     group,
-    questions: questions.filter((question) => {
+    questions: filteredQuestions.filter((question) => {
       const groupId =
         question.equivalentGroupId ??
         question.equivalentGroup?.id;
@@ -409,7 +486,7 @@ function QuestionsPage() {
               Total questions
             </p>
             <p className="mt-2 text-3xl font-bold">
-              {questions.length}
+              {filteredQuestions.length}
             </p>
           </div>
 
@@ -431,6 +508,43 @@ function QuestionsPage() {
             </p>
           </div>
         </div>
+
+        {hasUrlContext && (
+          <div className="mt-6 rounded-xl border border-blue-200 bg-blue-50 p-5">
+            <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+              <div>
+                <h2 className="text-lg font-semibold text-slate-950">
+                  Showing questions for this curriculum context.
+                </h2>
+
+                <p className="mt-1 text-sm text-blue-800">
+                  Topics are training-specific. Create the same topic name
+                  separately under each training when needed.
+                </p>
+              </div>
+
+              <div className="flex flex-wrap gap-3">
+                <Link
+                  to="/questions"
+                  className="rounded-lg border border-blue-300 bg-white px-4 py-2 font-medium text-blue-700 transition hover:bg-blue-100"
+                >
+                  Clear context
+                </Link>
+
+                <Link
+                  to={`/assessments${
+                    contextTrainingId
+                      ? `?trainingId=${contextTrainingId}`
+                      : ""
+                  }`}
+                  className="rounded-lg bg-blue-600 px-4 py-2 font-medium text-white transition hover:bg-blue-700"
+                >
+                  Create assessment from these questions
+                </Link>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="mb-10 grid gap-8 xl:grid-cols-[1.1fr_0.9fr]">
@@ -510,9 +624,23 @@ function QuestionsPage() {
 
             <select
               value={topicId}
-              onChange={(e) =>
-                setTopicId(e.target.value)
-              }
+              onChange={(e) => {
+                const nextTopicId = e.target.value;
+                setTopicId(nextTopicId);
+
+                if (
+                  learningObjectiveId &&
+                  !learningObjectives.some(
+                    (objective) =>
+                      objective.id ===
+                        Number(learningObjectiveId) &&
+                      objective.topicId ===
+                        Number(nextTopicId)
+                  )
+                ) {
+                  setLearningObjectiveId("");
+                }
+              }}
               className="border border-gray-300 rounded-lg px-4 py-3"
             >
               <option value="">
@@ -540,7 +668,7 @@ function QuestionsPage() {
                 Select Learning Objective
               </option>
 
-              {learningObjectives.map((objective) => (
+              {filteredLearningObjectives.map((objective) => (
                 <option
                   key={objective.id}
                   value={objective.id}
@@ -775,86 +903,92 @@ function QuestionsPage() {
         </div>
 
         <div className="grid gap-6">
-          {questions.map((question) => (
-            <div
-              key={question.id}
-              className="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm"
-            >
-              <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-                <div>
-                  <h3 className="text-2xl font-semibold">
-                    {question.title}
-                  </h3>
+          {filteredQuestions.length === 0 ? (
+            <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-5 text-slate-600">
+              No questions match this context.
+            </div>
+          ) : (
+            filteredQuestions.map((question) => (
+              <div
+                key={question.id}
+                className="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm"
+              >
+                <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+                  <div>
+                    <h3 className="text-2xl font-semibold">
+                      {question.title}
+                    </h3>
 
-                  <p className="mt-2 text-gray-600">
-                    {question.description}
-                  </p>
+                    <p className="mt-2 text-gray-600">
+                      {question.description}
+                    </p>
+                  </div>
+
+                  <span className="w-fit bg-blue-100 text-blue-700 text-sm px-3 py-1 rounded-full">
+                    {question.type}
+                  </span>
                 </div>
 
-                <span className="w-fit bg-blue-100 text-blue-700 text-sm px-3 py-1 rounded-full">
-                  {question.type}
-                </span>
-              </div>
+                <div className="mt-5 grid gap-3 text-sm text-slate-600 md:grid-cols-2 xl:grid-cols-5">
+                  <span>
+                    <strong>Status:</strong>{" "}
+                    {question.status}
+                  </span>
+                  <span>
+                    <strong>Difficulty:</strong>{" "}
+                    {question.difficulty}
+                  </span>
+                  <span>
+                    <strong>Topic:</strong>{" "}
+                    {getQuestionTopic(question)}
+                  </span>
+                  <span>
+                    <strong>Learning objective:</strong>{" "}
+                    {getQuestionObjective(question)}
+                  </span>
+                  <span>
+                    <strong>Variants:</strong>{" "}
+                    {getQuestionVariant(question)}
+                  </span>
+                </div>
 
-              <div className="mt-5 grid gap-3 text-sm text-slate-600 md:grid-cols-2 xl:grid-cols-5">
-                <span>
-                  <strong>Status:</strong>{" "}
-                  {question.status}
-                </span>
-                <span>
-                  <strong>Difficulty:</strong>{" "}
-                  {question.difficulty}
-                </span>
-                <span>
-                  <strong>Topic:</strong>{" "}
-                  {getQuestionTopic(question)}
-                </span>
-                <span>
-                  <strong>Learning objective:</strong>{" "}
-                  {getQuestionObjective(question)}
-                </span>
-                <span>
-                  <strong>Variants:</strong>{" "}
-                  {getQuestionVariant(question)}
-                </span>
-              </div>
-
-              <div className="mt-5 flex flex-wrap items-center gap-3">
-                <select
-                  value=""
-                  onChange={(e) =>
-                    handleStatusChange(
-                      question.id,
-                      e.target.value
-                    )
-                  }
-                  className="border border-gray-300 rounded-lg px-3 py-2"
-                >
-                  <option value="">
-                    Change status
-                  </option>
-
-                  {STATUS_UPDATE_ACTIONS.map((action) => (
-                    <option
-                      key={action.value}
-                      value={action.value}
-                    >
-                      {action.label}
+                <div className="mt-5 flex flex-wrap items-center gap-3">
+                  <select
+                    value=""
+                    onChange={(e) =>
+                      handleStatusChange(
+                        question.id,
+                        e.target.value
+                      )
+                    }
+                    className="border border-gray-300 rounded-lg px-3 py-2"
+                  >
+                    <option value="">
+                      Change status
                     </option>
-                  ))}
-                </select>
 
-                <button
-                  onClick={() =>
-                    handleDelete(question.id)
-                  }
-                  className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg transition"
-                >
-                  Delete
-                </button>
+                    {STATUS_UPDATE_ACTIONS.map((action) => (
+                      <option
+                        key={action.value}
+                        value={action.value}
+                      >
+                        {action.label}
+                      </option>
+                    ))}
+                  </select>
+
+                  <button
+                    onClick={() =>
+                      handleDelete(question.id)
+                    }
+                    className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg transition"
+                  >
+                    Delete
+                  </button>
+                </div>
               </div>
-            </div>
-          ))}
+            ))
+          )}
         </div>
       </section>
     </div>

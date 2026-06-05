@@ -72,6 +72,25 @@ export const updateAssessmentStatus = async (
   });
 };
 
+export const updateAssessment = async (
+  id: number,
+  assessmentData: {
+    title: string;
+    description?: string;
+    trainingId: number;
+    type: string;
+    questions: number[];
+  }
+) => {
+  return apiJsonFetch(`/assessments/${id}`, {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(assessmentData),
+  });
+};
+
 export const getAssessment = async (
   id: number
 ) => {

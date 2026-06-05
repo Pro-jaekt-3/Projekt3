@@ -244,17 +244,25 @@ const getAssessmentResults = async (req, res) => {
   }
 };
 
-const validateQuestions = async (questionItems) => {
+const validateQuestions = async (questionItems, trainingId) => {
   const questionIds = questionItems.map((item) => item.questionId);
   const uniqueQuestionIds = [...new Set(questionIds)];
+  const parsedTrainingId = parseId(trainingId);
 
   if (uniqueQuestionIds.length !== questionIds.length) {
     return { error: "Duplicate question IDs are not allowed" };
   }
 
+  if (!parsedTrainingId) {
+    return { error: "trainingId is required" };
+  }
+
   const questions = await prisma.question.findMany({
     where: {
       id: { in: uniqueQuestionIds },
+    },
+    include: {
+      topic: true,
     },
   });
 
@@ -265,6 +273,16 @@ const validateQuestions = async (questionItems) => {
   const invalidStatus = questions.find((question) => question.status !== "APPROVED");
   if (invalidStatus) {
     return { error: "All questions must be APPROVED to be added to an assessment" };
+  }
+
+  const wrongTraining = questions.find(
+    (question) => question.topic?.trainingId !== parsedTrainingId
+  );
+  if (wrongTraining) {
+    return {
+      error:
+        "All questions must belong to the selected training through their topic",
+    };
   }
 
   return { questionItems, questionIds: uniqueQuestionIds };
@@ -282,14 +300,14 @@ const createAssessment = async (req, res) => {
       return res.status(400).json({ error: "At least one question is required" });
     }
 
-    const questionItems = normalizeQuestionItems(questions);
-    const validation = await validateQuestions(questionItems);
-    if (validation.error) {
-      return res.status(400).json({ error: validation.error });
-    }
-
     if (!trainingId) {
       return res.status(400).json({ error: "trainingId is required" });
+    }
+
+    const questionItems = normalizeQuestionItems(questions);
+    const validation = await validateQuestions(questionItems, trainingId);
+    if (validation.error) {
+      return res.status(400).json({ error: validation.error });
     }
 
     const assessment = await prisma.assessment.create({
@@ -469,11 +487,39 @@ const updateAssessment = async (req, res) => {
 
     const existing = await prisma.assessment.findUnique({
       where: { id: Number(id) },
+      include: {
+        questions: {
+          orderBy: { orderIndex: "asc" },
+        },
+        attempts: {
+          where: {
+            status: "SUBMITTED",
+          },
+          select: {
+            id: true,
+          },
+        },
+      },
     });
 
     if (!existing) {
       return res.status(404).json({ error: "Assessment not found" });
     }
+
+    if (existing.status !== "DRAFT") {
+      return res.status(400).json({
+        error: "Only DRAFT assessments can be edited",
+      });
+    }
+
+    if (existing.attempts.length > 0) {
+      return res.status(409).json({
+        error: "Assessments with submitted attempts cannot be edited",
+      });
+    }
+
+    const effectiveTrainingId =
+      trainingId !== undefined ? Number(trainingId) : existing.trainingId;
 
     let questionUpdate = undefined;
     if (questions !== undefined) {
@@ -482,7 +528,7 @@ const updateAssessment = async (req, res) => {
       }
 
       const questionItems = normalizeQuestionItems(questions);
-      const validation = await validateQuestions(questionItems);
+      const validation = await validateQuestions(questionItems, effectiveTrainingId);
       if (validation.error) {
         return res.status(400).json({ error: validation.error });
       }
@@ -495,6 +541,16 @@ const updateAssessment = async (req, res) => {
           orderIndex: item.orderIndex,
         })),
       };
+    } else if (trainingId !== undefined) {
+      const questionItems = existing.questions.map((item) => ({
+        questionId: item.questionId,
+        points: item.points,
+        orderIndex: item.orderIndex,
+      }));
+      const validation = await validateQuestions(questionItems, effectiveTrainingId);
+      if (validation.error) {
+        return res.status(400).json({ error: validation.error });
+      }
     }
 
     const assessment = await prisma.assessment.update({

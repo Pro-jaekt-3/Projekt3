@@ -1,14 +1,17 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 
 import {
   getAssessments,
   createAssessment,
   deleteAssessment,
+  updateAssessment,
   updateAssessmentStatus,
 } from "../services/assessmentService";
 
 import { getQuestions } from "../services/questionService";
+import { getLearningObjectives } from "../services/learningObjectiveService";
+import { getTopics } from "../services/topicService";
 import { getTrainings } from "../services/trainingService";
 
 type Assessment = {
@@ -17,8 +20,14 @@ type Assessment = {
   description?: string | null;
   type: string;
   status?: "DRAFT" | "PUBLISHED" | "ARCHIVED";
+  trainingId?: number;
+  training?: {
+    id: number;
+    title: string;
+  };
   questions?: {
     id: number;
+    questionId?: number;
     question: {
       id: number;
       title: string;
@@ -30,11 +39,35 @@ type Question = {
   id: number;
   title: string;
   status?: string;
+  difficulty?: number;
+  topicId?: number;
+  topic?: {
+    id: number;
+    name: string;
+    trainingId?: number;
+  };
+  learningObjectiveId?: number;
+  learningObjective?: {
+    id: number;
+    title: string;
+  };
 };
 
 type Training = {
   id: number;
   title: string;
+};
+
+type Topic = {
+  id: number;
+  name: string;
+  trainingId: number;
+};
+
+type LearningObjective = {
+  id: number;
+  title: string;
+  topicId: number;
 };
 
 const statusBadgeClasses: Record<string, string> = {
@@ -44,6 +77,10 @@ const statusBadgeClasses: Record<string, string> = {
 };
 
 function AssessmentsPage() {
+  const [searchParams] = useSearchParams();
+  const initialTrainingId =
+    searchParams.get("trainingId") || "";
+
   const [assessments, setAssessments] =
     useState<Assessment[]>([]);
 
@@ -52,6 +89,9 @@ function AssessmentsPage() {
 
   const [trainings, setTrainings] =
     useState<Training[]>([]);
+  const [topics, setTopics] = useState<Topic[]>([]);
+  const [learningObjectives, setLearningObjectives] =
+    useState<LearningObjective[]>([]);
 
   const [selectedQuestions, setSelectedQuestions] =
     useState<number[]>([]);
@@ -63,22 +103,112 @@ function AssessmentsPage() {
   const [description, setDescription] =
     useState("");
   const [trainingId, setTrainingId] =
-    useState("");
+    useState(initialTrainingId);
   const [type, setType] = useState("QUIZ");
+  const [topicFilter, setTopicFilter] = useState("");
+  const [learningObjectiveFilter, setLearningObjectiveFilter] =
+    useState("");
+  const [difficultyFilter, setDifficultyFilter] =
+    useState("");
+  const [editingAssessmentId, setEditingAssessmentId] =
+    useState<number | null>(null);
+  const [formError, setFormError] = useState("");
 
-  const hasQuestionStatuses = questions.some(
-    (question) => Boolean(question.status)
+  const selectedTrainingId = trainingId
+    ? Number(trainingId)
+    : null;
+
+  const trainingTopics = useMemo(
+    () =>
+      selectedTrainingId
+        ? topics.filter(
+            (topic) =>
+              topic.trainingId === selectedTrainingId
+          )
+        : [],
+    [selectedTrainingId, topics]
   );
 
-  const availableQuestions = useMemo(() => {
-    if (!hasQuestionStatuses) {
-      return questions;
+  const filteredLearningObjectives = useMemo(() => {
+    if (!topicFilter) {
+      const topicIds = new Set(
+        trainingTopics.map((topic) => topic.id)
+      );
+
+      return learningObjectives.filter((objective) =>
+        topicIds.has(objective.topicId)
+      );
     }
 
-    return questions.filter(
-      (question) => question.status === "APPROVED"
+    return learningObjectives.filter(
+      (objective) =>
+        objective.topicId === Number(topicFilter)
     );
-  }, [hasQuestionStatuses, questions]);
+  }, [
+    learningObjectives,
+    topicFilter,
+    trainingTopics,
+  ]);
+
+  const availableQuestions = useMemo(() => {
+    return questions.filter(
+      (question) => {
+        const questionTopicId =
+          question.topicId ?? question.topic?.id;
+        const questionTrainingId =
+          question.topic?.trainingId ??
+          topics.find(
+            (topic) => topic.id === questionTopicId
+          )?.trainingId;
+        const questionLearningObjectiveId =
+          question.learningObjectiveId ??
+          question.learningObjective?.id;
+
+        if (!selectedTrainingId) {
+          return false;
+        }
+
+        if (question.status !== "APPROVED") {
+          return false;
+        }
+
+        if (questionTrainingId !== selectedTrainingId) {
+          return false;
+        }
+
+        if (
+          topicFilter &&
+          questionTopicId !== Number(topicFilter)
+        ) {
+          return false;
+        }
+
+        if (
+          learningObjectiveFilter &&
+          questionLearningObjectiveId !==
+            Number(learningObjectiveFilter)
+        ) {
+          return false;
+        }
+
+        if (
+          difficultyFilter &&
+          question.difficulty !== Number(difficultyFilter)
+        ) {
+          return false;
+        }
+
+        return true;
+      }
+    );
+  }, [
+    difficultyFilter,
+    learningObjectiveFilter,
+    questions,
+    selectedTrainingId,
+    topicFilter,
+    topics,
+  ]);
 
   const loadAssessments = async () => {
     try {
@@ -110,11 +240,50 @@ function AssessmentsPage() {
     }
   };
 
+  const loadMetadata = async () => {
+    try {
+      const [topicData, objectiveData] =
+        await Promise.all([
+          getTopics(),
+          getLearningObjectives(),
+        ]);
+
+      setTopics(topicData);
+      setLearningObjectives(objectiveData);
+    } catch (error) {
+      console.error(error);
+    }
+  };
+
   useEffect(() => {
     loadAssessments();
     loadQuestions();
     loadTrainings();
+    loadMetadata();
   }, []);
+
+  useEffect(() => {
+    setSelectedQuestions((current) =>
+      current.filter((questionId) => {
+        const question = questions.find(
+          (item) => item.id === questionId
+        );
+        const questionTopicId =
+          question?.topicId ?? question?.topic?.id;
+        const questionTrainingId =
+          question?.topic?.trainingId ??
+          topics.find(
+            (topic) => topic.id === questionTopicId
+          )?.trainingId;
+
+        return (
+          Boolean(selectedTrainingId) &&
+          question?.status === "APPROVED" &&
+          questionTrainingId === selectedTrainingId
+        );
+      })
+    );
+  }, [questions, selectedTrainingId, topics]);
 
   const handleQuestionToggle = (
     questionId: number
@@ -135,40 +304,106 @@ function AssessmentsPage() {
     }
   };
 
+  const resetForm = () => {
+    setTitle("");
+    setDescription("");
+    setTrainingId(initialTrainingId);
+    setType("QUIZ");
+    setSelectedQuestions([]);
+    setTopicFilter("");
+    setLearningObjectiveFilter("");
+    setDifficultyFilter("");
+    setEditingAssessmentId(null);
+    setFormError("");
+  };
+
+  const handleTrainingChange = (value: string) => {
+    setTrainingId(value);
+    setSelectedQuestions([]);
+    setTopicFilter("");
+    setLearningObjectiveFilter("");
+    setDifficultyFilter("");
+    setFormError("");
+  };
+
+  const handleEdit = (assessment: Assessment) => {
+    const status = assessment.status || "DRAFT";
+
+    if (status !== "DRAFT") {
+      return;
+    }
+
+    setEditingAssessmentId(assessment.id);
+    setTitle(assessment.title);
+    setDescription(assessment.description || "");
+    setTrainingId(
+      String(
+        assessment.trainingId ??
+          assessment.training?.id ??
+          ""
+      )
+    );
+    setType(assessment.type);
+    setSelectedQuestions(
+      assessment.questions?.map(
+        (item) =>
+          item.questionId ?? item.question.id
+      ) || []
+    );
+    setTopicFilter("");
+    setLearningObjectiveFilter("");
+    setDifficultyFilter("");
+    setFormError("");
+    window.scrollTo({
+      top: 0,
+      behavior: "smooth",
+    });
+  };
+
   const handleSubmit = async (
     e: React.FormEvent
   ) => {
     e.preventDefault();
+    setFormError("");
 
     if (
       !title ||
       !trainingId ||
       selectedQuestions.length === 0
     ) {
-      alert(
+      setFormError(
         "Please enter title, training and select at least one question"
       );
       return;
     }
 
     try {
-      await createAssessment({
+      const payload = {
         title,
         description,
         trainingId: Number(trainingId),
         type,
         questions: selectedQuestions,
-      });
+      };
 
-      setTitle("");
-      setDescription("");
-      setTrainingId("");
-      setType("QUIZ");
-      setSelectedQuestions([]);
+      if (editingAssessmentId) {
+        await updateAssessment(
+          editingAssessmentId,
+          payload
+        );
+      } else {
+        await createAssessment(payload);
+      }
 
+      resetForm();
       loadAssessments();
     } catch (error) {
       console.error(error);
+      setFormError(
+        error instanceof Error
+          ? error.message
+          : "Failed to save assessment."
+      );
     }
   };
 
@@ -223,12 +458,20 @@ function AssessmentsPage() {
         <section className="flex flex-col gap-4">
           <div>
             <h2 className="text-xl font-semibold text-slate-950">
-              Step 1: Basic info
+              {editingAssessmentId
+                ? "Edit draft assessment"
+                : "Step 1: Basic info"}
             </h2>
 
             <p className="mt-1 text-sm text-slate-500">
               Name the assessment and add optional context for participants.
             </p>
+
+            {formError && (
+              <div className="mt-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+                {formError}
+              </div>
+            )}
           </div>
 
           <input
@@ -286,7 +529,7 @@ function AssessmentsPage() {
             <select
               value={trainingId}
               onChange={(e) =>
-                setTrainingId(e.target.value)
+                handleTrainingChange(e.target.value)
               }
               className="w-full border border-gray-300 rounded-lg px-4 py-3"
             >
@@ -318,22 +561,95 @@ function AssessmentsPage() {
               </p>
             </div>
 
-            {hasQuestionStatuses && (
-              <span className="rounded-full bg-emerald-50 px-3 py-1 text-sm font-medium text-emerald-700">
-                Showing approved questions
-              </span>
-            )}
+            <span className="rounded-full bg-emerald-50 px-3 py-1 text-sm font-medium text-emerald-700">
+              Showing approved questions from selected training
+            </span>
           </div>
 
-          {questions.length === 0 ? (
+          {selectedTrainingId && (
+            <div className="mb-4 grid gap-3 md:grid-cols-3">
+              <select
+                value={topicFilter}
+                onChange={(e) => {
+                  setTopicFilter(e.target.value);
+                  setLearningObjectiveFilter("");
+                }}
+                className="border border-gray-300 rounded-lg px-4 py-3"
+              >
+                <option value="">
+                  All topics
+                </option>
+
+                {trainingTopics.map((topic) => (
+                  <option
+                    key={topic.id}
+                    value={topic.id}
+                  >
+                    {topic.name}
+                  </option>
+                ))}
+              </select>
+
+              <select
+                value={learningObjectiveFilter}
+                onChange={(e) =>
+                  setLearningObjectiveFilter(
+                    e.target.value
+                  )
+                }
+                className="border border-gray-300 rounded-lg px-4 py-3"
+              >
+                <option value="">
+                  All learning objectives
+                </option>
+
+                {filteredLearningObjectives.map(
+                  (objective) => (
+                    <option
+                      key={objective.id}
+                      value={objective.id}
+                    >
+                      {objective.title}
+                    </option>
+                  )
+                )}
+              </select>
+
+              <select
+                value={difficultyFilter}
+                onChange={(e) =>
+                  setDifficultyFilter(e.target.value)
+                }
+                className="border border-gray-300 rounded-lg px-4 py-3"
+              >
+                <option value="">
+                  All difficulties
+                </option>
+                {[1, 2, 3, 4, 5].map((value) => (
+                  <option
+                    key={value}
+                    value={value}
+                  >
+                    Difficulty {value}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {!selectedTrainingId ? (
+            <div className="rounded-lg border border-blue-200 bg-blue-50 p-4 text-sm text-blue-800">
+              Select a training to choose approved questions from its
+              curriculum.
+            </div>
+          ) : questions.length === 0 ? (
             <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
               No questions are available yet. Add questions before creating
               an assessment.
             </div>
           ) : availableQuestions.length === 0 ? (
             <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
-              Questions exist, but none are approved. Approve questions or
-              adjust question status before creating an assessment.
+              No approved questions are available for this training.
             </div>
           ) : (
             <div className="flex flex-col gap-2 max-h-72 overflow-y-auto border border-gray-200 rounded-lg p-4">
@@ -416,10 +732,25 @@ function AssessmentsPage() {
         <button
           type="submit"
           className="bg-blue-600 hover:bg-blue-700 text-white rounded-lg py-3 font-medium transition disabled:cursor-not-allowed disabled:opacity-60"
-          disabled={availableQuestions.length === 0}
+          disabled={
+            !selectedTrainingId ||
+            availableQuestions.length === 0
+          }
         >
-          Create Assessment
+          {editingAssessmentId
+            ? "Save Draft Assessment"
+            : "Create Assessment"}
         </button>
+
+        {editingAssessmentId && (
+          <button
+            type="button"
+            onClick={resetForm}
+            className="rounded-lg border border-slate-300 px-4 py-3 font-medium text-slate-700 transition hover:bg-slate-100"
+          >
+            Cancel edit
+          </button>
+        )}
       </form>
 
       <div className="mb-5">
@@ -527,6 +858,18 @@ function AssessmentsPage() {
                   >
                     View Results
                   </Link>
+
+                  {(assessment.status || "DRAFT") === "DRAFT" && (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        handleEdit(assessment)
+                      }
+                      className="bg-slate-600 hover:bg-slate-700 text-white px-4 py-2 rounded-lg transition"
+                    >
+                      Edit
+                    </button>
+                  )}
 
                   {(assessment.status || "DRAFT") === "DRAFT" && (
                     <button
