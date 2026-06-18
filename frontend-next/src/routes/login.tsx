@@ -1,11 +1,14 @@
 import { createFileRoute, Link, useNavigate, useSearch } from "@tanstack/react-router";
+import { useState } from "react";
 import { Sparkles, Shield, GraduationCap, UserCircle2 } from "lucide-react";
 import { z } from "zod";
+import { signInWithEmailAndPassword, signInWithPopup } from "firebase/auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
-import { useRole, type Role } from "@/lib/role-context";
+import { auth, googleProvider } from "@/lib/firebase";
+import { useRole, isDevRoleOverrideEnabled, type Role } from "@/lib/role-context";
 
 const searchSchema = z.object({
   redirect: z.string().optional(),
@@ -27,13 +30,55 @@ function LoginPage() {
   const { login } = useRole();
   const { redirect } = useSearch({ from: "/login" });
 
-  const continueAs = (role: Role) => {
-    login(role);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+
+  const goToApp = () => {
     if (redirect) {
       if (typeof window !== "undefined") window.location.assign(redirect);
     } else {
       navigate({ to: "/app/dashboard" });
     }
+  };
+
+  const handleEmailLogin = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (!email.trim() || !password) {
+      setError("Enter both email and password.");
+      return;
+    }
+    setError(null);
+    setIsLoading(true);
+    try {
+      await signInWithEmailAndPassword(auth, email.trim(), password);
+      setPassword("");
+      goToApp();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to sign in.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleGoogleLogin = async () => {
+    setError(null);
+    setIsLoading(true);
+    try {
+      await signInWithPopup(auth, googleProvider);
+      goToApp();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to sign in with Google.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // DEV-only fallback: preview any role without a real Firebase account.
+  const continueAs = (role: Role) => {
+    login(role);
+    goToApp();
   };
 
   return (
@@ -52,16 +97,17 @@ function LoginPage() {
             Plan, deliver and analyze knowledge assessments.
           </p>
 
-          <form
-            className="mt-6 space-y-3"
-            onSubmit={(e) => {
-              e.preventDefault();
-              continueAs("instructor");
-            }}
-          >
+          <form className="mt-6 space-y-3" onSubmit={handleEmailLogin}>
             <div className="space-y-1.5">
               <Label htmlFor="email">Email</Label>
-              <Input id="email" type="email" defaultValue="marko.instructor@projekt3.app" />
+              <Input
+                id="email"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="you@example.com"
+                autoComplete="email"
+              />
             </div>
             <div className="space-y-1.5">
               <div className="flex items-center justify-between">
@@ -70,12 +116,26 @@ function LoginPage() {
                   Forgot password?
                 </a>
               </div>
-              <Input id="password" type="password" defaultValue="••••••••" />
+              <Input
+                id="password"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Enter your password"
+                autoComplete="current-password"
+              />
             </div>
-            <Button type="submit" className="w-full">
-              Sign in
+            {error && <p className="text-xs text-destructive">{error}</p>}
+            <Button type="submit" className="w-full" disabled={isLoading}>
+              {isLoading ? "Signing in…" : "Sign in"}
             </Button>
-            <Button type="button" variant="outline" className="w-full">
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full"
+              onClick={handleGoogleLogin}
+              disabled={isLoading}
+            >
               <svg className="mr-2 h-4 w-4" viewBox="0 0 48 48" aria-hidden>
                 <path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.4 29.3 35.5 24 35.5c-6.3 0-11.5-5.2-11.5-11.5S17.7 12.5 24 12.5c2.9 0 5.5 1.1 7.5 2.9l5.7-5.7C33.6 6.3 29.1 4.5 24 4.5 13.2 4.5 4.5 13.2 4.5 24S13.2 43.5 24 43.5 43.5 34.8 43.5 24c0-1.2-.1-2.4-.4-3.5z"/>
                 <path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.7 16 19 12.5 24 12.5c2.9 0 5.5 1.1 7.5 2.9l5.7-5.7C33.6 6.3 29.1 4.5 24 4.5 16.3 4.5 9.7 8.9 6.3 14.7z"/>
@@ -89,29 +149,33 @@ function LoginPage() {
             </p>
           </form>
 
-          <div className="my-6 flex items-center gap-3">
-            <Separator className="flex-1" />
-            <span className="text-[11px] uppercase tracking-wide text-muted-foreground">
-              Prototype roles
-            </span>
-            <Separator className="flex-1" />
-          </div>
+          {isDevRoleOverrideEnabled && (
+            <>
+              <div className="my-6 flex items-center gap-3">
+                <Separator className="flex-1" />
+                <span className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                  Prototype roles
+                </span>
+                <Separator className="flex-1" />
+              </div>
 
-          <div className="grid grid-cols-1 gap-2">
-            <Button variant="outline" className="justify-start" onClick={() => continueAs("admin")}>
-              <Shield className="mr-2 h-4 w-4" /> Continue as Admin
-            </Button>
-            <Button variant="outline" className="justify-start" onClick={() => continueAs("instructor")}>
-              <GraduationCap className="mr-2 h-4 w-4" /> Continue as Instructor
-            </Button>
-            <Button variant="outline" className="justify-start" onClick={() => continueAs("participant")}>
-              <UserCircle2 className="mr-2 h-4 w-4" /> Continue as Participant
-            </Button>
-          </div>
-          <p className="mt-3 text-[11px] text-muted-foreground">
-            For prototype demonstration only. In production, roles come from authentication
-            and system permissions.
-          </p>
+              <div className="grid grid-cols-1 gap-2">
+                <Button variant="outline" className="justify-start" onClick={() => continueAs("admin")}>
+                  <Shield className="mr-2 h-4 w-4" /> Continue as Admin
+                </Button>
+                <Button variant="outline" className="justify-start" onClick={() => continueAs("instructor")}>
+                  <GraduationCap className="mr-2 h-4 w-4" /> Continue as Instructor
+                </Button>
+                <Button variant="outline" className="justify-start" onClick={() => continueAs("participant")}>
+                  <UserCircle2 className="mr-2 h-4 w-4" /> Continue as Participant
+                </Button>
+              </div>
+              <p className="mt-3 text-[11px] text-muted-foreground">
+                Dev-only role preview. In production, roles come from authentication
+                and system permissions.
+              </p>
+            </>
+          )}
         </div>
 
         <div className="mt-8 text-xs text-muted-foreground">

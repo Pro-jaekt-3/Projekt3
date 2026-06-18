@@ -319,3 +319,55 @@ Build output je **deployabilen na navaden statičen host brez strežniškega run
   `rewrites: [{ source: "**", destination: "/index.html" }]`.
 
 To poenoti hosting zgodbo z obstoječim `frontend/` (prav tako Vite SPA).
+
+---
+
+# F3 — izvedeno: realni Firebase auth + apiClient temelj
+
+**Cilj:** zamenjati mock role-context z realnim Firebase authom (ista `useRole()`
+površina) + tipiran `apiClient` z Bearer tokenom. **Ekrani še vedno tečejo na mock** —
+zamenjana je le avtentikacija pod njimi (NOBEN screen-data ni vezan na backend).
+
+## Dodano / spremenjeno
+
+| Datoteka | Vloga |
+| --- | --- |
+| `.env.example` | referenca env ključev: `VITE_API_URL`, `VITE_FIREBASE_*`, `VITE_DEV_ROLE_OVERRIDE`. Pravi `.env` izpolni uporabnik; `.env` se ne commita |
+| `src/lib/firebase.ts` | Firebase web init iz env (port iz `frontend/`); `auth` + `googleProvider` |
+| `src/services/apiClient.ts` | `apiFetch` / `apiJsonFetch` / `apiEnsureOk`: base URL iz `VITE_API_URL`, `Authorization: Bearer <Firebase ID token>`, `{ error }` ekstrakcija, **204 / prazno telo → `undefined`** |
+| `src/lib/role-context.tsx` | interni del prepisan na realni auth; **`useRole()` API nespremenjen** (`role, user, isAuthenticated, login, logout, setRole`) — 9 klicnih mest ostane nedotaknjenih |
+| `src/routes/login.tsx` | realni Firebase sign-in (email/geslo + Google); dev override gumbi kot fallback (vidni le ko je override omogočen) |
+
+## Kako deluje auth zdaj
+
+- `RoleProvider` posluša `onAuthStateChanged`. Ob prijavi pokliče backend
+  **`GET /auth/me`** (prek `apiClient`, z Bearer tokenom) → `{ id, email, role, firebaseUid }`.
+- Backend `role` (`ADMIN`/`INSTRUCTOR`/`PARTICIPANT`) se mapira v UI niz
+  (`admin`/`instructor`/`participant`). `user.name` se izpelje iz emaila (backend ga ne vrača).
+- `useRole()` vrne isti oblikovni API kot prej, zato `TopBar`, `SidebarNav`, dashboard
+  ipd. delujejo brez sprememb.
+
+### DEV-only role override
+
+- Gated z **`import.meta.env.DEV && Boolean(VITE_DEV_ROLE_OVERRIDE)`**. Ker je
+  `import.meta.env.DEV` v produkcijskem buildu statično `false`, Vite celotno funkcijo
+  **dead-code-eliminira** — v produkciji je override **nemogoč**.
+- Ko je omogočen: `setRole()` (TopBar "View as: …") in `login(role)` (login "Continue as …")
+  nastavita previewano vlogo (persistirano v `localStorage` `projekt3.role`), ki ima
+  prednost pred backend vlogo. Omogoča pregled vseh vlog z enim Firebase računom.
+- V produkciji je `setRole()` **no-op**; vloga vedno izvira iz `/auth/me`.
+
+> Opomba: ko ni `.env`/prijave, `role` privzeto pade na `instructor` in `user` na demo
+> uporabnika — tako se ekrani še naprej izrišejo na mock (kot doslej). Pravo route-gating
+> (redirect na `/login`, ADMIN-only poti) pride v naslednjem koraku.
+
+## Status verifikacije
+
+- ✅ `npm install` (dodan `firebase ^12.14.0`), brez `--legacy-peer-deps`.
+- ✅ `npm run build` zelen; statičen `dist/` (firebase poveča glavni chunk → benigno
+  >500 kB chunk-size opozorilo).
+- ✅ `npm run dev` (:8080) → HTTP 200; `firebase.ts`/`apiClient.ts`/`role-context.tsx`/
+  `login.tsx` se transformirajo brez napak.
+- ⏳ **Polni login flow** (Firebase sign-in → `/auth/me` → vloga v navigaciji → logout →
+  dev override switch) zahteva uporabnikov realni `.env` + delujoč backend; preveri
+  uporabnik (glej sekcijo VERIFY v nalogi).
