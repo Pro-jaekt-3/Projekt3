@@ -4,55 +4,59 @@ Kako je `frontend-next/` zgrajen, kje živijo posamezni sloji in **kam pride aut
 apiClient**, da lahko delo razdelimo po vlogah/entitetah. Trenutno stanje: prototip iz
 Lovable exporta, ki teče **izključno na static mock data** (brez backenda).
 
-## Stack (ohranjen 1:1 iz Lovable exporta)
+## Stack
+
+> **Posodobljeno (Option C):** pretvorjeno iz TanStack **Start (SSR)** v TanStack
+> **Router SPA** brez vizualnih sprememb. Zgodovino/utemeljitev glej v sekciji
+> [F1 — Investigacija: SSR vs SPA](#f1--investigacija-ssr-vs-spa-brez-sprememb-kode)
+> in [F2 — izvedeno](#f2--izvedeno-option-c-start--router-spa) spodaj.
 
 | Plast | Tehnologija |
 | --- | --- |
-| Framework | **TanStack Start** (SSR) — `@tanstack/react-start` ~1.167 |
-| Routing | **TanStack Router**, file-based (`src/routes/*`), `routeTree.gen.ts` auto-gen |
+| Framework | **TanStack Router SPA** (brez SSR) — `@tanstack/react-router` ~1.168 |
+| Routing | file-based (`src/routes/*`), `routeTree.gen.ts` generira `@tanstack/router-plugin` |
 | UI lib | React **19.2** + TypeScript 5.8 |
-| Build | **Vite 7** (+ `nitro` za SSR/serverless build, privzeto cloudflare target) |
+| Build | **Vite 7** — statičen client build (`dist/index.html` + `assets/`), brez strežnika |
 | Styling | **Tailwind v4** (`@tailwindcss/vite`) + `tw-animate-css`, design tokeni v `src/styles.css` |
 | Komponente | **shadcn/ui** (style "new-york", base slate, CSS variables), lucide ikone |
-| Data fetching | `@tanstack/react-query` (na voljo, trenutno mock — še ne uporabljen za API) |
+| Data fetching | `@tanstack/react-query` (montiran, trenutno mock — še ne uporabljen za API) |
 | Forms / validacija | `react-hook-form` + `zod` |
 | Grafi | `recharts` |
 
-Vite config je zavit v `@lovable.dev/vite-tanstack-config` (pinnan na **`2.1.1`**), ki
-že vključuje: tanstackStart, viteReact, tailwindcss, tsconfig-paths, nitro,
-componentTagger (dev), VITE_* env injection, `@` alias. **Ne dodajaj teh pluginov ročno.**
+Vite config (`vite.config.ts`) je **standarden Vite SPA setup**: pluginsi
+`vite-tsconfig-paths` (`@/*` alias iz `tsconfig.json`), `@tanstack/router-plugin/vite`
+(`tanstackRouter`, file-based routing + code-splitting), `@vitejs/plugin-react`,
+`@tailwindcss/vite`. Dev/preview port je fiksiran na **8080** (`server.port` / `preview.port`,
+`strictPort`).
 
-> ⚠️ Verzijski pin: caret `^2.1.1` zdaj plava na 2.5.3, ki zahteva novejši `nitro`
-> (peer konflikt z npm). Zato je config **pinnan na točno `2.1.1`** (= verzija, s katero
-> je Lovable gradil export). Če kdaj nadgradiš config, hkrati bumpaj `nitro` na
-> `>=3.0.260603-beta`.
+> Lovable build wrapper (`@lovable.dev/vite-tanstack-config`), `@tanstack/react-start`
+> in `nitro` so **odstranjeni** — s tem izgine tudi prvotni npm ERESOLVE peer konflikt,
+> zato `npm install` deluje brez `--legacy-peer-deps`.
 
 ## Zagon
 
 ```bash
 cd frontend-next
-npm install        # 460 paketov; config pinnan, da se npm resolva brez --legacy-peer-deps
-npm run dev        # vite dev  -> http://localhost:8080/
-npm run build      # vite build (client + SSR v dist/)
-npm run preview    # predogled buildane verzije
+npm install        # brez --legacy-peer-deps
+npm run dev        # vite dev      -> http://localhost:8080/
+npm run build      # vite build    -> statičen dist/ (index.html + assets/, BREZ strežnika)
+npm run preview    # vite preview  -> http://localhost:8080/ (servira dist/)
 npm run lint       # eslint
 ```
-
-Dev port je **8080** (določa ga Lovable config / sandbox detection).
 
 ## Struktura map
 
 ```
 frontend-next/
+  index.html                 SPA vstopna HTML lupina (#root + <script src="/src/main.tsx">)
   components.json            shadcn config (style new-york, aliasi @/components, @/lib, @/hooks)
-  vite.config.ts             tanstackStart entry -> src/server.ts
+  vite.config.ts             standarden Vite SPA (tanstackRouter + react + tailwind + tsconfigPaths)
   src/
+    main.tsx                 KLIENTSKI ENTRY — mount <RouterProvider> v #root, import styles.css
     styles.css               Tailwind v4 + VSI design tokeni (barve, sidebar/surface, radius)
-    router.tsx               createRouter (history, defaultPreload, QueryClient wiring)
-    routeTree.gen.ts         AUTO-GENERIRANO (ne urejaj ročno)
-    start.ts                 client entry (hydration)
-    server.ts                SSR entry (error wrapper okrog TanStack Start handlerja)
-    routes/                  vse poti (file-based) + __root.tsx (app shell)
+    router.tsx               getRouter(): createRouter (+ QueryClient context, Register tip)
+    routeTree.gen.ts         AUTO-GENERIRANO (router-plugin; ne urejaj ročno)
+    routes/                  vse poti (file-based) + __root.tsx (root route: providerji + <Outlet/>)
     components/
       layout/                AppShell, SidebarNav, TopBar
       common/                PageHeader, MetricCard, StatusBadge, EmptyState
@@ -62,11 +66,13 @@ frontend-next/
       mock-data.ts           >>> MOCK LAYER (vir vseh podatkov) <<<
       role-context.tsx       >>> ROLE SWITCHER (demo auth) <<<
       utils.ts               cn() helper
-      api/example.functions.ts   TanStack Start server-function primer (placeholder)
-      config.server.ts       server-side config (SSR)
-      error-capture.ts, error-page.ts, lovable-error-reporting.ts   Lovable dev/error tooling
+      lovable-error-reporting.ts   client error reporter (window-guarded; uporabljen v __root)
   .lovable/project.json      Lovable metadata
 ```
+
+> Odstranjeno ob SPA konverziji: `src/server.ts`, `src/start.ts`,
+> `src/lib/api/example.functions.ts`, `src/lib/config.server.ts`,
+> `src/lib/error-capture.ts`, `src/lib/error-page.ts` (vse je bilo SSR/Start-only).
 
 ## Mock layer — kje so podatki
 
@@ -149,3 +155,167 @@ pregledati inštruktor (glej `docs/mvp-scope.md` in `CLAUDE.md`).
 `frontend/` (Vite + React Router, obstoječ) ostaja **nedotaknjen**. `frontend-next/` je
 nov, vzporeden kandidat z Lovable izgledom; backend ni vezan na nobenega od njiju v tem
 koraku. `lovable-reference/` je le referenca (ni del build-a).
+
+---
+
+# F1 — Investigacija: SSR vs SPA (brez sprememb kode)
+
+Analiza dejanske rabe SSR/server funkcij v `frontend-next/`, z namenom odločitve med
+**Option B** (obdrži TanStack Start, podatki client-side, SSR servira le lupino) in
+**Option C** (pretvori v TanStack Router SPA, statičen hosting).
+
+## 1. SSR — se dejansko uporablja?
+
+**Zaključek: SSR je VKLOPLJEN, a NI realnih server-side podatkovnih odvisnosti. App je
+de facto client-renderable z mock podatki.**
+
+Dokazi:
+
+| Najdba | Dokaz (file:line) | Pomen |
+| --- | --- | --- |
+| SSR globalno vklopljen | `src/routeTree.gen.ts:568` → `interface Register { ssr: true }` | TanStack Start renderira na strežniku (dev na :8080 vrača SSR HTML) |
+| SSR entry = samo error wrapper | `src/server.ts` (fetch → `@tanstack/react-start/server-entry`), `src/start.ts` (errorMiddleware) | Strežnik ne dela podatkovne logike; le ovije napake |
+| Route loaderji so **sinhroni mock lookupi** | `app.assessments.$id.tsx:22-26`, `app.assessments.$id.results.tsx:17`, `app.assessments.$id.post-test.tsx:19`, `app.trainings.$id.tsx:24`, `assessment.$id.access.tsx:11`, `assessment.$id.solve.tsx:15-19`, `assessment.$id.result.tsx:11` | Npr. `getAssessment(params.id) ?? ASSESSMENTS[0]` — **brez `async`/`await`, brez fetcha, brez server-only dostopa**. Izomorfni: tečejo enako na strežniku in clientu, ker je `mock-data` navaden modul v client bundlu |
+| `beforeLoad` je no-op | `app.tsx:5-9` (`void location`) | Nobenega server gatinga/redirecta |
+| `createServerFn` obstaja, a je **mrtva koda** | `src/lib/api/example.functions.ts:14` (`getGreeting`) | Nikjer importan/klican (grep `getGreeting` → samo ta datoteka). Edini uporabnik `config.server.ts` je prav ta neuporabljen primer |
+| Nič server-only dostopa v ekranih | grep `.server`, `createServerFn`, `process.env` v routes → 0 | Noben ekran ne potrebuje strežnika za podatke |
+
+→ Edino, kar SSR trenutno počne, je **renderiranje statične lupine + mock HTML**. Vse
+podatke bi se dalo enako servirati client-side.
+
+## 2. Mock layer — kje živi in kje je "seam" za pravi service
+
+- Vir: **`src/lib/mock-data.ts`** (en modul; uvožen v **20 datotek**).
+- Dva vzorca potrošnje po ekranih:
+  1. **Route `loader` → `Route.useLoaderData()`** (detajlne strani):
+     `loader` vrne mock lookup, komponenta ga prebere. Primer: `app.assessments.$id.tsx:22`
+     (`loader`) + `:31` (`useLoaderData`).
+  2. **Direkten modul-uvoz konstant** v komponento:
+     npr. `app.assessments.$id.tsx:17` `import { ASSESSMENTS, PARTICIPANTS, QUESTIONS, getAssessment }`,
+     nato `QUESTIONS.filter(...)` (`:39`).
+- **Seam za migracijo na pravi service (per ekran):**
+  - Za vzorec (1): zamenjaj telo `loader`-ja s `queryClient.ensureQueryData(service.x)`
+    ali pretvori v client `useQuery`.
+  - Za vzorec (2): zamenjaj direktni import s `useQuery` klicem na `services/<entiteta>.ts`.
+  - V obeh primerih ostane tip (`Assessment`, `Training` …) — danes iz `mock-data.ts`,
+    jutri iz `src/types/`.
+
+## 3. Role switching — kako deluje in vsa mesta branja
+
+- **`src/lib/role-context.tsx`**: `RoleProvider` (montiran v `__root.tsx:127`) +
+  `useRole()`. Stanje v `localStorage` (`projekt3.role`, `projekt3.auth`), privzeto
+  `instructor`. API: `role, user, setRole, isAuthenticated, login, logout`.
+- **Vsa mesta branja `useRole()`** (za zamenjavo s Firebase auth + dev-only override):
+  - `components/layout/TopBar.tsx:35` — role switcher UI + logout
+  - `components/layout/SidebarNav.tsx:51` — `NAV[role]` (vidnost menija)
+  - `routes/app.dashboard.tsx:20,29,218` — izbira dashboard variante + user
+  - `routes/app.assessments.index.tsx:21` — naslov/filter po vlogi
+  - `routes/app.trainings.index.tsx:15` — "All" vs "My"
+  - `routes/assessment.$id.access.tsx:21` — `isAuthenticated, role`
+  - `routes/login.tsx:27` — `login(role)`
+- **Plan:** `AuthProvider` (Firebase) izpostavi **isti API površinsko** kot `useRole()`,
+  da teh 9 mest ostane nedotaknjenih; vir postane realni user + claims. Dev-only override
+  (npr. `?as=admin` ali gumb v TopBar pod flagom) ohrani hitro preklapljanje vlog.
+
+## 4. Routing & guards — kako se vloge mapirajo danes, kam pride access control
+
+- File-based routi (`src/routes/*`); mapiranje pot→vloga je v
+  [SCREENS.md](./SCREENS.md).
+- **Današnji gating je le navigacijski** (`SidebarNav NAV[role]`) + nekaj in-component
+  `role` razvejitev (dashboard variante, naslovi). **Route-level zaščite NI**:
+  `app.tsx beforeLoad` je no-op, URL je dosegljiv ročno za katerokoli vlogo.
+- **Kam pride access control:** v `beforeLoad` na `/app` (parent) za auth-redirect na
+  `/login`, ter per-route `beforeLoad`/`ProtectedRoute` za vlogo (npr. `/app/users`,
+  `/app/ai-models`, `/app/system-analytics` = samo ADMIN). Z auth contextom v routerju
+  (`createRootRouteWithContext`) je to naravno mesto.
+
+## 5. Data fetching (react-query) — setup in SSR
+
+- `QueryClient` ustvarjen v `src/router.tsx:6`, ponujen prek `QueryClientProvider` v
+  `__root.tsx:126` in router contexta (`createRootRouteWithContext<{ queryClient }>`).
+- **react-query je montiran, a NEUPORABLJEN**: grep `useQuery|useMutation|useSuspenseQuery|queryOptions`
+  → **0 zadetkov**. Infrastruktura je pripravljena, klicev še ni.
+- **Nobeno fetchanje ne teče med SSR** — loaderji so sinhroni mock bralci, brez async/
+  server fetchov.
+
+## Priporočilo
+
+Ker (1) pokaže **nič realne SSR rabe** (brez server funkcij v uporabi, brez SSR
+fetchanja, loaderji so izomorfni mock bralci) in ker bo app po integraciji serviral
+**per-user, za-auth podatke prek REST backenda** (kjer SSR/edge cache nima koristi):
+
+### → Priporočam **Option C — TanStack Router SPA, statičen hosting.**
+
+| | Option B (TanStack Start, client-fetch, SSR servira lupino) | **Option C (TanStack Router SPA)** |
+| --- | --- | --- |
+| Spremembe izgleda | brez | brez (iste komponente/tokeni/routi) |
+| Deployment | **potrebuje Node/serverless SSR runtime** (nitro → cloudflare/node) — strežnik teče stalno | **statične datoteke** (`index.html` + assets) na kateremkoli CDN/static hostu (Firebase Hosting, Netlify, S3) — enaka zgodba kot obstoječi `frontend/` |
+| Firebase auth | SSR + Firebase web SDK + `localStorage` role → tveganje hydration neujemanj | client-only auth je naraven; brez hydration pasti |
+| Operativni strošek | višji (strežnik/serverless) | minimalen (CDN) |
+| Migracijski trud | **nizek** — pusti kot je, dodaj client fetching | **zmeren, enkraten** — zamenjaj `@tanstack/react-start`→`@tanstack/react-router` + Vite SPA, `__root` html/`Scripts` → SPA entry + `index.html`, odstrani `server.ts`/`start.ts`/server-entry, `ssr:true`; izomorfni loaderji v Routerju delujejo naprej |
+
+**Utemeljitev:** SSR tu ne prinaša nobene koristi (ni SEO-kritične javne vsebine za
+prijavo; podatki so zasebni in dinamični), a doda strežniško površino in zaplete Firebase
+auth (ki je client-side po naravi) ter deployment. Option C poenoti hosting z obstoječim
+`frontend/` in je najcenejši/najpreprostejši za vzdrževanje. Strošek je **enkratna,
+omejena migracija brez vizualnih sprememb**.
+
+Option B je smiseln **samo**, če pričakujemo prihodnjo potrebo po SSR (SEO javnih strani,
+server-side secrets prek `createServerFn`, streaming). Trenutno nič od tega ni v uporabi.
+
+> **Odločitev pred nadaljevanjem:** izberi **B** ali **C**, preden postavim temelje za
+> auth + apiClient (struktura iz sekcije "Kam pride pravi auth + apiClient").
+
+---
+
+# F2 — izvedeno: Option C (Start → Router SPA)
+
+**Odločitev: Option C.** `frontend-next/` je pretvorjen iz TanStack Start (SSR) v
+TanStack Router **SPA**, **brez vizualnih sprememb**. Backend in auth NISTA vezana
+(ločen korak).
+
+## Kaj se je spremenilo
+
+| Področje | Prej (Start/SSR) | Zdaj (Router SPA) |
+| --- | --- | --- |
+| Vstopna točka | `src/server.ts` (SSR fetch) + `src/start.ts` (createStart) | `index.html` + `src/main.tsx` (`createRoot` → `<RouterProvider>`) |
+| Root route | `__root.tsx` z `<html>/<head>/<HeadContent>/<Scripts>` + `shellComponent` | `__root.tsx` brez dokumenta; renderira `<HeadContent/>` + `<Outlet/>` ovito v `QueryClientProvider` + `RoleProvider` |
+| Vite config | `@lovable.dev/vite-tanstack-config` (tanstackStart, nitro, cloudflare) | standarden Vite: `tanstackRouter` + react + tailwind + tsconfigPaths |
+| SSR flag | `Register { ssr: true }` v `routeTree.gen.ts` | odstranjen (routeTree regeneriran s router-plugin) |
+| Mrtva koda | `createServerFn` `getGreeting` + `config.server.ts` | odstranjeno |
+| Stili | `import appCss from "...styles.css?url"` + `<link>` v head | `import "./styles.css"` v `main.tsx` |
+| Odvisnosti | `@tanstack/react-start`, `@lovable.dev/vite-tanstack-config`, `nitro` | **odstranjene** |
+
+## Kaj je ostalo NEDOTAKNJENO (zato ni vizualnih sprememb)
+
+Vse poti (`src/routes/*`), vse komponente (`layout`, `common`, `ui`), Tailwind v4
+config + design tokeni (`styles.css`), `mock-data.ts` in role switcher (`role-context.tsx`).
+Izomorfni sinhroni loaderji ostanejo kot so — v Router SPA delujejo nespremenjeno.
+
+## Verifikacija (vse opravljeno)
+
+- ✅ `npm install` brez `--legacy-peer-deps` (odstranjenih 109 paketov; peer konflikt izginil).
+- ✅ `npm run dev` → `http://localhost:8080/` vrača **HTTP 200** (tudi `/login`).
+- ✅ `npm run build` → **statičen `dist/`**: samo `index.html` + `assets/`, **brez `dist/server/`**.
+- ✅ `npm run preview` (port 8080) servira buildano aplikacijo: HTTP 200 na `/` in deep
+  route `/app/dashboard` (SPA fallback na `index.html`).
+- ✅ `routeTree.gen.ts` regeneriran čisto (brez `react-start`/`ssr: true`/`start.ts` referenc).
+
+**Vizualna paralelnost:** vse vizualne datoteke (komponente, shadcn/ui, Tailwind tokeni)
+so byte-nedotaknjene; spremenjeni so le vstopna lupina, root document in build pipeline.
+Edina vedenjska razlika je dostavna, ne vizualna: začetni HTML je zdaj prazen `#root`, ki
+ga React hidrira na klientu (prej je SSR vrnil že izrisan HTML). V brskalniku je izrisan UI
+identičen.
+
+## Deployment
+
+Build output je **deployabilen na navaden statičen host brez strežniškega runtime-a**
+(Firebase Hosting, Netlify, Vercel-static, S3+CloudFront, GitHub Pages …):
+
+- `dist/` vsebuje le `index.html` + `assets/` (JS/CSS) — **brez `dist/server/`, brez nitro
+  serverja, brez serverless funkcij**.
+- Edina hosting zahteva: **SPA fallback** (vse ne-asset poti → `index.html`), da deep
+  linki (`/app/dashboard`, `/assessment/:id/solve`) delujejo ob osvežitvi. Npr. Firebase
+  `rewrites: [{ source: "**", destination: "/index.html" }]`.
+
+To poenoti hosting zgodbo z obstoječim `frontend/` (prav tako Vite SPA).
