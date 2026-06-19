@@ -433,3 +433,48 @@ kot dodatno varovalo.
   guardane poti) se transformirajo brez napak; HTTP 200.
 - ⏳ Vedenje guardov (redirecti po vlogah, brez flasha ob refreshu) teče **v brskalniku** —
   ročni koraki v sekciji VERIFY (zahteva realni `.env` + backend).
+
+---
+
+# F5 — izvedeno: data foundation + Trainings (referenčni vzorec)
+
+Postavljen je temelj za pridobivanje podatkov, ki ga bo 3-članska ekipa uporabila, in
+**dokazan** z vezavo **ene** domene (**Trainings**) na realni backend. Vse ostale domene
+ostajajo na mocku.
+
+## Dodano (skupna infrastruktura)
+
+| Datoteka | Vloga |
+| --- | --- |
+| `src/types/{enums,models,index}.ts` | tipi 1:1 z backend odzivi + enumi + aliasi (`answer.textAnswer`, `attempt.participantId`) |
+| `src/lib/query-keys.ts` | `qk` factory (hierarhični ključi po domenah) |
+| `src/components/common/Spinner.tsx` | `LoadingState` / `ErrorState` (+ `Spinner`) |
+| `src/lib/sanitize.ts` | `sanitizeQuestionForSolving()` — odstrani `answerOptions.isCorrect` (znan leak) |
+| `src/lib/attempt-storage.ts` | klientska persistenca `attemptId` (ker ni GET seznama poskusov) — **TODO: backend list endpoint** |
+| `src/services/trainings.ts` | referenčni service (list/get/create/update/remove) |
+| `src/lib/training-view.ts` | prehoden most: realni Training → bogatejša display oblika (ostala polja nevtralna) |
+
+## Trainings — vezava end-to-end
+
+- `app.trainings.index.tsx`: `useQuery` seznam + **create** (`Dialog`) mutacija +
+  loading/empty/error stanja.
+- `app.trainings.$id.tsx`: `useQuery` detajl + **edit** (`Dialog`) + **delete** (`AlertDialog`,
+  opozorilo na FK-500) + 204 handling; po brisu navigacija na seznam.
+- Druge domene (topics, participants, assessments, analytics) na tej strani **ostajajo mock**
+  (most + drugo-domenski mock importi), dokler niso vezane.
+
+## Recept za ekipo
+
+Kanonski postopek "mock → real" za vsako domeno je v **[SERVICES.md](./SERVICES.md)**
+(seam, query keys, loading/empty/error, mutacije+invalidacija, 204/FK-500, per-role razlike),
+s Trainings kot delujočim primerom.
+
+## Status verifikacije
+
+- ✅ `npm run build` zelen; statičen `dist/` (benigno >500 kB firebase chunk opozorilo).
+- ✅ `npm run dev` (:8080) HTTP 200; vsi novi moduli se transformirajo brez napak.
+- ✅ TS: nova koda tipsko čista (`tsc --noEmit` javi le **3 pred-obstoječe** hardcoded
+  demo-link napake v `app.dashboard.tsx` in podedovani `Create post-test` link — niso del te naloge;
+  build/runtime nemoteni).
+- ⏳ Trainings CRUD proti realnemu API-ju + "ostale domene še na mocku" → ročni VERIFY
+  (zahteva backend + `.env`).

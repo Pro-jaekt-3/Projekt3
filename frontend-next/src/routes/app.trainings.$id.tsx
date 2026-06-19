@@ -1,48 +1,118 @@
-import { createFileRoute, Link, notFound } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Plus, UserPlus, Library, ClipboardList, BarChart3, BookOpen, Users, AlertCircle,
-  ChevronRight, Sparkles, Filter,
+  ChevronRight, Sparkles, Filter, Pencil, Trash2,
 } from "lucide-react";
+import { toast } from "sonner";
 import { PageHeader } from "@/components/common/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { MetricCard } from "@/components/common/MetricCard";
 import { StatusBadge } from "@/components/common/StatusBadge";
 import { EmptyState } from "@/components/common/EmptyState";
+import { LoadingState, ErrorState } from "@/components/common/Spinner";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import {
-  getTraining, assessmentsForTraining, PARTICIPANTS, questionsForTraining,
+  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
+  assessmentsForTraining, PARTICIPANTS, questionsForTraining,
   PRE_POST_COMPARISON, TOPIC_PERFORMANCE, RECENT_ACTIVITY,
 } from "@/lib/mock-data";
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, Legend } from "recharts";
-import type { Training } from "@/lib/mock-data";
-
+import { useRole } from "@/lib/role-context";
+import { qk } from "@/lib/query-keys";
+import { trainingsService } from "@/services/trainings";
+import { trainingToView } from "@/lib/training-view";
 import { ensureRole } from "@/lib/route-guards";
 
 export const Route = createFileRoute("/app/trainings/$id")({
   beforeLoad: ({ context, location }) =>
     ensureRole({ auth: context.auth, href: location.href }, ["admin", "instructor"]),
-  loader: ({ params }): { training: Training } => {
-    const training = getTraining(params.id);
-    if (!training) throw notFound();
-    return { training };
-  },
   component: TrainingDetail,
-  notFoundComponent: () => (
-    <div className="p-8">
-      <EmptyState title="Training not found" description="The training you are looking for does not exist or was archived." />
-    </div>
-  ),
 });
 
 function TrainingDetail() {
-  const { training } = Route.useLoaderData() as { training: Training };
+  const { id } = Route.useParams();
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const { role } = useRole();
+  const isAdmin = role === "admin";
+
+  const trainingQuery = useQuery({
+    queryKey: qk.trainings.detail(id),
+    queryFn: () => trainingsService.get(id),
+  });
+
+  const [tab, setTab] = useState("overview");
+  const [editOpen, setEditOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
+
+  const editMutation = useMutation({
+    mutationFn: () =>
+      trainingsService.update(id, { title: title.trim(), description: description.trim() || null }),
+    onSuccess: (updated) => {
+      queryClient.invalidateQueries({ queryKey: qk.trainings.detail(id) });
+      queryClient.invalidateQueries({ queryKey: qk.trainings.lists() });
+      toast.success(`Saved “${updated.title}”`);
+      setEditOpen(false);
+    },
+    onError: (err) => toast.error(err instanceof Error ? err.message : "Failed to save training"),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: () => trainingsService.remove(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: qk.trainings.all });
+      toast.success("Training deleted");
+      setDeleteOpen(false);
+      navigate({ to: "/app/trainings" });
+    },
+    // FK 500 ("training in use") and any other failure land here with the
+    // backend `{ error }` message extracted by apiClient.
+    onError: (err) => toast.error(err instanceof Error ? err.message : "Failed to delete training"),
+  });
+
+  if (trainingQuery.isLoading) {
+    return <LoadingState label="Loading training…" />;
+  }
+
+  if (trainingQuery.isError || !trainingQuery.data) {
+    const message =
+      trainingQuery.error instanceof Error ? trainingQuery.error.message : "Failed to load training";
+    if (/not found/i.test(message)) {
+      return (
+        <div className="p-8">
+          <EmptyState title="Training not found" description="The training you are looking for does not exist or was archived." />
+        </div>
+      );
+    }
+    return <ErrorState message={message} onRetry={() => trainingQuery.refetch()} />;
+  }
+
+  const training = trainingToView(trainingQuery.data);
+  // Related domains are still on mock (keyed by mock ids/titles); real trainings
+  // surface empty states here until topics/assessments/questions are wired.
   const assessments = assessmentsForTraining(training.id);
   const questions = questionsForTraining(training.title);
-  const [tab, setTab] = useState("overview");
+
+  const openEdit = () => {
+    setTitle(trainingQuery.data.title);
+    setDescription(trainingQuery.data.description ?? "");
+    setEditOpen(true);
+  };
 
   return (
     <>
@@ -63,6 +133,16 @@ function TrainingDetail() {
         }
         actions={
           <>
+            {!isAdmin && (
+              <>
+                <Button variant="outline" size="sm" onClick={openEdit}>
+                  <Pencil className="mr-1.5 h-4 w-4" /> Edit
+                </Button>
+                <Button variant="outline" size="sm" onClick={() => setDeleteOpen(true)}>
+                  <Trash2 className="mr-1.5 h-4 w-4" /> Delete
+                </Button>
+              </>
+            )}
             <Button variant="outline" size="sm"><UserPlus className="mr-1.5 h-4 w-4" /> Add participant</Button>
             <Button asChild size="sm">
               <Link to="/app/assessments/new" search={{ trainingId: training.id } as never}>
@@ -413,6 +493,68 @@ function TrainingDetail() {
           </TabsContent>
         </Tabs>
       </div>
+
+      {/* Edit dialog */}
+      <Dialog open={editOpen} onOpenChange={setEditOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit training</DialogTitle>
+            <DialogDescription>Update the training title and description.</DialogDescription>
+          </DialogHeader>
+          <form
+            id="edit-training-form"
+            className="space-y-3"
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (!title.trim()) {
+                toast.error("Title is required");
+                return;
+              }
+              editMutation.mutate();
+            }}
+          >
+            <div className="space-y-1.5">
+              <Label htmlFor="edit-title">Title</Label>
+              <Input id="edit-title" value={title} onChange={(e) => setTitle(e.target.value)} autoFocus />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="edit-desc">Description</Label>
+              <Textarea id="edit-desc" value={description} onChange={(e) => setDescription(e.target.value)} />
+            </div>
+          </form>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditOpen(false)} disabled={editMutation.isPending}>Cancel</Button>
+            <Button type="submit" form="edit-training-form" disabled={editMutation.isPending}>
+              {editMutation.isPending ? "Saving…" : "Save changes"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete confirm */}
+      <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete this training?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This permanently deletes “{training.title}”. If the training still has topics or
+              assessments attached, the server will refuse to delete it — remove those first.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleteMutation.isPending}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault();
+                deleteMutation.mutate();
+              }}
+              disabled={deleteMutation.isPending}
+            >
+              {deleteMutation.isPending ? "Deleting…" : "Delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 }
