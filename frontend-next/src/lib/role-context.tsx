@@ -5,7 +5,6 @@ import {
   useEffect,
   useMemo,
   useState,
-  type ReactNode,
 } from "react";
 import type { User as FirebaseUser } from "firebase/auth";
 import { onAuthStateChanged, signOut } from "firebase/auth";
@@ -17,6 +16,7 @@ import { apiJsonFetch } from "@/services/apiClient";
 // Public API surface — UNCHANGED from the original mock role-context so that
 // the existing useRole() call sites (TopBar, SidebarNav, dashboard, login, …)
 // keep working without edits. Internals are now backed by real Firebase auth.
+// `isLoading` is added (non-breaking) so route guards can wait for auth.
 // ---------------------------------------------------------------------------
 
 export type Role = "admin" | "instructor" | "participant";
@@ -27,13 +27,14 @@ export interface DemoUser {
   role: Role;
 }
 
-interface RoleContextValue {
+export interface AuthState {
   role: Role;
   user: DemoUser;
-  setRole: (role: Role) => void;
   isAuthenticated: boolean;
-  logout: () => void;
+  isLoading: boolean;
+  setRole: (role: Role) => void;
   login: (role: Role) => void;
+  logout: () => void;
 }
 
 // ---------------------------------------------------------------------------
@@ -91,11 +92,17 @@ function displayNameFromEmail(email: string): string {
   return parts.map((p) => p.charAt(0).toUpperCase() + p.slice(1)).join(" ");
 }
 
-const RoleContext = createContext<RoleContextValue | null>(null);
+export const RoleContext = createContext<AuthState | null>(null);
 
-export function RoleProvider({ children }: { children: ReactNode }) {
+/**
+ * Single source of auth truth. Created once ABOVE the router (see main.tsx) so
+ * the value can be fed both into the TanStack Router context (for beforeLoad
+ * guards) and into RoleContext (for useRole() inside the tree).
+ */
+export function useAuthController(): AuthState {
   const [firebaseUser, setFirebaseUser] = useState<FirebaseUser | null>(null);
   const [appUser, setAppUser] = useState<AuthMeResponse | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
   // Dev-only previewed role; takes precedence when enabled. Never used in prod.
   const [devRole, setDevRole] = useState<Role | null>(() => {
     if (!isDevRoleOverrideEnabled) return null;
@@ -113,15 +120,19 @@ export function RoleProvider({ children }: { children: ReactNode }) {
 
       if (!user) {
         setAppUser(null);
+        setIsLoading(false);
         return;
       }
 
+      setIsLoading(true);
       try {
         const me = await apiJsonFetch<AuthMeResponse>("/auth/me");
         setAppUser(me ?? null);
       } catch (error) {
         console.error("Failed to load authenticated user from /auth/me:", error);
         setAppUser(null);
+      } finally {
+        setIsLoading(false);
       }
     });
 
@@ -160,7 +171,7 @@ export function RoleProvider({ children }: { children: ReactNode }) {
     void signOut(auth).catch((error) => console.error("Sign-out failed:", error));
   }, []);
 
-  const value = useMemo<RoleContextValue>(() => {
+  return useMemo<AuthState>(() => {
     const overrideActive = isDevRoleOverrideEnabled && devRole != null;
     const backendRole = appUser ? ROLE_FROM_BACKEND[appUser.role] : null;
 
@@ -174,14 +185,12 @@ export function RoleProvider({ children }: { children: ReactNode }) {
 
     const isAuthenticated = Boolean(firebaseUser) || overrideActive;
 
-    return { role, user, setRole, isAuthenticated, login, logout };
-  }, [appUser, firebaseUser, devRole, setRole, login, logout]);
-
-  return <RoleContext.Provider value={value}>{children}</RoleContext.Provider>;
+    return { role, user, isAuthenticated, isLoading, setRole, login, logout };
+  }, [appUser, firebaseUser, devRole, isLoading, setRole, login, logout]);
 }
 
 export function useRole() {
   const ctx = useContext(RoleContext);
-  if (!ctx) throw new Error("useRole must be used within RoleProvider");
+  if (!ctx) throw new Error("useRole must be used within a RoleContext provider");
   return ctx;
 }

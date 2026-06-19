@@ -9,7 +9,11 @@ import { StatusBadge } from "@/components/common/StatusBadge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { USERS } from "@/lib/mock-data";
 
+import { ensureRole } from "@/lib/route-guards";
+
 export const Route = createFileRoute("/app/users")({
+  beforeLoad: ({ context, location }) =>
+    ensureRole({ auth: context.auth, href: location.href }, ["admin"]),
   component: UsersPage,
 });
 

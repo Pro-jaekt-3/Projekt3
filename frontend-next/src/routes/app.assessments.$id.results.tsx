@@ -13,7 +13,11 @@ import {
 import type { Assessment } from "@/lib/mock-data";
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid } from "recharts";
 
+import { ensureRole } from "@/lib/route-guards";
+
 export const Route = createFileRoute("/app/assessments/$id/results")({
+  beforeLoad: ({ context, location }) =>
+    ensureRole({ auth: context.auth, href: location.href }, ["admin", "instructor"]),
   loader: ({ params }): { assessment: Assessment } => {
     const a = getAssessment(params.id) ?? ASSESSMENTS[0];
     if (!a) throw notFound();

@@ -7,7 +7,11 @@ import { TRAININGS } from "@/lib/mock-data";
 import { StatusBadge } from "@/components/common/StatusBadge";
 import { useRole } from "@/lib/role-context";
 
+import { ensureRole } from "@/lib/route-guards";
+
 export const Route = createFileRoute("/app/trainings/")({
+  beforeLoad: ({ context, location }) =>
+    ensureRole({ auth: context.auth, href: location.href }, ["admin", "instructor"]),
   component: TrainingsList,
 });
 

@@ -11,7 +11,11 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { ASSESSMENTS, type AssessmentStatus } from "@/lib/mock-data";
 import { useRole } from "@/lib/role-context";
 
+import { ensureRole } from "@/lib/route-guards";
+
 export const Route = createFileRoute("/app/assessments/")({
+  beforeLoad: ({ context, location }) =>
+    ensureRole({ auth: context.auth, href: location.href }, ["admin", "instructor"]),
   component: AssessmentsList,
 });
 

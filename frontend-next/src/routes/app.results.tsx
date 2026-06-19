@@ -8,7 +8,11 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { TRAININGS, ASSESSMENTS, PRE_POST_COMPARISON, TOPIC_PERFORMANCE } from "@/lib/mock-data";
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, Legend } from "recharts";
 
+import { ensureRole } from "@/lib/route-guards";
+
 export const Route = createFileRoute("/app/results")({
+  beforeLoad: ({ context, location }) =>
+    ensureRole({ auth: context.auth, href: location.href }, ["admin", "instructor"]),
   component: GlobalResults,
 });
 

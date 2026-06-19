@@ -17,8 +17,12 @@ import { Input } from "@/components/ui/input";
 import { ASSESSMENTS, PARTICIPANTS, QUESTIONS, getAssessment } from "@/lib/mock-data";
 import type { Assessment } from "@/lib/mock-data";
 
+import { ensureRole } from "@/lib/route-guards";
+
 export const Route = createFileRoute("/app/assessments/$id")({
   validateSearch: z.object({ published: z.coerce.number().optional() }),
+  beforeLoad: ({ context, location }) =>
+    ensureRole({ auth: context.auth, href: location.href }, ["admin", "instructor"]),
   loader: ({ params }): { assessment: Assessment } => {
     const assessment = getAssessment(params.id) ?? ASSESSMENTS[0];
     if (!assessment) throw notFound();

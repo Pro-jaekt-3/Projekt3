@@ -26,7 +26,11 @@ import {
   PolarRadiusAxis, AreaChart, Area,
 } from "recharts";
 
+import { ensureRole } from "@/lib/route-guards";
+
 export const Route = createFileRoute("/app/ai-insights")({
+  beforeLoad: ({ context, location }) =>
+    ensureRole({ auth: context.auth, href: location.href }, ["admin", "instructor"]),
   component: AIInsights,
 });
 

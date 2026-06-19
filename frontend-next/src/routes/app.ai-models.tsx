@@ -18,7 +18,11 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { AI_MODELS } from "@/lib/mock-data";
 
+import { ensureRole } from "@/lib/route-guards";
+
 export const Route = createFileRoute("/app/ai-models")({
+  beforeLoad: ({ context, location }) =>
+    ensureRole({ auth: context.auth, href: location.href }, ["admin"]),
   component: AIModelsPage,
 });
 

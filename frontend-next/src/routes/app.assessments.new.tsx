@@ -18,8 +18,12 @@ import { StatusBadge } from "@/components/common/StatusBadge";
 import { TRAININGS, QUESTIONS, PARTICIPANTS, TOPICS, getTraining } from "@/lib/mock-data";
 import { cn } from "@/lib/utils";
 
+import { ensureRole } from "@/lib/route-guards";
+
 export const Route = createFileRoute("/app/assessments/new")({
   validateSearch: z.object({ trainingId: z.string().optional() }),
+  beforeLoad: ({ context, location }) =>
+    ensureRole({ auth: context.auth, href: location.href }, ["admin", "instructor"]),
   component: CreateAssessmentWizard,
 });
 

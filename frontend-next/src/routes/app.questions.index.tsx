@@ -10,7 +10,11 @@ import { StatusBadge } from "@/components/common/StatusBadge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { QUESTIONS, type QuestionStatus } from "@/lib/mock-data";
 
+import { ensureRole } from "@/lib/route-guards";
+
 export const Route = createFileRoute("/app/questions/")({
+  beforeLoad: ({ context, location }) =>
+    ensureRole({ auth: context.auth, href: location.href }, ["admin", "instructor"]),
   component: QuestionBank,
 });
 

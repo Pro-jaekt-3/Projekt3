@@ -15,7 +15,11 @@ import { ASSESSMENTS, AI_MODELS, QUESTIONS, getAssessment } from "@/lib/mock-dat
 import type { Assessment } from "@/lib/mock-data";
 import { cn } from "@/lib/utils";
 
+import { ensureRole } from "@/lib/route-guards";
+
 export const Route = createFileRoute("/app/assessments/$id/post-test")({
+  beforeLoad: ({ context, location }) =>
+    ensureRole({ auth: context.auth, href: location.href }, ["admin", "instructor"]),
   loader: ({ params }): { related: Assessment } => {
     const a = getAssessment(params.id) ?? ASSESSMENTS[0];
     if (!a) throw notFound();

@@ -6,7 +6,11 @@ import { TRAININGS, USERS, ASSESSMENTS, PROGRESS_OVER_TIME } from "@/lib/mock-da
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid } from "recharts";
 
+import { ensureRole } from "@/lib/route-guards";
+
 export const Route = createFileRoute("/app/system-analytics")({
+  beforeLoad: ({ context, location }) =>
+    ensureRole({ auth: context.auth, href: location.href }, ["admin"]),
   component: SystemAnalytics,
 });
 

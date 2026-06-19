@@ -1,4 +1,4 @@
-import { createFileRoute, Link, useNavigate, useSearch } from "@tanstack/react-router";
+import { createFileRoute, Link, redirect, useNavigate, useSearch } from "@tanstack/react-router";
 import { useState } from "react";
 import { Sparkles, Shield, GraduationCap, UserCircle2 } from "lucide-react";
 import { z } from "zod";
@@ -16,6 +16,12 @@ const searchSchema = z.object({
 
 export const Route = createFileRoute("/login")({
   validateSearch: searchSchema,
+  // Already signed in? Skip the login page.
+  beforeLoad: ({ context }) => {
+    if (!context.auth.isLoading && context.auth.isAuthenticated) {
+      throw redirect({ to: "/app/dashboard" });
+    }
+  },
   head: () => ({
     meta: [
       { title: "Log in — PROJEKT3" },

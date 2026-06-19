@@ -16,7 +16,11 @@ import { StatusBadge } from "@/components/common/StatusBadge";
 import { QUESTIONS, AI_MODELS, TRAININGS, TOPICS, getQuestion } from "@/lib/mock-data";
 import { cn } from "@/lib/utils";
 
+import { ensureRole } from "@/lib/route-guards";
+
 export const Route = createFileRoute("/app/questions/$id")({
+  beforeLoad: ({ context, location }) =>
+    ensureRole({ auth: context.auth, href: location.href }, ["admin", "instructor"]),
   component: QuestionEditor,
 });
 

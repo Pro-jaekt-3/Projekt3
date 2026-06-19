@@ -371,3 +371,65 @@ zamenjana je le avtentikacija pod njimi (NOBEN screen-data ni vezan na backend).
 - ⏳ **Polni login flow** (Firebase sign-in → `/auth/me` → vloga v navigaciji → logout →
   dev override switch) zahteva uporabnikov realni `.env` + delujoč backend; preveri
   uporabnik (glej sekcijo VERIFY v nalogi).
+
+---
+
+# F4 — izvedeno: route-level auth + role guards
+
+Dodana je **route-level kontrola dostopa** nad realnim Firebase authom. Doslej je bil
+gating le navigacijski (`NAV[role]`); zdaj URL-ji niso več dosegljivi ročno za napačno
+vlogo. **Screen-data še vedno ni vezan na backend** — ekrani tečejo na mock.
+
+## Arhitektura: auth nad routerjem
+
+Da `beforeLoad` (teče pred renderjem komponente) lahko bere auth, je auth dvignjen
+**nad** `RouterProvider`:
+
+- `src/lib/role-context.tsx` → `useAuthController()` je **edini vir** auth stanja
+  (Firebase + `/auth/me` + dev override + `isLoading`).
+- `src/main.tsx` → `App` pokliče `useAuthController()` enkrat in vrednost poda:
+  1. v **router context**: `<RouterProvider router={router} context={{ auth }} />`
+     (za `beforeLoad` guarde),
+  2. v **React context**: `<RoleContext.Provider value={auth}>` (za `useRole()` v drevesu).
+- `src/router.tsx` → `RouterContext = { queryClient; auth }`; `__root.tsx` uporablja
+  `createRootRouteWithContext<RouterContext>()`. (`RoleProvider` je odstranjen iz
+  `__root`, ker je auth zdaj nad routerjem.)
+- Ob spremembi autha (`isAuthenticated`/`role`) `App` pokliče `router.invalidate()`, da se
+  guardi ponovno ovrednotijo brez polnega reloada.
+
+## Loading state — brez /login flasha
+
+`App` **gate-a render na `auth.isLoading`**: dokler `onAuthStateChanged` (+ `/auth/me`)
+ni razrešen, prikaže nevtralen spinner. Šele nato se montira `RouterProvider`, zato guardi
+vedno vidijo **razrešen** auth → ob refreshu globoke `/app/...` poti **ni** preusmeritve na
+`/login` (ne za prijavljene, ne napačne vsebine). Guardi imajo tudi `if (auth.isLoading) return`
+kot dodatno varovalo.
+
+## Guardi (`src/lib/route-guards.ts`)
+
+- `ensureAuthenticated({ auth, href })` → če ni prijavljen: `redirect("/login", { search: { redirect: href } })`
+  (ohrani ciljno pot; `login.tsx` po prijavi pristane tam).
+- `ensureRole({ auth, href }, roles)` → najprej auth, nato če `role` ni v `roles`:
+  `redirect("/app/dashboard")` (dosegljiv vsem).
+- V **dev** prevladuje override vloga → guardi gate-ajo po izbrani vlogi.
+
+## Kje so guardi pripeti
+
+| Pot(i) | Guard | Vloge |
+| --- | --- | --- |
+| `/app` (parent — pokriva cel podtree) | `ensureAuthenticated` | katerikoli prijavljen |
+| `/app/dashboard`, `/app/`, `/app/my-assessments`, `/app/my-results` | (samo parent auth) | vse prijavljene vloge |
+| `/app/users`, `/app/ai-models`, `/app/system-analytics` | `ensureRole` | **admin** |
+| `/app/trainings` (+ `$id`), `/app/questions` (+ `$id`), `/app/assessments` (+ `new`, `$id`, `$id/results`, `$id/post-test`), `/app/results`, `/app/ai-insights` | `ensureRole` | **admin, instructor** |
+| `/login` | redirect na `/app/dashboard` če že prijavljen | — |
+
+> Reševalni tok `/assessment/$id/*` (access/solve/result) je **izven `/app`** in ostaja
+> nepreusmerjen (QR-dostop), skladno z nalogo (participant ga doseže).
+
+## Verifikacija
+
+- ✅ `npm run build` zelen; statičen `dist/` (benigno >500 kB firebase chunk opozorilo).
+- ✅ `npm run dev` (:8080) → vsi moduli (`route-guards`, `role-context`, `router`, `main`,
+  guardane poti) se transformirajo brez napak; HTTP 200.
+- ⏳ Vedenje guardov (redirecti po vlogah, brez flasha ob refreshu) teče **v brskalniku** —
+  ročni koraki v sekciji VERIFY (zahteva realni `.env` + backend).

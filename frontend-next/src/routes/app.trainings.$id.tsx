@@ -20,7 +20,11 @@ import {
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, Legend } from "recharts";
 import type { Training } from "@/lib/mock-data";
 
+import { ensureRole } from "@/lib/route-guards";
+
 export const Route = createFileRoute("/app/trainings/$id")({
+  beforeLoad: ({ context, location }) =>
+    ensureRole({ auth: context.auth, href: location.href }, ["admin", "instructor"]),
   loader: ({ params }): { training: Training } => {
     const training = getTraining(params.id);
     if (!training) throw notFound();
