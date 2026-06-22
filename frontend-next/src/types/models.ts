@@ -6,6 +6,10 @@
 //  - AssessmentAttempt is serialized with an extra `participantId` alias (= userId).
 //  - GET /assessments/:id returns answerOptions INCLUDING `isCorrect` even to a
 //    participant (known leak) — strip it for solving views (see lib/sanitize.ts).
+//  - DELETE shape: only DELETE /trainings/:id returns 204 (no body). Every other
+//    delete (questions, assessments, topics, learning-objectives, equivalent-groups)
+//    returns `{ message }` JSON with 200. Generic delete services should handle both
+//    (apiEnsureOk works for either; apiJsonFetch returns undefined on 204).
 
 import type {
   AiAction,
@@ -87,6 +91,17 @@ export interface Question {
   answerOptions?: AnswerOption[];
   topic?: Topic;
   learningObjective?: LearningObjective | null;
+  equivalentGroup?: EquivalentQuestionGroup | null;
+}
+
+export interface EquivalentQuestionGroup {
+  id: Id;
+  name: string;
+  description: string | null;
+  createdAt: ISODateString;
+  updatedAt: ISODateString;
+  // Included only when the endpoint requests group members.
+  questions?: Question[];
 }
 
 export interface Assessment {
@@ -172,4 +187,42 @@ export interface AiInteraction {
   reviewedAt: ISODateString | null;
   createdAt: ISODateString;
   updatedAt: ISODateString;
+}
+
+// Response of GET /assessments/:id/results (ADMIN/INSTRUCTOR only). This is a
+// BESPOKE analytics object, NOT a plain Assessment — see
+// backend/controllers/assessmentController.js#getAssessmentResults. Counts are
+// over SUBMITTED attempts; `*Score`/`*Percentage` are null when there are none.
+export interface AssessmentResults {
+  assessment: {
+    id: Id;
+    title: string;
+    type: AssessmentType;
+    status: AssessmentStatus;
+    training: Training | null;
+  };
+  summary: {
+    assignedParticipants: number | null; // currently always null (not yet computed)
+    submittedAttempts: number;
+    averageScore: number | null;
+    averagePercentage: number | null;
+  };
+  attempts: Array<{
+    id: Id;
+    // Backend `select`: { id, name, email, role }; null when the attempt has no user.
+    user: Pick<User, "id" | "name" | "email" | "role"> | null;
+    status: AttemptStatus;
+    score: number | null;
+    maxScore: number | null;
+    submittedAt: ISODateString | null;
+    answersCount: number;
+  }>;
+  questionStats: Array<{
+    questionId: Id;
+    title: string | null;
+    attemptsCount: number;
+    correctCount: number;
+    correctRate: number | null;
+    averagePoints: number | null;
+  }>;
 }

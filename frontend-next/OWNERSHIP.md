@@ -93,11 +93,15 @@ another dev's service. Trainings stays wired and is **maintained by Dev A**.
    dev's `src/services/*` file. Cross-domain needs (e.g. B's picker reading A's questions)
    go through the **published service API + `src/types`**, never by editing the other service.
 2. **Frozen — change only via the lead (one coordinated PR):**
-   - `src/types/*` (incl. the **pending `EquivalentQuestionGroup` addition** Dev A needs)
+   - `src/types/*` (now includes `EquivalentQuestionGroup` + `AssessmentResults`)
    - `src/services/apiClient.ts`
    - `src/lib/firebase.ts`, `src/lib/role-context.tsx`, `src/lib/route-guards.ts`
    - `src/lib/query-keys.ts` (add a `qk.<domain>` entry via the lead if missing)
    - cross-cutting helpers: `src/lib/sanitize.ts`, `src/lib/attempt-storage.ts`, `src/lib/training-view.ts`
+   - **`src/lib/mock-data.ts` is READ-ONLY** — the shared demo fixture. Each dev only
+     **removes** mock imports from their OWN pages as they wire real services; **nobody
+     edits `mock-data.ts`** (editing it would collide across domains). It is deleted only
+     at the very end, once no page imports it.
    - UI primitives `src/components/ui/*`, shared `src/components/common/*`, `src/styles.css` (Tailwind tokens)
 3. **Branching:** one feature branch per domain off `projekt2.0`; **one domain per PR**.
    Branch names: `feat/questions`, `feat/assessments`, `feat/analytics`, etc.
@@ -121,7 +125,7 @@ Work that blocks a dev or improves quality. Tracked separately from UI wiring.
 | 3   | **`name` missing in `GET /auth/me`** (returns `{id,email,role,firebaseUid}`).                                                                                                                                     | Display names fall back to email-derived (Dev C / shell).                                                           | Backend: include `name`; then read it in role-context (lead).                                                             |
 | 4   | **`PORT` hardcoded 3000** (ignores `process.env.PORT`) + **CORS fully open** (AUDIT §2/§3).                                                                                                                       | Deploy/config friction; prod CORS risk.                                                                             | Backend hardening: `process.env.PORT` fallback; restrict CORS origin for non-demo.                                        |
 | 5   | **3 pre-existing TS errors** — `app.dashboard.tsx:71,85` and `app.trainings.$id.tsx:390` use hardcoded `/app/assessments/a1/...` links not matching the typed `$id` routes.                                       | `tsc --noEmit` not clean (build still green; runtime matches `$id="a1"`).                                           | Fix when those screens are wired (Dev B/C): use `params={{ id }}` form.                                                   |
-| 6   | **`EquivalentQuestionGroup` type missing** in `src/types/models.ts`.                                                                                                                                              | Blocks **Dev A** equivalent-groups work.                                                                            | **Lead** adds the type to frozen `src/types` (one PR) before Dev A starts.                                                |
+| 6   | ~~**`EquivalentQuestionGroup` type missing**~~ — ✅ **DONE**: `EquivalentQuestionGroup` + `AssessmentResults` added to `src/types/models.ts`; `equivalentGroup?` added to `Question`.                                | Unblocks **Dev A** (equivalent groups) and **Dev B** (assessment results).                                          | Resolved by the lead (P0-2).                                                                                              |
 | 7   | **Frontend create/edit UI gaps** (PART 1): Topic create/edit, LearningObjective create/edit, EquivalentGroup CRUD, id-bound Assessment edit.                                                                      | Dev A (topics/LO/equiv) and Dev B (assessment edit) must **build** these screens (backend endpoints already exist). | Build new forms/dialogs consistent with the design system; not a backend gap (except #6 type).                            |
 
 > Hardening items (#1–#4) run in **parallel** with UI wiring and don't block A. Item #6 is

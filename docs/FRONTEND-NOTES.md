@@ -44,7 +44,7 @@ backend dejstvo + **kako vpliva na frontend**. Vir resnice je koda v `backend/`,
 ## Analitika
 
 - Vse analytics štejejo **samo oddane poskuse** (`submittedAt != null`). → Dokler ni oddaj, pričakuj prazne sezname/ničle; predvidi empty-state.
-- Pre/post primerjava temelji na `AssessmentType` `PRE_TEST`/`POST_TEST`; serija (`/pre-post-series`) pari pre+post **po istem uporabniku** (zadnji poskus na uporabnika). → V parnih pogledih se pojavijo samo participanti, ki so opravili **oba** testa.
+- Pre/post primerjava temelji na `AssessmentType` `PRE_TEST`/`POST_TEST`; ruta je **`/analytics/pre-post-comparison`** (NE `/pre-post-series`), pari pre+post **po istem uporabniku** (zadnji poskus na uporabnika). → V parnih pogledih se pojavijo samo participanti, ki so opravili **oba** testa.
 - Parni breakdowni (by-topic/objective/difficulty) računajo **1 točko na odgovor**, ne dejanskih `points`. → Ne prikazuj uteženih točk v teh pogledih; so pravilnostne stopnje, ne točkovne.
 - `GET /analytics/questions?sort=worst&limit=N` in `/worst-questions?limit=N` obstajata. → Lahko gradiš "najtežja vprašanja" widget brez dodatne logike.
 
@@ -53,7 +53,8 @@ backend dejstvo + **kako vpliva na frontend**. Vir resnice je koda v `backend/`,
 - Vsak nov Firebase uporabnik se ob prvi prijavi **avtomatsko ustvari kot `PARTICIPANT`** (`firebaseAuthMiddleware`). → Nova prijava vedno pristane kot participant; instructor/admin dostop zahteva ročno spremembo vloge v bazi.
 - `GET /auth/me` vrne `{ id, email, role, firebaseUid }` — **brez `name`**. → Imena uporabnika ne pričakuj iz `/auth/me`; če ga rabiš, dodaj na backend.
 - AI endpointi vrnejo `{ suggestion, aiInteractionId, reviewStatus: "PENDING", ... }`; potrditev prek `PATCH /ai/interactions/:id/review`. → Vsak AI predlog prikaži z Accept/Reject; nikdar samodejno ne uveljavi (skladno z MVP AI pravili).
-- AI napake so razločne: 501 (ne-Ollama provider), 502 (Ollama nedosegljiv), 400 (model neaktiven/ni nameščen). → Prikaži specifična sporočila namesto generičnega "AI error".
+- AI napake so razločne: 501 (ne-Ollama provider), 502 (Ollama nedosegljiv), **500 (model neaktiven ali ni v bazi)**, 400 (manjkajoča vhodna polja). → Prikaži specifična sporočila namesto generičnega "AI error". (Popravek: "model neaktiven" je **500**, ne 400, kot je bilo prej zapisano.)
+- ⚠️ **Endpointi, ki še NE obstajajo** (backend hardening track) — ne gradi proti njim brez backend dela: `/ai/models`, `/ai/ollama/status`, `/ai/pre-post-insights`, `GET /ai/interactions` (review queue list; obstaja le `PATCH /ai/interactions/:id/review`) in `/users` (admin user/role CRUD). `/ai` trenutno izpostavlja le `POST /question-draft`, `POST /equivalence-suggestion`, `PATCH /interactions/:id/review`.
 - `DELETE /trainings/:id` vrne **204 brez telesa**, večina ostalih delete-ov vrne `{ message }` JSON. → Delete handlerji naj prenesejo 204 (prazno telo) brez `res.json()`.
 - Brisanje trainingov/tematik z vezanimi zapisi pade kot **FK 500** (ni cascade). → Pred brisanjem opozori uporabnika; pričakuj 500 ob "v uporabi".
 - Vse napake imajo obliko `{ error: string }`; `apiClient.ts` to že izvleče. → Drži se `apiJsonFetch`/`apiFetch`; sporočilo napake je v `error.message`.
