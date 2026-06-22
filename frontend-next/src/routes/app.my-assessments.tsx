@@ -29,7 +29,9 @@ function MyAssessments() {
               <TabsTrigger value="Completed">Completed</TabsTrigger>
             </TabsList>
           </Tabs>
-          <Button variant="outline" size="sm"><Filter className="mr-1.5 h-4 w-4" /> Filters</Button>
+          <Button variant="outline" size="sm">
+            <Filter className="mr-1.5 h-4 w-4" /> Filters
+          </Button>
         </div>
 
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
@@ -41,14 +43,18 @@ function MyAssessments() {
                   <div className="mt-0.5 text-sm font-semibold">{a.title}</div>
                 </div>
                 <div className="flex items-center justify-between text-xs text-muted-foreground">
-                  <span>{a.type} · {a.timeLimit} min</span>
+                  <span>
+                    {a.type} · {a.timeLimit} min
+                  </span>
                   <StatusBadge status={a.status} />
                 </div>
                 <div className="text-xs text-muted-foreground">Due {a.due}</div>
                 <div className="mt-auto flex justify-end">
                   {a.status === "Completed" ? (
                     <Button asChild size="sm" variant="outline">
-                      <Link to="/assessment/$id/result" params={{ id: a.id }}>View result</Link>
+                      <Link to="/assessment/$id/result" params={{ id: a.id }}>
+                        View result
+                      </Link>
                     </Button>
                   ) : (
                     <Button asChild size="sm">

@@ -2,7 +2,15 @@ import { createFileRoute, Link, notFound, useSearch } from "@tanstack/react-rout
 import { useEffect, useState } from "react";
 import { z } from "zod";
 import {
-  QrCode, Copy, ExternalLink, Eye, Play, AlertTriangle, Check, Users, Clock,
+  QrCode,
+  Copy,
+  ExternalLink,
+  Eye,
+  Play,
+  AlertTriangle,
+  Check,
+  Users,
+  Clock,
 } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/common/PageHeader";
@@ -11,8 +19,21 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { StatusBadge } from "@/components/common/StatusBadge";
 import { MetricCard } from "@/components/common/MetricCard";
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetDescription,
+} from "@/components/ui/sheet";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
 import { ASSESSMENTS, PARTICIPANTS, QUESTIONS, getAssessment } from "@/lib/mock-data";
 import type { Assessment } from "@/lib/mock-data";
@@ -45,13 +66,21 @@ function AssessmentDetail() {
     assessment.status === "Draft"
       ? { label: "Continue editing", to: "/app/assessments/new" as const }
       : assessment.status === "Results Ready"
-      ? { label: "View results", to: "/app/assessments/$id/results" as const, params: { id: assessment.id } }
-      : null;
+        ? {
+            label: "View results",
+            to: "/app/assessments/$id/results" as const,
+            params: { id: assessment.id },
+          }
+        : null;
 
   return (
     <>
       <PageHeader
-        breadcrumbs={<Link to="/app/assessments" className="hover:underline">Assessments</Link>}
+        breadcrumbs={
+          <Link to="/app/assessments" className="hover:underline">
+            Assessments
+          </Link>
+        }
         title={assessment.title}
         meta={
           <>
@@ -72,7 +101,9 @@ function AssessmentDetail() {
             {primary && (
               <Button asChild size="sm">
                 {primary.to === "/app/assessments/$id/results" ? (
-                  <Link to={primary.to} params={primary.params!}>{primary.label}</Link>
+                  <Link to={primary.to} params={primary.params!}>
+                    {primary.label}
+                  </Link>
                 ) : (
                   <Link to={primary.to as any}>{primary.label}</Link>
                 )}
@@ -87,7 +118,8 @@ function AssessmentDetail() {
           <div className="flex items-start gap-2 text-sm text-emerald-800 dark:text-emerald-200">
             <Check className="mt-0.5 h-4 w-4" />
             <div>
-              <strong>Assessment published.</strong> Share the QR code or copy the participant link to begin.
+              <strong>Assessment published.</strong> Share the QR code or copy the participant link
+              to begin.
             </div>
           </div>
         </div>
@@ -95,10 +127,24 @@ function AssessmentDetail() {
 
       <div className="space-y-6 p-4 sm:p-6 lg:p-8">
         <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
-          <MetricCard label="Assigned" value={assessment.assigned} icon={<Users className="h-4 w-4" />} />
-          <MetricCard label="Submitted" value={`${assessment.submitted} / ${assessment.assigned}`} />
-          <MetricCard label="Avg score" value={assessment.avgScore ? `${assessment.avgScore}%` : "—"} />
-          <MetricCard label="Time limit" value={`${assessment.timeLimit} min`} icon={<Clock className="h-4 w-4" />} />
+          <MetricCard
+            label="Assigned"
+            value={assessment.assigned}
+            icon={<Users className="h-4 w-4" />}
+          />
+          <MetricCard
+            label="Submitted"
+            value={`${assessment.submitted} / ${assessment.assigned}`}
+          />
+          <MetricCard
+            label="Avg score"
+            value={assessment.avgScore ? `${assessment.avgScore}%` : "—"}
+          />
+          <MetricCard
+            label="Time limit"
+            value={`${assessment.timeLimit} min`}
+            icon={<Clock className="h-4 w-4" />}
+          />
         </div>
 
         <Tabs defaultValue="overview">
@@ -112,7 +158,9 @@ function AssessmentDetail() {
 
           <TabsContent value="overview" className="mt-4 grid gap-4 lg:grid-cols-2">
             <Card>
-              <CardHeader><CardTitle className="text-base">Summary</CardTitle></CardHeader>
+              <CardHeader>
+                <CardTitle className="text-base">Summary</CardTitle>
+              </CardHeader>
               <CardContent className="space-y-2 text-sm">
                 <SumRow label="Type" value={assessment.type} />
                 <SumRow label="Time limit" value={`${assessment.timeLimit} min`} />
@@ -122,7 +170,9 @@ function AssessmentDetail() {
               </CardContent>
             </Card>
             <Card>
-              <CardHeader><CardTitle className="text-base">Validation</CardTitle></CardHeader>
+              <CardHeader>
+                <CardTitle className="text-base">Validation</CardTitle>
+              </CardHeader>
               <CardContent className="space-y-2 text-sm">
                 <Validate ok={true} label="All questions approved" />
                 <Validate ok={assessment.assigned > 0} label="Participants assigned" />
@@ -148,13 +198,27 @@ function AssessmentDetail() {
                   <TableBody>
                     {questions.map((q, i) => (
                       <TableRow key={q.id}>
-                        <TableCell className="text-muted-foreground tabular-nums">{i + 1}</TableCell>
-                        <TableCell className="max-w-md">
-                          <Link to="/app/questions/$id" params={{ id: q.id }} className="line-clamp-2 font-medium hover:underline">{q.text}</Link>
+                        <TableCell className="text-muted-foreground tabular-nums">
+                          {i + 1}
                         </TableCell>
-                        <TableCell className="hidden md:table-cell text-xs text-muted-foreground">{q.topic}</TableCell>
-                        <TableCell className="hidden sm:table-cell text-xs capitalize">{q.difficulty}</TableCell>
-                        <TableCell><StatusBadge status={q.status} /></TableCell>
+                        <TableCell className="max-w-md">
+                          <Link
+                            to="/app/questions/$id"
+                            params={{ id: q.id }}
+                            className="line-clamp-2 font-medium hover:underline"
+                          >
+                            {q.text}
+                          </Link>
+                        </TableCell>
+                        <TableCell className="hidden md:table-cell text-xs text-muted-foreground">
+                          {q.topic}
+                        </TableCell>
+                        <TableCell className="hidden sm:table-cell text-xs capitalize">
+                          {q.difficulty}
+                        </TableCell>
+                        <TableCell>
+                          <StatusBadge status={q.status} />
+                        </TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
@@ -183,7 +247,9 @@ function AssessmentDetail() {
                           <div className="text-xs text-muted-foreground">{p.email}</div>
                         </TableCell>
                         <TableCell className="hidden sm:table-cell">
-                          <StatusBadge status={i < 6 ? "Completed" : i === 6 ? "In progress" : "To do"} />
+                          <StatusBadge
+                            status={i < 6 ? "Completed" : i === 6 ? "In progress" : "To do"}
+                          />
                         </TableCell>
                         <TableCell className="hidden md:table-cell text-xs text-muted-foreground">
                           {i < 7 ? "2 hours ago" : "—"}
@@ -203,7 +269,9 @@ function AssessmentDetail() {
             <Card>
               <CardHeader>
                 <CardTitle className="text-base">Access</CardTitle>
-                <CardDescription>QR code, link, access code and live session monitoring.</CardDescription>
+                <CardDescription>
+                  QR code, link, access code and live session monitoring.
+                </CardDescription>
               </CardHeader>
               <CardContent>
                 <Button onClick={() => setAccessOpen(true)}>
@@ -217,7 +285,9 @@ function AssessmentDetail() {
             {assessment.status === "Results Ready" ? (
               <div className="rounded-lg border bg-card p-6 text-center">
                 <Button asChild>
-                  <Link to="/app/assessments/$id/results" params={{ id: assessment.id }}>Open detailed results</Link>
+                  <Link to="/app/assessments/$id/results" params={{ id: assessment.id }}>
+                    Open detailed results
+                  </Link>
                 </Button>
               </div>
             ) : (
@@ -248,13 +318,25 @@ function SumRow({ label, value }: { label: string; value: React.ReactNode }) {
 function Validate({ ok, label }: { ok: boolean; label: string }) {
   return (
     <div className="flex items-center gap-2">
-      {ok ? <Check className="h-4 w-4 text-emerald-600" /> : <AlertTriangle className="h-4 w-4 text-amber-600" />}
+      {ok ? (
+        <Check className="h-4 w-4 text-emerald-600" />
+      ) : (
+        <AlertTriangle className="h-4 w-4 text-amber-600" />
+      )}
       <span>{label}</span>
     </div>
   );
 }
 
-function AccessDrawer({ open, onOpenChange, assessment }: { open: boolean; onOpenChange: (v: boolean) => void; assessment: Assessment }) {
+function AccessDrawer({
+  open,
+  onOpenChange,
+  assessment,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  assessment: Assessment;
+}) {
   const link = `${typeof window !== "undefined" ? window.location.origin : "https://projekt3.app"}/assessment/${assessment.id}/access`;
   const copy = () => {
     if (typeof navigator !== "undefined") navigator.clipboard?.writeText(link);
@@ -271,7 +353,9 @@ function AccessDrawer({ open, onOpenChange, assessment }: { open: boolean; onOpe
         <div className="mt-4 space-y-4">
           <div className="flex items-center gap-2">
             <StatusBadge status={assessment.status} />
-            <span className="text-xs text-muted-foreground">Access code: <span className="font-mono">{assessment.accessCode ?? "—"}</span></span>
+            <span className="text-xs text-muted-foreground">
+              Access code: <span className="font-mono">{assessment.accessCode ?? "—"}</span>
+            </span>
           </div>
 
           <div className="rounded-md border bg-card p-4">
@@ -287,16 +371,23 @@ function AccessDrawer({ open, onOpenChange, assessment }: { open: boolean; onOpe
             <label className="text-xs font-medium">Participant link</label>
             <div className="flex gap-2">
               <Input value={link} readOnly className="font-mono text-xs" />
-              <Button variant="outline" size="icon" onClick={copy}><Copy className="h-4 w-4" /></Button>
+              <Button variant="outline" size="icon" onClick={copy}>
+                <Copy className="h-4 w-4" />
+              </Button>
               <Button asChild variant="outline" size="icon">
-                <a href={link} target="_blank" rel="noreferrer"><ExternalLink className="h-4 w-4" /></a>
+                <a href={link} target="_blank" rel="noreferrer">
+                  <ExternalLink className="h-4 w-4" />
+                </a>
               </Button>
             </div>
           </div>
 
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             <LiveStat label="Assigned" value={assessment.assigned} />
-            <LiveStat label="Opened" value={Math.min(assessment.assigned, assessment.submitted + 3)} />
+            <LiveStat
+              label="Opened"
+              value={Math.min(assessment.assigned, assessment.submitted + 3)}
+            />
             <LiveStat label="In progress" value={Math.max(0, 3)} />
             <LiveStat label="Submitted" value={assessment.submitted} />
           </div>
@@ -311,7 +402,11 @@ function AccessDrawer({ open, onOpenChange, assessment }: { open: boolean; onOpe
                   <div className="min-w-0">
                     <div className="truncate font-medium">{p.name}</div>
                     <div className="text-xs text-muted-foreground">
-                      {i < 3 ? "Submitted · 18 min" : i === 3 ? "In progress · Q5/8" : "Not started"}
+                      {i < 3
+                        ? "Submitted · 18 min"
+                        : i === 3
+                          ? "In progress · Q5/8"
+                          : "Not started"}
                     </div>
                   </div>
                   <StatusBadge status={i < 3 ? "Completed" : i === 3 ? "In progress" : "To do"} />
@@ -321,10 +416,16 @@ function AccessDrawer({ open, onOpenChange, assessment }: { open: boolean; onOpe
           </div>
 
           <div className="flex flex-wrap gap-2 pt-2">
-            <Button variant="outline" size="sm"><Eye className="mr-1.5 h-4 w-4" /> Display QR fullscreen</Button>
-            <Button variant="outline" size="sm"><Play className="mr-1.5 h-4 w-4" /> Open / close</Button>
+            <Button variant="outline" size="sm">
+              <Eye className="mr-1.5 h-4 w-4" /> Display QR fullscreen
+            </Button>
+            <Button variant="outline" size="sm">
+              <Play className="mr-1.5 h-4 w-4" /> Open / close
+            </Button>
             <Button asChild size="sm">
-              <Link to="/app/assessments/$id/results" params={{ id: assessment.id }}>View results</Link>
+              <Link to="/app/assessments/$id/results" params={{ id: assessment.id }}>
+                View results
+              </Link>
             </Button>
           </div>
         </div>
@@ -357,7 +458,8 @@ function QrPlaceholder({ value }: { value: string }) {
   const setBlock = (r: number, c: number) => {
     for (let i = 0; i < 7; i++)
       for (let j = 0; j < 7; j++) {
-        const v = i === 0 || i === 6 || j === 0 || j === 6 || (i >= 2 && i <= 4 && j >= 2 && j <= 4);
+        const v =
+          i === 0 || i === 6 || j === 0 || j === 6 || (i >= 2 && i <= 4 && j >= 2 && j <= 4);
         pixels[(r + i) * cells + (c + j)] = v;
       }
   };

@@ -79,9 +79,13 @@ function AccessPage() {
                 <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                   <StatusBadge status={assessment.type} tone="info" />
                   <span>·</span>
-                  <span className="inline-flex items-center gap-1"><Clock className="h-3.5 w-3.5" /> {assessment.timeLimit} min</span>
+                  <span className="inline-flex items-center gap-1">
+                    <Clock className="h-3.5 w-3.5" /> {assessment.timeLimit} min
+                  </span>
                   <span>·</span>
-                  <span className="inline-flex items-center gap-1"><CalendarDays className="h-3.5 w-3.5" /> Due {assessment.due}</span>
+                  <span className="inline-flex items-center gap-1">
+                    <CalendarDays className="h-3.5 w-3.5" /> Due {assessment.due}
+                  </span>
                 </div>
               </div>
 
@@ -98,7 +102,9 @@ function AccessPage() {
               <Button
                 size="lg"
                 className="w-full"
-                onClick={() => navigate({ to: "/assessment/$id/solve", params: { id: assessment.id } })}
+                onClick={() =>
+                  navigate({ to: "/assessment/$id/solve", params: { id: assessment.id } })
+                }
               >
                 Start assessment <ArrowRight className="ml-1.5 h-4 w-4" />
               </Button>
@@ -119,7 +125,9 @@ function Closed() {
       <CardContent className="space-y-3 p-8 text-center">
         <AlertCircle className="mx-auto h-6 w-6 text-amber-600" />
         <h1 className="text-xl font-semibold">This assessment is no longer open.</h1>
-        <p className="text-sm text-muted-foreground">Contact your instructor if you believe this is an error.</p>
+        <p className="text-sm text-muted-foreground">
+          Contact your instructor if you believe this is an error.
+        </p>
       </CardContent>
     </Card>
   );

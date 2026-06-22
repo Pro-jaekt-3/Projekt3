@@ -1,6 +1,17 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
-import { Sparkles, Shield, Cloud, Wand2, Plus, ChevronDown, Save, ArrowLeft, Check, X } from "lucide-react";
+import {
+  Sparkles,
+  Shield,
+  Cloud,
+  Wand2,
+  Plus,
+  ChevronDown,
+  Save,
+  ArrowLeft,
+  Check,
+  X,
+} from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/common/PageHeader";
 import { Button } from "@/components/ui/button";
@@ -8,10 +19,14 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
-  Collapsible, CollapsibleContent, CollapsibleTrigger,
-} from "@/components/ui/collapsible";
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { StatusBadge } from "@/components/common/StatusBadge";
 import { QUESTIONS, AI_MODELS, TRAININGS, TOPICS, getQuestion } from "@/lib/mock-data";
 import { cn } from "@/lib/utils";
@@ -47,12 +62,18 @@ function QuestionEditor() {
   return (
     <>
       <PageHeader
-        breadcrumbs={<Link to="/app/questions" className="hover:underline">Question bank</Link>}
+        breadcrumbs={
+          <Link to="/app/questions" className="hover:underline">
+            Question bank
+          </Link>
+        }
         title={existing ? "Edit question" : "Create question"}
         actions={
           <>
             <Button asChild variant="ghost" size="sm">
-              <Link to="/app/questions"><ArrowLeft className="mr-1.5 h-4 w-4" /> Back</Link>
+              <Link to="/app/questions">
+                <ArrowLeft className="mr-1.5 h-4 w-4" /> Back
+              </Link>
             </Button>
             <Button variant="outline" size="sm" onClick={() => toast("Saved as draft")}>
               <Save className="mr-1.5 h-4 w-4" /> Save as draft
@@ -67,17 +88,29 @@ function QuestionEditor() {
       <div className="grid gap-6 p-4 sm:p-6 lg:grid-cols-[1fr_320px] lg:p-8">
         <div className="min-w-0 space-y-4">
           <Card>
-            <CardHeader><CardTitle className="text-base">Question</CardTitle></CardHeader>
+            <CardHeader>
+              <CardTitle className="text-base">Question</CardTitle>
+            </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-1.5">
                 <Label>Question text</Label>
-                <Textarea rows={3} value={form.text} onChange={(e) => setForm({ ...form, text: e.target.value })} placeholder="Enter the question..." />
+                <Textarea
+                  rows={3}
+                  value={form.text}
+                  onChange={(e) => setForm({ ...form, text: e.target.value })}
+                  placeholder="Enter the question..."
+                />
               </div>
               <div className="grid gap-3 sm:grid-cols-2">
                 <div className="space-y-1.5">
                   <Label>Type</Label>
-                  <Select value={form.type} onValueChange={(v) => setForm({ ...form, type: v as any })}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
+                  <Select
+                    value={form.type}
+                    onValueChange={(v) => setForm({ ...form, type: v as any })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="single">Single choice</SelectItem>
                       <SelectItem value="multiple">Multiple choice</SelectItem>
@@ -90,8 +123,13 @@ function QuestionEditor() {
                 </div>
                 <div className="space-y-1.5">
                   <Label>Difficulty</Label>
-                  <Select value={form.difficulty} onValueChange={(v) => setForm({ ...form, difficulty: v as any })}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
+                  <Select
+                    value={form.difficulty}
+                    onValueChange={(v) => setForm({ ...form, difficulty: v as any })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="easy">Easy</SelectItem>
                       <SelectItem value="medium">Medium</SelectItem>
@@ -114,8 +152,8 @@ function QuestionEditor() {
                             form.type === "single"
                               ? { ...o, correct: j === i }
                               : j === i
-                              ? { ...o, correct: !o.correct }
-                              : o,
+                                ? { ...o, correct: !o.correct }
+                                : o,
                           );
                           setForm({ ...form, options: next });
                         }}
@@ -131,7 +169,23 @@ function QuestionEditor() {
                       />
                     </div>
                   ))}
-                  <Button variant="ghost" size="sm" onClick={() => setForm({ ...form, options: [...form.options, { id: String.fromCharCode(97 + form.options.length), text: "", correct: false }] })}>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() =>
+                      setForm({
+                        ...form,
+                        options: [
+                          ...form.options,
+                          {
+                            id: String.fromCharCode(97 + form.options.length),
+                            text: "",
+                            correct: false,
+                          },
+                        ],
+                      })
+                    }
+                  >
                     <Plus className="mr-1.5 h-4 w-4" /> Add option
                   </Button>
                 </div>
@@ -141,22 +195,34 @@ function QuestionEditor() {
                 <div className="space-y-2">
                   <Label>Correct answer</Label>
                   <div className="flex gap-2">
-                    <Button variant="outline" size="sm">True</Button>
-                    <Button variant="outline" size="sm">False</Button>
+                    <Button variant="outline" size="sm">
+                      True
+                    </Button>
+                    <Button variant="outline" size="sm">
+                      False
+                    </Button>
                   </div>
                 </div>
               )}
 
               {(form.type === "short" || form.type === "open" || form.type === "code") && (
                 <div className="space-y-1.5">
-                  <Label>{form.type === "code" ? "Expected output / rubric" : "Expected answer / grading note"}</Label>
+                  <Label>
+                    {form.type === "code"
+                      ? "Expected output / rubric"
+                      : "Expected answer / grading note"}
+                  </Label>
                   <Textarea rows={3} placeholder="Grading guidance..." />
                 </div>
               )}
 
               <div className="space-y-1.5">
                 <Label>Explanation (shown after submission)</Label>
-                <Textarea rows={2} value={form.explanation} onChange={(e) => setForm({ ...form, explanation: e.target.value })} />
+                <Textarea
+                  rows={2}
+                  value={form.explanation}
+                  onChange={(e) => setForm({ ...form, explanation: e.target.value })}
+                />
               </div>
             </CardContent>
           </Card>
@@ -165,7 +231,8 @@ function QuestionEditor() {
             <CardHeader>
               <CardTitle className="text-base">Equivalent variants</CardTitle>
               <CardDescription>
-                Variants test the same learning objective at the same difficulty, but must not be identical.
+                Variants test the same learning objective at the same difficulty, but must not be
+                identical.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
@@ -178,20 +245,29 @@ function QuestionEditor() {
                         <StatusBadge status="Approved" />
                       </div>
                       <p className="mt-1 line-clamp-2 text-sm">
-                        {existing!.text.replace(/^Which/, "Identify which").replace(/SQL/, "relational")}
+                        {existing!.text
+                          .replace(/^Which/, "Identify which")
+                          .replace(/SQL/, "relational")}
                       </p>
                     </div>
                   ))}
                 </div>
               ) : (
                 <div className="rounded-md border border-dashed bg-surface p-4 text-sm text-muted-foreground">
-                  No variants yet. Variants are used in post-tests to measure the same knowledge without repeating identical questions.
+                  No variants yet. Variants are used in post-tests to measure the same knowledge
+                  without repeating identical questions.
                 </div>
               )}
               <div className="flex flex-wrap gap-2">
-                <Button variant="outline" size="sm"><Plus className="mr-1.5 h-4 w-4" /> Add manual variant</Button>
-                <Button size="sm"><Sparkles className="mr-1.5 h-4 w-4" /> Generate variant with AI</Button>
-                <Button variant="ghost" size="sm">Compare variants</Button>
+                <Button variant="outline" size="sm">
+                  <Plus className="mr-1.5 h-4 w-4" /> Add manual variant
+                </Button>
+                <Button size="sm">
+                  <Sparkles className="mr-1.5 h-4 w-4" /> Generate variant with AI
+                </Button>
+                <Button variant="ghost" size="sm">
+                  Compare variants
+                </Button>
               </div>
             </CardContent>
           </Card>
@@ -200,12 +276,19 @@ function QuestionEditor() {
         {/* Right sidebar: metadata + AI assistant */}
         <aside className="space-y-4">
           <Card>
-            <CardHeader><CardTitle className="text-sm">Metadata</CardTitle></CardHeader>
+            <CardHeader>
+              <CardTitle className="text-sm">Metadata</CardTitle>
+            </CardHeader>
             <CardContent className="space-y-3">
               <div className="space-y-1.5">
                 <Label className="text-xs">Status</Label>
-                <Select value={form.status} onValueChange={(v) => setForm({ ...form, status: v as any })}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
+                <Select
+                  value={form.status}
+                  onValueChange={(v) => setForm({ ...form, status: v as any })}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="Draft">Draft</SelectItem>
                     <SelectItem value="Needs Review">Needs Review</SelectItem>
@@ -216,25 +299,46 @@ function QuestionEditor() {
               </div>
               <div className="space-y-1.5">
                 <Label className="text-xs">Training</Label>
-                <Select value={form.training} onValueChange={(v) => setForm({ ...form, training: v })}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
+                <Select
+                  value={form.training}
+                  onValueChange={(v) => setForm({ ...form, training: v })}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
                   <SelectContent>
-                    {TRAININGS.map((t) => <SelectItem key={t.id} value={t.title}>{t.title}</SelectItem>)}
+                    {TRAININGS.map((t) => (
+                      <SelectItem key={t.id} value={t.title}>
+                        {t.title}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
               <div className="space-y-1.5">
                 <Label className="text-xs">Topic</Label>
-                <Select value={form.topicId} onValueChange={(v) => setForm({ ...form, topicId: v })}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
+                <Select
+                  value={form.topicId}
+                  onValueChange={(v) => setForm({ ...form, topicId: v })}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
                   <SelectContent>
-                    {TOPICS.map((t) => <SelectItem key={t.id} value={t.id}>{t.title}</SelectItem>)}
+                    {TOPICS.map((t) => (
+                      <SelectItem key={t.id} value={t.id}>
+                        {t.title}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
               <div className="space-y-1.5">
                 <Label className="text-xs">Learning objective</Label>
-                <Input value={form.objective} onChange={(e) => setForm({ ...form, objective: e.target.value })} />
+                <Input
+                  value={form.objective}
+                  onChange={(e) => setForm({ ...form, objective: e.target.value })}
+                />
               </div>
             </CardContent>
           </Card>
@@ -282,10 +386,14 @@ function AIAssistantPanel() {
         <div className="space-y-1.5">
           <Label className="text-xs">Model</Label>
           <Select value={modelId} onValueChange={setModelId}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
             <SelectContent>
               {enabled.map((m) => (
-                <SelectItem key={m.id} value={m.id}>{m.displayName}</SelectItem>
+                <SelectItem key={m.id} value={m.id}>
+                  {m.displayName}
+                </SelectItem>
               ))}
             </SelectContent>
           </Select>
@@ -294,7 +402,13 @@ function AIAssistantPanel() {
               <StatusBadge
                 status={model.location === "local" ? "Local" : "Cloud"}
                 tone={model.location === "local" ? "success" : "warning"}
-                icon={model.location === "local" ? <Shield className="h-3 w-3" /> : <Cloud className="h-3 w-3" />}
+                icon={
+                  model.location === "local" ? (
+                    <Shield className="h-3 w-3" />
+                  ) : (
+                    <Cloud className="h-3 w-3" />
+                  )
+                }
               />
               {model.useCases.slice(0, 2).map((u) => (
                 <StatusBadge key={u} status={u} tone="muted" />
@@ -311,19 +425,44 @@ function AIAssistantPanel() {
         </div>
 
         <div className="space-y-1.5">
-          <Button variant="outline" size="sm" className="w-full justify-start" onClick={() => generate("draft")}>
+          <Button
+            variant="outline"
+            size="sm"
+            className="w-full justify-start"
+            onClick={() => generate("draft")}
+          >
             <Wand2 className="mr-1.5 h-4 w-4" /> Generate question draft
           </Button>
-          <Button variant="outline" size="sm" className="w-full justify-start" onClick={() => generate("improve")}>
+          <Button
+            variant="outline"
+            size="sm"
+            className="w-full justify-start"
+            onClick={() => generate("improve")}
+          >
             <Wand2 className="mr-1.5 h-4 w-4" /> Improve wording
           </Button>
-          <Button variant="outline" size="sm" className="w-full justify-start" onClick={() => generate("options")}>
+          <Button
+            variant="outline"
+            size="sm"
+            className="w-full justify-start"
+            onClick={() => generate("options")}
+          >
             <Wand2 className="mr-1.5 h-4 w-4" /> Generate answer options
           </Button>
-          <Button variant="outline" size="sm" className="w-full justify-start" onClick={() => generate("explain")}>
+          <Button
+            variant="outline"
+            size="sm"
+            className="w-full justify-start"
+            onClick={() => generate("explain")}
+          >
             <Wand2 className="mr-1.5 h-4 w-4" /> Generate explanation
           </Button>
-          <Button variant="outline" size="sm" className="w-full justify-start" onClick={() => generate("variant")}>
+          <Button
+            variant="outline"
+            size="sm"
+            className="w-full justify-start"
+            onClick={() => generate("variant")}
+          >
             <Wand2 className="mr-1.5 h-4 w-4" /> Generate equivalent variant
           </Button>
         </div>
@@ -331,7 +470,10 @@ function AIAssistantPanel() {
         <Collapsible open={advancedOpen} onOpenChange={setAdvancedOpen}>
           <CollapsibleTrigger asChild>
             <Button variant="ghost" size="sm" className="w-full justify-between text-xs">
-              Advanced settings <ChevronDown className={cn("h-3.5 w-3.5 transition-transform", advancedOpen && "rotate-180")} />
+              Advanced settings{" "}
+              <ChevronDown
+                className={cn("h-3.5 w-3.5 transition-transform", advancedOpen && "rotate-180")}
+              />
             </Button>
           </CollapsibleTrigger>
           <CollapsibleContent className="space-y-2 pt-2">
@@ -342,17 +484,32 @@ function AIAssistantPanel() {
           </CollapsibleContent>
         </Collapsible>
 
-        {busy && <div className="rounded-md border bg-card p-3 text-xs text-muted-foreground">Thinking…</div>}
+        {busy && (
+          <div className="rounded-md border bg-card p-3 text-xs text-muted-foreground">
+            Thinking…
+          </div>
+        )}
 
         {suggestion && (
           <div className="rounded-md border bg-card p-3">
-            <div className="text-[10px] uppercase tracking-wide text-muted-foreground">AI suggestion</div>
+            <div className="text-[10px] uppercase tracking-wide text-muted-foreground">
+              AI suggestion
+            </div>
             <p className="mt-1 text-sm">{suggestion}</p>
             <div className="mt-3 flex flex-wrap gap-1.5">
-              <Button size="sm" variant="outline" onClick={() => { toast("Inserted into draft"); setSuggestion(null); }}>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  toast("Inserted into draft");
+                  setSuggestion(null);
+                }}
+              >
                 <Check className="mr-1 h-3.5 w-3.5" /> Insert
               </Button>
-              <Button size="sm" variant="ghost" onClick={() => toast("Saved as Needs Review")}>Save as Needs Review</Button>
+              <Button size="sm" variant="ghost" onClick={() => toast("Saved as Needs Review")}>
+                Save as Needs Review
+              </Button>
               <Button size="sm" variant="ghost" onClick={() => setSuggestion(null)}>
                 <X className="mr-1 h-3.5 w-3.5" /> Reject
               </Button>

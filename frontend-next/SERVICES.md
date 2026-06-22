@@ -12,15 +12,15 @@ worked reference; copy its shape.
 
 ## 0. The pieces already in place
 
-| Concern | Where | Use it |
-| --- | --- | --- |
-| HTTP + Bearer token + `{error}` + 204 | `src/services/apiClient.ts` | `apiJsonFetch<T>(path, opts)`, `apiEnsureOk(path, opts)` |
-| Backend-shaped types + enums + aliases | `src/types/` | `import type { Training, Question, … } from "@/types"` |
-| react-query keys | `src/lib/query-keys.ts` | `qk.<domain>.list()`, `qk.<domain>.detail(id)`, `qk.<domain>.all` |
-| Loading / error UI | `src/components/common/Spinner.tsx` | `<LoadingState/>`, `<ErrorState/>` |
-| Empty UI | `src/components/common/EmptyState.tsx` | `<EmptyState/>` |
-| Strip correct answers for solving | `src/lib/sanitize.ts` | `sanitizeQuestionForSolving(q)` |
-| Attempt-id persistence (no list endpoint) | `src/lib/attempt-storage.ts` | `rememberAttemptId` / `getAttemptId` |
+| Concern                                   | Where                                  | Use it                                                            |
+| ----------------------------------------- | -------------------------------------- | ----------------------------------------------------------------- |
+| HTTP + Bearer token + `{error}` + 204     | `src/services/apiClient.ts`            | `apiJsonFetch<T>(path, opts)`, `apiEnsureOk(path, opts)`          |
+| Backend-shaped types + enums + aliases    | `src/types/`                           | `import type { Training, Question, … } from "@/types"`            |
+| react-query keys                          | `src/lib/query-keys.ts`                | `qk.<domain>.list()`, `qk.<domain>.detail(id)`, `qk.<domain>.all` |
+| Loading / error UI                        | `src/components/common/Spinner.tsx`    | `<LoadingState/>`, `<ErrorState/>`                                |
+| Empty UI                                  | `src/components/common/EmptyState.tsx` | `<EmptyState/>`                                                   |
+| Strip correct answers for solving         | `src/lib/sanitize.ts`                  | `sanitizeQuestionForSolving(q)`                                   |
+| Attempt-id persistence (no list endpoint) | `src/lib/attempt-storage.ts`           | `rememberAttemptId` / `getAttemptId`                              |
 
 ---
 
@@ -33,21 +33,38 @@ Thin wrapper over `apiClient`. One function per endpoint. Reference:
 import { apiEnsureOk, apiJsonFetch } from "./apiClient";
 import type { Training } from "@/types";
 
-export interface CreateTrainingInput { title: string; description?: string | null }
-export interface UpdateTrainingInput { title?: string; description?: string | null }
+export interface CreateTrainingInput {
+  title: string;
+  description?: string | null;
+}
+export interface UpdateTrainingInput {
+  title?: string;
+  description?: string | null;
+}
 
 const jsonHeaders = { "Content-Type": "application/json" };
 
 export const trainingsService = {
-  list:   ()            => apiJsonFetch<Training[]>("/trainings"),
-  get:    (id)          => apiJsonFetch<Training>(`/trainings/${id}`),
-  create: (input)       => apiJsonFetch<Training>("/trainings", { method: "POST", headers: jsonHeaders, body: JSON.stringify(input) }),
-  update: (id, input)   => apiJsonFetch<Training>(`/trainings/${id}`, { method: "PUT", headers: jsonHeaders, body: JSON.stringify(input) }),
-  remove: (id)          => apiEnsureOk(`/trainings/${id}`, { method: "DELETE" }), // 204, no body
+  list: () => apiJsonFetch<Training[]>("/trainings"),
+  get: (id) => apiJsonFetch<Training>(`/trainings/${id}`),
+  create: (input) =>
+    apiJsonFetch<Training>("/trainings", {
+      method: "POST",
+      headers: jsonHeaders,
+      body: JSON.stringify(input),
+    }),
+  update: (id, input) =>
+    apiJsonFetch<Training>(`/trainings/${id}`, {
+      method: "PUT",
+      headers: jsonHeaders,
+      body: JSON.stringify(input),
+    }),
+  remove: (id) => apiEnsureOk(`/trainings/${id}`, { method: "DELETE" }), // 204, no body
 };
 ```
 
 Rules:
+
 - Reads/JSON writes → `apiJsonFetch<T>`. **204 / empty-body** endpoints → `apiEnsureOk`
   (it never parses a body; `apiJsonFetch` already returns `undefined` for 204 too).
 - Always `Content-Type: application/json` + `JSON.stringify` for POST/PUT/PATCH.
@@ -58,18 +75,18 @@ Rules:
 
 Find the mock import and replace its **data source**, not the JSX:
 
-| Before (mock) | After (real) |
-| --- | --- |
-| `import { TRAININGS } from "@/lib/mock-data"` | `useQuery({ queryKey: qk.trainings.list(), queryFn: trainingsService.list })` |
+| Before (mock)                                             | After (real)                                                                                                |
+| --------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| `import { TRAININGS } from "@/lib/mock-data"`             | `useQuery({ queryKey: qk.trainings.list(), queryFn: trainingsService.list })`                               |
 | route `loader: () => getTraining(id)` + `useLoaderData()` | `useQuery({ queryKey: qk.trainings.detail(id), queryFn: () => trainingsService.get(id) })` in the component |
-| direct array `.map(...)` | `query.data?.map(...) ?? []` |
+| direct array `.map(...)`                                  | `query.data?.map(...) ?? []`                                                                                |
 
 We prefer **component-level `useQuery`** over TanStack route `loader`s (simpler, no
 loader/context coupling). Keep the `beforeLoad` role guard.
 
 > **Type bridge (transitional):** the Lovable screens were built on a richer mock
 > shape. Where a screen reads fields the backend doesn't return yet (because they
-> belong to a *different* domain), map the real entity onto the display shape with
+> belong to a _different_ domain), map the real entity onto the display shape with
 > neutral defaults — see `src/lib/training-view.ts` (`trainingToView`). Delete the
 > bridge as those other domains get wired.
 
@@ -97,7 +114,7 @@ const queryClient = useQueryClient();
 const createMutation = useMutation({
   mutationFn: (input: CreateTrainingInput) => trainingsService.create(input),
   onSuccess: (created) => {
-    queryClient.invalidateQueries({ queryKey: qk.trainings.all });   // refresh lists
+    queryClient.invalidateQueries({ queryKey: qk.trainings.all }); // refresh lists
     toast.success(`Created “${created.title}”`);
   },
   onError: (e) => toast.error(errText(e)),
@@ -105,6 +122,7 @@ const createMutation = useMutation({
 ```
 
 Invalidation rules of thumb:
+
 - **create / delete** → `invalidateQueries({ queryKey: qk.<domain>.all })`.
 - **update** → `qk.<domain>.detail(id)` **and** `qk.<domain>.lists()`.
 - Always surface `onError` via `toast` (sonner `<Toaster/>` is mounted in `__root`).

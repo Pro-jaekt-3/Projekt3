@@ -5,10 +5,22 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { MetricCard } from "@/components/common/MetricCard";
 import { StatusBadge } from "@/components/common/StatusBadge";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import {
-  ASSESSMENTS, PARTICIPANTS, QUESTIONS, SCORE_DISTRIBUTION, TOPIC_PERFORMANCE,
-  DIFFICULTY_PERFORMANCE, getAssessment,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
+  ASSESSMENTS,
+  PARTICIPANTS,
+  QUESTIONS,
+  SCORE_DISTRIBUTION,
+  TOPIC_PERFORMANCE,
+  DIFFICULTY_PERFORMANCE,
+  getAssessment,
 } from "@/lib/mock-data";
 import type { Assessment } from "@/lib/mock-data";
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid } from "recharts";
@@ -35,17 +47,37 @@ function AssessmentResults() {
       <PageHeader
         breadcrumbs={
           <>
-            <Link to="/app/assessments" className="hover:underline">Assessments</Link>
+            <Link to="/app/assessments" className="hover:underline">
+              Assessments
+            </Link>
             <span className="mx-1">/</span>
-            <Link to="/app/assessments/$id" params={{ id: assessment.id }} className="hover:underline">{assessment.title}</Link>
+            <Link
+              to="/app/assessments/$id"
+              params={{ id: assessment.id }}
+              className="hover:underline"
+            >
+              {assessment.title}
+            </Link>
           </>
         }
         title="Results"
-        meta={<><StatusBadge status={assessment.status} /><span>·</span><span>{assessment.training}</span><span>·</span><span>{assessment.type}</span></>}
+        meta={
+          <>
+            <StatusBadge status={assessment.status} />
+            <span>·</span>
+            <span>{assessment.training}</span>
+            <span>·</span>
+            <span>{assessment.type}</span>
+          </>
+        }
         actions={
           <>
-            <Button variant="outline" size="sm"><QrCode className="mr-1.5 h-4 w-4" /> Access</Button>
-            <Button variant="outline" size="sm"><Download className="mr-1.5 h-4 w-4" /> Export</Button>
+            <Button variant="outline" size="sm">
+              <QrCode className="mr-1.5 h-4 w-4" /> Access
+            </Button>
+            <Button variant="outline" size="sm">
+              <Download className="mr-1.5 h-4 w-4" /> Export
+            </Button>
             <Button asChild size="sm">
               <Link to="/app/assessments/$id/post-test" params={{ id: assessment.id }}>
                 <Sparkles className="mr-1.5 h-4 w-4" /> Create post-test
@@ -65,7 +97,9 @@ function AssessmentResults() {
 
         <div className="grid gap-4 lg:grid-cols-2">
           <Card>
-            <CardHeader><CardTitle className="text-base">Score distribution</CardTitle></CardHeader>
+            <CardHeader>
+              <CardTitle className="text-base">Score distribution</CardTitle>
+            </CardHeader>
             <CardContent>
               <div className="h-60">
                 <ResponsiveContainer>
@@ -81,7 +115,9 @@ function AssessmentResults() {
             </CardContent>
           </Card>
           <Card>
-            <CardHeader><CardTitle className="text-base">Topic performance</CardTitle></CardHeader>
+            <CardHeader>
+              <CardTitle className="text-base">Topic performance</CardTitle>
+            </CardHeader>
             <CardContent>
               <div className="h-60">
                 <ResponsiveContainer>
@@ -97,7 +133,9 @@ function AssessmentResults() {
             </CardContent>
           </Card>
           <Card>
-            <CardHeader><CardTitle className="text-base">Difficulty performance</CardTitle></CardHeader>
+            <CardHeader>
+              <CardTitle className="text-base">Difficulty performance</CardTitle>
+            </CardHeader>
             <CardContent>
               <div className="h-60">
                 <ResponsiveContainer>
@@ -113,7 +151,9 @@ function AssessmentResults() {
             </CardContent>
           </Card>
           <Card>
-            <CardHeader><CardTitle className="text-base">Weakest learning objectives</CardTitle></CardHeader>
+            <CardHeader>
+              <CardTitle className="text-base">Weakest learning objectives</CardTitle>
+            </CardHeader>
             <CardContent className="space-y-2 text-sm">
               <WeakRow title="Resolve ambiguous columns" topic="Joins" score={49} />
               <WeakRow title="Distinguish LEFT and RIGHT JOIN" topic="Joins" score={52} />
@@ -124,7 +164,9 @@ function AssessmentResults() {
         </div>
 
         <Card>
-          <CardHeader><CardTitle className="text-base">Question statistics</CardTitle></CardHeader>
+          <CardHeader>
+            <CardTitle className="text-base">Question statistics</CardTitle>
+          </CardHeader>
           <div className="overflow-x-auto">
             <Table>
               <TableHeader>
@@ -146,14 +188,23 @@ function AssessmentResults() {
                         <span className="line-clamp-2 font-medium">{q.text}</span>
                         {flag && (
                           <div className="mt-1 flex items-center gap-1 text-xs text-amber-700">
-                            <AlertTriangle className="h-3.5 w-3.5" /> Many participants answered incorrectly
+                            <AlertTriangle className="h-3.5 w-3.5" /> Many participants answered
+                            incorrectly
                           </div>
                         )}
                       </TableCell>
-                      <TableCell className="hidden md:table-cell text-xs text-muted-foreground">{q.topic}</TableCell>
-                      <TableCell className="text-right tabular-nums font-medium">{correct}%</TableCell>
-                      <TableCell className="hidden sm:table-cell text-right text-xs tabular-nums">{40 + (i % 4) * 15}s</TableCell>
-                      <TableCell className="text-right"><StatusBadge status={flag ? "Needs Review" : "Approved"} /></TableCell>
+                      <TableCell className="hidden md:table-cell text-xs text-muted-foreground">
+                        {q.topic}
+                      </TableCell>
+                      <TableCell className="text-right tabular-nums font-medium">
+                        {correct}%
+                      </TableCell>
+                      <TableCell className="hidden sm:table-cell text-right text-xs tabular-nums">
+                        {40 + (i % 4) * 15}s
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <StatusBadge status={flag ? "Needs Review" : "Approved"} />
+                      </TableCell>
                     </TableRow>
                   );
                 })}
@@ -163,7 +214,9 @@ function AssessmentResults() {
         </Card>
 
         <Card>
-          <CardHeader><CardTitle className="text-base">Participant attempts</CardTitle></CardHeader>
+          <CardHeader>
+            <CardTitle className="text-base">Participant attempts</CardTitle>
+          </CardHeader>
           <div className="overflow-x-auto">
             <Table>
               <TableHeader>
@@ -182,10 +235,20 @@ function AssessmentResults() {
                       <div className="font-medium">{p.name}</div>
                       <div className="text-xs text-muted-foreground">{p.email}</div>
                     </TableCell>
-                    <TableCell className="hidden sm:table-cell"><StatusBadge status="Completed" /></TableCell>
-                    <TableCell className="text-right tabular-nums font-medium">{[88, 76, 64, 54, 91, 70, 82][i]}%</TableCell>
-                    <TableCell className="hidden md:table-cell text-right text-xs tabular-nums">{18 + i} min</TableCell>
-                    <TableCell className="text-right"><Button size="sm" variant="outline">View attempt</Button></TableCell>
+                    <TableCell className="hidden sm:table-cell">
+                      <StatusBadge status="Completed" />
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums font-medium">
+                      {[88, 76, 64, 54, 91, 70, 82][i]}%
+                    </TableCell>
+                    <TableCell className="hidden md:table-cell text-right text-xs tabular-nums">
+                      {18 + i} min
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <Button size="sm" variant="outline">
+                        View attempt
+                      </Button>
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>

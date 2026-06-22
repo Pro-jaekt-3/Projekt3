@@ -6,7 +6,11 @@ export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
       { title: "PROJEKT3 — Plan, deliver and analyze assessments" },
-      { name: "description", content: "AI-supported knowledge assessment platform for informatics and computer science education." },
+      {
+        name: "description",
+        content:
+          "AI-supported knowledge assessment platform for informatics and computer science education.",
+      },
     ],
   }),
   component: PublicHome,
@@ -45,9 +49,9 @@ function PublicHome() {
               Plan, deliver and analyze knowledge assessments.
             </h1>
             <p className="mt-4 max-w-xl text-base text-muted-foreground sm:text-lg">
-              PROJEKT3 is an AI-supported platform for designing assessments around
-              topics, learning objectives and difficulty. Build pre-tests and post-tests
-              with equivalent variants, then turn results into clear learning insights.
+              PROJEKT3 is an AI-supported platform for designing assessments around topics, learning
+              objectives and difficulty. Build pre-tests and post-tests with equivalent variants,
+              then turn results into clear learning insights.
             </p>
             <div className="mt-7 flex flex-wrap items-center gap-3">
               <Button asChild size="lg">
@@ -70,7 +74,9 @@ function PublicHome() {
                 <div className="h-2.5 w-2.5 rounded-full bg-rose-300" />
                 <div className="h-2.5 w-2.5 rounded-full bg-amber-300" />
                 <div className="h-2.5 w-2.5 rounded-full bg-emerald-300" />
-                <div className="ml-3 text-[11px] text-muted-foreground">projekt3.app / training / databases</div>
+                <div className="ml-3 text-[11px] text-muted-foreground">
+                  projekt3.app / training / databases
+                </div>
               </div>
               <div className="grid grid-cols-3 gap-3 p-4">
                 <MiniStat label="Participants" value="28" />
@@ -107,10 +113,26 @@ function PublicHome() {
 
       <section className="border-t bg-surface">
         <div className="mx-auto grid max-w-6xl gap-4 px-4 py-12 sm:grid-cols-2 sm:px-6 lg:grid-cols-4">
-          <Feature icon={ClipboardList} title="Blueprint-driven assessments" body="Design pre-tests and post-tests around topics, objectives and difficulty." />
-          <Feature icon={Brain} title="Contextual AI assistance" body="Draft, rewrite and check equivalent variants. Instructors stay in control." />
-          <Feature icon={BarChart3} title="Learning analytics" body="Compare pre/post results and surface weak areas at topic and objective level." />
-          <Feature icon={ShieldCheck} title="Safe by default" body="AI suggestions never auto-approve. QR access respects assignment." />
+          <Feature
+            icon={ClipboardList}
+            title="Blueprint-driven assessments"
+            body="Design pre-tests and post-tests around topics, objectives and difficulty."
+          />
+          <Feature
+            icon={Brain}
+            title="Contextual AI assistance"
+            body="Draft, rewrite and check equivalent variants. Instructors stay in control."
+          />
+          <Feature
+            icon={BarChart3}
+            title="Learning analytics"
+            body="Compare pre/post results and surface weak areas at topic and objective level."
+          />
+          <Feature
+            icon={ShieldCheck}
+            title="Safe by default"
+            body="AI suggestions never auto-approve. QR access respects assignment."
+          />
         </div>
       </section>
 
@@ -133,7 +155,15 @@ function MiniStat({ label, value }: { label: string; value: string }) {
   );
 }
 
-function Feature({ icon: Icon, title, body }: { icon: React.ComponentType<{ className?: string }>; title: string; body: string }) {
+function Feature({
+  icon: Icon,
+  title,
+  body,
+}: {
+  icon: React.ComponentType<{ className?: string }>;
+  title: string;
+  body: string;
+}) {
   return (
     <div className="rounded-lg border bg-card p-5">
       <div className="mb-3 flex h-8 w-8 items-center justify-center rounded-md bg-primary-soft text-accent-foreground">

@@ -3,8 +3,23 @@ import { PageHeader } from "@/components/common/PageHeader";
 import { MetricCard } from "@/components/common/MetricCard";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { TRAININGS, USERS, ASSESSMENTS, PROGRESS_OVER_TIME } from "@/lib/mock-data";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid } from "recharts";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
+  ResponsiveContainer,
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  Tooltip,
+  CartesianGrid,
+} from "recharts";
 
 import { ensureRole } from "@/lib/route-guards";
 
@@ -17,7 +32,10 @@ export const Route = createFileRoute("/app/system-analytics")({
 function SystemAnalytics() {
   return (
     <>
-      <PageHeader title="System analytics" description="High-level system usage. Deep learning analytics live with instructors." />
+      <PageHeader
+        title="System analytics"
+        description="High-level system usage. Deep learning analytics live with instructors."
+      />
       <div className="space-y-6 p-4 sm:p-6 lg:p-8">
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
           <MetricCard label="Total assessments" value={ASSESSMENTS.length} />
@@ -28,7 +46,9 @@ function SystemAnalytics() {
 
         <div className="grid gap-4 lg:grid-cols-[2fr_1fr]">
           <Card>
-            <CardHeader><CardTitle className="text-base">Activity trend</CardTitle></CardHeader>
+            <CardHeader>
+              <CardTitle className="text-base">Activity trend</CardTitle>
+            </CardHeader>
             <CardContent>
               <div className="h-60">
                 <ResponsiveContainer>
@@ -37,20 +57,30 @@ function SystemAnalytics() {
                     <XAxis dataKey="date" fontSize={11} />
                     <YAxis fontSize={11} />
                     <Tooltip />
-                    <Line type="monotone" dataKey="score" stroke="var(--primary)" strokeWidth={2} dot={{ r: 3 }} />
+                    <Line
+                      type="monotone"
+                      dataKey="score"
+                      stroke="var(--primary)"
+                      strokeWidth={2}
+                      dot={{ r: 3 }}
+                    />
                   </LineChart>
                 </ResponsiveContainer>
               </div>
             </CardContent>
           </Card>
           <Card>
-            <CardHeader><CardTitle className="text-base">Most active instructors</CardTitle></CardHeader>
+            <CardHeader>
+              <CardTitle className="text-base">Most active instructors</CardTitle>
+            </CardHeader>
             <CardContent>
               <ul className="divide-y text-sm">
                 {USERS.filter((u) => u.role === "instructor").map((u, i) => (
                   <li key={u.id} className="flex items-center justify-between py-2">
                     <div className="font-medium">{u.name}</div>
-                    <div className="text-xs text-muted-foreground tabular-nums">{12 + i * 4} assessments</div>
+                    <div className="text-xs text-muted-foreground tabular-nums">
+                      {12 + i * 4} assessments
+                    </div>
                   </li>
                 ))}
               </ul>
@@ -59,7 +89,9 @@ function SystemAnalytics() {
         </div>
 
         <Card>
-          <CardHeader><CardTitle className="text-base">Most active trainings</CardTitle></CardHeader>
+          <CardHeader>
+            <CardTitle className="text-base">Most active trainings</CardTitle>
+          </CardHeader>
           <div className="overflow-x-auto">
             <Table>
               <TableHeader>
@@ -74,8 +106,12 @@ function SystemAnalytics() {
                 {TRAININGS.map((t) => (
                   <TableRow key={t.id}>
                     <TableCell className="font-medium">{t.title}</TableCell>
-                    <TableCell className="hidden sm:table-cell text-right tabular-nums">{t.participants}</TableCell>
-                    <TableCell className="hidden sm:table-cell text-right tabular-nums">{t.assessments}</TableCell>
+                    <TableCell className="hidden sm:table-cell text-right tabular-nums">
+                      {t.participants}
+                    </TableCell>
+                    <TableCell className="hidden sm:table-cell text-right tabular-nums">
+                      {t.assessments}
+                    </TableCell>
                     <TableCell className="text-right tabular-nums">{t.avgScore}%</TableCell>
                   </TableRow>
                 ))}

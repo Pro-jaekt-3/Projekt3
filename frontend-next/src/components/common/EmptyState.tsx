@@ -23,9 +23,7 @@ export function EmptyState({ icon, title, description, action, className }: Prop
         </div>
       )}
       <h3 className="text-base font-semibold text-foreground">{title}</h3>
-      {description && (
-        <p className="mt-1 max-w-md text-sm text-muted-foreground">{description}</p>
-      )}
+      {description && <p className="mt-1 max-w-md text-sm text-muted-foreground">{description}</p>}
       {action && <div className="mt-5">{action}</div>}
     </div>
   );

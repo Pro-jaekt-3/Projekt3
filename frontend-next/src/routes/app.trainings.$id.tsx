@@ -2,8 +2,19 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-  Plus, UserPlus, Library, ClipboardList, BarChart3, BookOpen, Users, AlertCircle,
-  ChevronRight, Sparkles, Filter, Pencil, Trash2,
+  Plus,
+  UserPlus,
+  Library,
+  ClipboardList,
+  BarChart3,
+  BookOpen,
+  Users,
+  AlertCircle,
+  ChevronRight,
+  Sparkles,
+  Filter,
+  Pencil,
+  Trash2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/common/PageHeader";
@@ -17,19 +28,50 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import {
-  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
 } from "@/components/ui/dialog";
 import {
-  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
-  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import {
-  assessmentsForTraining, PARTICIPANTS, questionsForTraining,
-  PRE_POST_COMPARISON, TOPIC_PERFORMANCE, RECENT_ACTIVITY,
+  assessmentsForTraining,
+  PARTICIPANTS,
+  questionsForTraining,
+  PRE_POST_COMPARISON,
+  TOPIC_PERFORMANCE,
+  RECENT_ACTIVITY,
 } from "@/lib/mock-data";
-import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, Legend } from "recharts";
+import {
+  ResponsiveContainer,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  Tooltip,
+  CartesianGrid,
+  Legend,
+} from "recharts";
 import { useRole } from "@/lib/role-context";
 import { qk } from "@/lib/query-keys";
 import { trainingsService } from "@/services/trainings";
@@ -91,11 +133,16 @@ function TrainingDetail() {
 
   if (trainingQuery.isError || !trainingQuery.data) {
     const message =
-      trainingQuery.error instanceof Error ? trainingQuery.error.message : "Failed to load training";
+      trainingQuery.error instanceof Error
+        ? trainingQuery.error.message
+        : "Failed to load training";
     if (/not found/i.test(message)) {
       return (
         <div className="p-8">
-          <EmptyState title="Training not found" description="The training you are looking for does not exist or was archived." />
+          <EmptyState
+            title="Training not found"
+            description="The training you are looking for does not exist or was archived."
+          />
         </div>
       );
     }
@@ -118,7 +165,9 @@ function TrainingDetail() {
     <>
       <PageHeader
         breadcrumbs={
-          <Link to="/app/trainings" className="hover:underline">My trainings</Link>
+          <Link to="/app/trainings" className="hover:underline">
+            My trainings
+          </Link>
         }
         title={training.title}
         description={training.description}
@@ -143,7 +192,9 @@ function TrainingDetail() {
                 </Button>
               </>
             )}
-            <Button variant="outline" size="sm"><UserPlus className="mr-1.5 h-4 w-4" /> Add participant</Button>
+            <Button variant="outline" size="sm">
+              <UserPlus className="mr-1.5 h-4 w-4" /> Add participant
+            </Button>
             <Button asChild size="sm">
               <Link to="/app/assessments/new" search={{ trainingId: training.id } as never}>
                 <Plus className="mr-1.5 h-4 w-4" /> Create assessment
@@ -156,8 +207,15 @@ function TrainingDetail() {
       <div className="space-y-6 p-4 sm:p-6 lg:p-8">
         <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-5">
           <MetricCard label="Participants" value={training.participants} />
-          <MetricCard label="Learning objectives" value={training.topics.reduce((s, t) => s + t.objectives.length, 0)} />
-          <MetricCard label="Approved questions" value={training.approvedQuestions} hint={`${training.questions} total`} />
+          <MetricCard
+            label="Learning objectives"
+            value={training.topics.reduce((s, t) => s + t.objectives.length, 0)}
+          />
+          <MetricCard
+            label="Approved questions"
+            value={training.approvedQuestions}
+            hint={`${training.questions} total`}
+          />
           <MetricCard label="Active assessments" value={training.assessments} />
           <MetricCard label="Average score" value={`${training.avgScore}%`} />
         </div>
@@ -176,42 +234,97 @@ function TrainingDetail() {
           <TabsContent value="overview" className="mt-4 space-y-4">
             <div className="grid gap-4 lg:grid-cols-3">
               <Card className="lg:col-span-2">
-                <CardHeader><CardTitle className="text-base">Question bank readiness</CardTitle></CardHeader>
+                <CardHeader>
+                  <CardTitle className="text-base">Question bank readiness</CardTitle>
+                </CardHeader>
                 <CardContent className="space-y-3">
-                  <Readiness label="Approved questions" value={training.approvedQuestions} total={training.questions} tone="success" />
-                  <Readiness label="Missing equivalent variants" value={6} total={training.approvedQuestions} tone="warning" />
-                  <Readiness label="Questions needing review" value={3} total={training.questions} tone="warning" />
-                  <Readiness label="AI drafts pending" value={2} total={training.questions} tone="info" />
+                  <Readiness
+                    label="Approved questions"
+                    value={training.approvedQuestions}
+                    total={training.questions}
+                    tone="success"
+                  />
+                  <Readiness
+                    label="Missing equivalent variants"
+                    value={6}
+                    total={training.approvedQuestions}
+                    tone="warning"
+                  />
+                  <Readiness
+                    label="Questions needing review"
+                    value={3}
+                    total={training.questions}
+                    tone="warning"
+                  />
+                  <Readiness
+                    label="AI drafts pending"
+                    value={2}
+                    total={training.questions}
+                    tone="info"
+                  />
                 </CardContent>
               </Card>
               <Card>
-                <CardHeader><CardTitle className="text-base">Recommended next actions</CardTitle></CardHeader>
+                <CardHeader>
+                  <CardTitle className="text-base">Recommended next actions</CardTitle>
+                </CardHeader>
                 <CardContent className="space-y-2">
-                  <Recommend title="Create post-test from pre-test" body="SQL Joins shows weak performance (49%)." to="/app/assessments/a1/post-test" />
-                  <Recommend title="Review 3 questions" body="Awaiting approval before publish." to="/app/questions" />
-                  <Recommend title="Generate equivalent variants" body="6 approved questions missing variants." to="/app/questions" />
+                  <Recommend
+                    title="Create post-test from pre-test"
+                    body="SQL Joins shows weak performance (49%)."
+                    to="/app/assessments/a1/post-test"
+                  />
+                  <Recommend
+                    title="Review 3 questions"
+                    body="Awaiting approval before publish."
+                    to="/app/questions"
+                  />
+                  <Recommend
+                    title="Generate equivalent variants"
+                    body="6 approved questions missing variants."
+                    to="/app/questions"
+                  />
                 </CardContent>
               </Card>
             </div>
 
             <Card>
-              <CardHeader><CardTitle className="text-base">Assessment timeline</CardTitle></CardHeader>
+              <CardHeader>
+                <CardTitle className="text-base">Assessment timeline</CardTitle>
+              </CardHeader>
               <CardContent>
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-stretch">
-                  <TimelineStep status="done" title="Pre-test" detail="26 / 28 submitted · Avg 64%" />
-                  <TimelineStep status="active" title="Learning period" detail="Practice & feedback" />
-                  <TimelineStep status="pending" title="Post-test" detail="Draft — review questions" />
+                  <TimelineStep
+                    status="done"
+                    title="Pre-test"
+                    detail="26 / 28 submitted · Avg 64%"
+                  />
+                  <TimelineStep
+                    status="active"
+                    title="Learning period"
+                    detail="Practice & feedback"
+                  />
+                  <TimelineStep
+                    status="pending"
+                    title="Post-test"
+                    detail="Draft — review questions"
+                  />
                 </div>
               </CardContent>
             </Card>
 
             <Card>
-              <CardHeader><CardTitle className="text-base">Recent activity</CardTitle></CardHeader>
+              <CardHeader>
+                <CardTitle className="text-base">Recent activity</CardTitle>
+              </CardHeader>
               <CardContent>
                 <ul className="divide-y">
                   {RECENT_ACTIVITY.map((a, i) => (
                     <li key={i} className="flex items-center justify-between py-2.5 text-sm">
-                      <div><span className="font-medium">{a.who}</span>{" "}<span className="text-muted-foreground">{a.what}</span></div>
+                      <div>
+                        <span className="font-medium">{a.who}</span>{" "}
+                        <span className="text-muted-foreground">{a.what}</span>
+                      </div>
                       <span className="text-xs text-muted-foreground">{a.when}</span>
                     </li>
                   ))}
@@ -230,8 +343,12 @@ function TrainingDetail() {
                 </Button>
               </div>
               <div className="flex gap-2">
-                <Button variant="outline" size="sm">Import</Button>
-                <Button size="sm"><UserPlus className="mr-1.5 h-4 w-4" /> Add participants</Button>
+                <Button variant="outline" size="sm">
+                  Import
+                </Button>
+                <Button size="sm">
+                  <UserPlus className="mr-1.5 h-4 w-4" /> Add participants
+                </Button>
               </div>
             </div>
 
@@ -254,10 +371,19 @@ function TrainingDetail() {
                           <div className="font-medium">{p.name}</div>
                           <div className="text-xs text-muted-foreground">{p.email}</div>
                         </TableCell>
-                        <TableCell className="hidden sm:table-cell"><StatusBadge status={p.status} /></TableCell>
-                        <TableCell className="hidden md:table-cell tabular-nums">{p.assignedAssessments}</TableCell>
-                        <TableCell className="hidden md:table-cell tabular-nums">{p.completionRate}%</TableCell>
-                        <TableCell className="text-right tabular-nums">{p.latestScore ?? "—"}{p.latestScore && "%"}</TableCell>
+                        <TableCell className="hidden sm:table-cell">
+                          <StatusBadge status={p.status} />
+                        </TableCell>
+                        <TableCell className="hidden md:table-cell tabular-nums">
+                          {p.assignedAssessments}
+                        </TableCell>
+                        <TableCell className="hidden md:table-cell tabular-nums">
+                          {p.completionRate}%
+                        </TableCell>
+                        <TableCell className="text-right tabular-nums">
+                          {p.latestScore ?? "—"}
+                          {p.latestScore && "%"}
+                        </TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
@@ -273,8 +399,12 @@ function TrainingDetail() {
                 Topics and learning objectives live here — not as separate pages.
               </div>
               <div className="flex gap-2">
-                <Button variant="outline" size="sm">Add topic</Button>
-                <Button size="sm"><Plus className="mr-1.5 h-4 w-4" /> Add objective</Button>
+                <Button variant="outline" size="sm">
+                  Add topic
+                </Button>
+                <Button size="sm">
+                  <Plus className="mr-1.5 h-4 w-4" /> Add objective
+                </Button>
               </div>
             </div>
 
@@ -283,7 +413,11 @@ function TrainingDetail() {
                 icon={<BookOpen className="h-5 w-5" />}
                 title="Define topics and learning objectives"
                 description="Define topics and learning objectives before creating assessment blueprints."
-                action={<Button size="sm"><Plus className="mr-1.5 h-4 w-4" /> Add topic</Button>}
+                action={
+                  <Button size="sm">
+                    <Plus className="mr-1.5 h-4 w-4" /> Add topic
+                  </Button>
+                }
               />
             ) : (
               <div className="space-y-3">
@@ -293,21 +427,31 @@ function TrainingDetail() {
                       <div>
                         <CardTitle className="text-sm">{topic.title}</CardTitle>
                         <div className="mt-1 text-xs text-muted-foreground">
-                          {topic.objectives.length} objectives · {topic.objectives.reduce((s, o) => s + o.questionCount, 0)} questions
+                          {topic.objectives.length} objectives ·{" "}
+                          {topic.objectives.reduce((s, o) => s + o.questionCount, 0)} questions
                         </div>
                       </div>
-                      <Button variant="ghost" size="sm">Edit</Button>
+                      <Button variant="ghost" size="sm">
+                        Edit
+                      </Button>
                     </CardHeader>
                     <CardContent className="pt-0">
                       <ul className="divide-y rounded-md border">
                         {topic.objectives.map((o) => (
-                          <li key={o.id} className="flex items-center justify-between gap-3 px-3 py-2.5 text-sm">
+                          <li
+                            key={o.id}
+                            className="flex items-center justify-between gap-3 px-3 py-2.5 text-sm"
+                          >
                             <div className="min-w-0">
                               <div className="truncate font-medium">{o.title}</div>
-                              <div className="text-xs text-muted-foreground">{o.questionCount} questions</div>
+                              <div className="text-xs text-muted-foreground">
+                                {o.questionCount} questions
+                              </div>
                             </div>
                             <div className="flex items-center gap-3">
-                              <span className={`text-xs tabular-nums ${o.avgScore < 60 ? "text-amber-600" : "text-emerald-600"}`}>
+                              <span
+                                className={`text-xs tabular-nums ${o.avgScore < 60 ? "text-amber-600" : "text-emerald-600"}`}
+                              >
                                 {o.avgScore}%
                               </span>
                               <ChevronRight className="h-4 w-4 text-muted-foreground" />
@@ -329,7 +473,8 @@ function TrainingDetail() {
                 <div className="flex items-start gap-2 text-sm">
                   <Sparkles className="mt-0.5 h-4 w-4 text-accent-foreground" />
                   <span>
-                    <strong>Assessment readiness:</strong> {training.approvedQuestions} approved questions, 6 missing equivalent variants.
+                    <strong>Assessment readiness:</strong> {training.approvedQuestions} approved
+                    questions, 6 missing equivalent variants.
                   </span>
                 </div>
                 <Button asChild size="sm">
@@ -341,8 +486,12 @@ function TrainingDetail() {
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
               <Input placeholder="Search question text" className="max-w-sm" />
               <div className="flex gap-2">
-                <Button variant="outline" size="sm">Generate draft with AI</Button>
-                <Button size="sm"><Plus className="mr-1.5 h-4 w-4" /> Create question</Button>
+                <Button variant="outline" size="sm">
+                  Generate draft with AI
+                </Button>
+                <Button size="sm">
+                  <Plus className="mr-1.5 h-4 w-4" /> Create question
+                </Button>
               </div>
             </div>
 
@@ -363,16 +512,34 @@ function TrainingDetail() {
                     {questions.map((q) => (
                       <TableRow key={q.id} className="cursor-pointer hover:bg-muted/40">
                         <TableCell className="max-w-md">
-                          <Link to="/app/questions/$id" params={{ id: q.id }} className="line-clamp-2 font-medium hover:underline">
+                          <Link
+                            to="/app/questions/$id"
+                            params={{ id: q.id }}
+                            className="line-clamp-2 font-medium hover:underline"
+                          >
                             {q.text}
                           </Link>
-                          {q.source === "ai" && <span className="ml-2 inline-block"><StatusBadge status="AI generated" tone="primary" /></span>}
+                          {q.source === "ai" && (
+                            <span className="ml-2 inline-block">
+                              <StatusBadge status="AI generated" tone="primary" />
+                            </span>
+                          )}
                         </TableCell>
-                        <TableCell className="hidden md:table-cell text-xs text-muted-foreground">{q.topic}</TableCell>
-                        <TableCell className="hidden lg:table-cell text-xs text-muted-foreground">{q.objective}</TableCell>
-                        <TableCell className="hidden sm:table-cell text-xs capitalize">{q.difficulty}</TableCell>
-                        <TableCell><StatusBadge status={q.status} /></TableCell>
-                        <TableCell className="hidden md:table-cell text-right tabular-nums">{q.variants}</TableCell>
+                        <TableCell className="hidden md:table-cell text-xs text-muted-foreground">
+                          {q.topic}
+                        </TableCell>
+                        <TableCell className="hidden lg:table-cell text-xs text-muted-foreground">
+                          {q.objective}
+                        </TableCell>
+                        <TableCell className="hidden sm:table-cell text-xs capitalize">
+                          {q.difficulty}
+                        </TableCell>
+                        <TableCell>
+                          <StatusBadge status={q.status} />
+                        </TableCell>
+                        <TableCell className="hidden md:table-cell text-right tabular-nums">
+                          {q.variants}
+                        </TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
@@ -384,7 +551,9 @@ function TrainingDetail() {
           {/* ASSESSMENTS */}
           <TabsContent value="assessments" className="mt-4 space-y-4">
             <div className="flex items-center justify-between">
-              <div className="text-sm text-muted-foreground">Manage assessments for this training.</div>
+              <div className="text-sm text-muted-foreground">
+                Manage assessments for this training.
+              </div>
               <div className="flex gap-2">
                 <Button asChild variant="outline" size="sm">
                   <Link to="/app/assessments/a1/post-test">Create post-test</Link>
@@ -417,7 +586,11 @@ function TrainingDetail() {
                     <CardContent className="space-y-3 p-4">
                       <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0">
-                          <Link to="/app/assessments/$id" params={{ id: a.id }} className="block truncate text-sm font-semibold hover:underline">
+                          <Link
+                            to="/app/assessments/$id"
+                            params={{ id: a.id }}
+                            className="block truncate text-sm font-semibold hover:underline"
+                          >
                             {a.title}
                           </Link>
                           <div className="text-xs text-muted-foreground">{a.type}</div>
@@ -431,11 +604,15 @@ function TrainingDetail() {
                       </div>
                       <div className="flex justify-end gap-2 pt-1">
                         <Button asChild variant="outline" size="sm">
-                          <Link to="/app/assessments/$id" params={{ id: a.id }}>Open</Link>
+                          <Link to="/app/assessments/$id" params={{ id: a.id }}>
+                            Open
+                          </Link>
                         </Button>
                         {a.status === "Results Ready" && (
                           <Button asChild size="sm">
-                            <Link to="/app/assessments/$id/results" params={{ id: a.id }}>View results</Link>
+                            <Link to="/app/assessments/$id/results" params={{ id: a.id }}>
+                              View results
+                            </Link>
                           </Button>
                         )}
                       </div>
@@ -449,14 +626,20 @@ function TrainingDetail() {
           {/* RESULTS */}
           <TabsContent value="results" className="mt-4 space-y-4">
             <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-              <MetricCard label="Average score" value="71%" trend={{ value: "+7%", positive: true }} />
+              <MetricCard
+                label="Average score"
+                value="71%"
+                trend={{ value: "+7%", positive: true }}
+              />
               <MetricCard label="Completion rate" value="93%" />
               <MetricCard label="Strongest topic" value="SQL Basics" hint="81%" />
               <MetricCard label="Weakest topic" value="Joins" hint="49%" />
             </div>
             <div className="grid gap-4 lg:grid-cols-2">
               <Card>
-                <CardHeader><CardTitle className="text-base">Pre-test vs post-test improvement</CardTitle></CardHeader>
+                <CardHeader>
+                  <CardTitle className="text-base">Pre-test vs post-test improvement</CardTitle>
+                </CardHeader>
                 <CardContent>
                   <div className="h-60">
                     <ResponsiveContainer>
@@ -474,7 +657,9 @@ function TrainingDetail() {
                 </CardContent>
               </Card>
               <Card>
-                <CardHeader><CardTitle className="text-base">Topic breakdown</CardTitle></CardHeader>
+                <CardHeader>
+                  <CardTitle className="text-base">Topic breakdown</CardTitle>
+                </CardHeader>
                 <CardContent>
                   <div className="h-60">
                     <ResponsiveContainer>
@@ -515,15 +700,30 @@ function TrainingDetail() {
           >
             <div className="space-y-1.5">
               <Label htmlFor="edit-title">Title</Label>
-              <Input id="edit-title" value={title} onChange={(e) => setTitle(e.target.value)} autoFocus />
+              <Input
+                id="edit-title"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                autoFocus
+              />
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="edit-desc">Description</Label>
-              <Textarea id="edit-desc" value={description} onChange={(e) => setDescription(e.target.value)} />
+              <Textarea
+                id="edit-desc"
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+              />
             </div>
           </form>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setEditOpen(false)} disabled={editMutation.isPending}>Cancel</Button>
+            <Button
+              variant="outline"
+              onClick={() => setEditOpen(false)}
+              disabled={editMutation.isPending}
+            >
+              Cancel
+            </Button>
             <Button type="submit" form="edit-training-form" disabled={editMutation.isPending}>
               {editMutation.isPending ? "Saving…" : "Save changes"}
             </Button>
@@ -559,14 +759,27 @@ function TrainingDetail() {
   );
 }
 
-function Readiness({ label, value, total, tone }: { label: string; value: number; total: number; tone: "success" | "warning" | "info" }) {
+function Readiness({
+  label,
+  value,
+  total,
+  tone,
+}: {
+  label: string;
+  value: number;
+  total: number;
+  tone: "success" | "warning" | "info";
+}) {
   const pct = Math.min(100, (value / Math.max(total, 1)) * 100);
-  const color = tone === "success" ? "bg-emerald-500" : tone === "warning" ? "bg-amber-500" : "bg-sky-500";
+  const color =
+    tone === "success" ? "bg-emerald-500" : tone === "warning" ? "bg-amber-500" : "bg-sky-500";
   return (
     <div>
       <div className="mb-1 flex items-center justify-between text-sm">
         <span>{label}</span>
-        <span className="text-muted-foreground tabular-nums">{value} / {total}</span>
+        <span className="text-muted-foreground tabular-nums">
+          {value} / {total}
+        </span>
       </div>
       <div className="h-1.5 overflow-hidden rounded-full bg-muted">
         <div className={`h-full rounded-full ${color}`} style={{ width: `${pct}%` }} />
@@ -589,13 +802,21 @@ function Recommend({ title, body, to }: { title: string; body: string; to: strin
   );
 }
 
-function TimelineStep({ status, title, detail }: { status: "done" | "active" | "pending"; title: string; detail: string }) {
+function TimelineStep({
+  status,
+  title,
+  detail,
+}: {
+  status: "done" | "active" | "pending";
+  title: string;
+  detail: string;
+}) {
   const dot =
     status === "done"
       ? "bg-emerald-500"
       : status === "active"
-      ? "bg-primary animate-pulse"
-      : "bg-muted-foreground/40";
+        ? "bg-primary animate-pulse"
+        : "bg-muted-foreground/40";
   return (
     <div className="flex-1 rounded-md border bg-card p-3">
       <div className="flex items-center gap-2">

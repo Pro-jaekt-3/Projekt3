@@ -26,13 +26,7 @@ export function LoadingState({ label }: { label?: string }) {
 
 // Inline error block for failed queries; message comes from Error.message
 // (apiClient already extracts the backend `{ error }` field).
-export function ErrorState({
-  message,
-  onRetry,
-}: {
-  message: string;
-  onRetry?: () => void;
-}) {
+export function ErrorState({ message, onRetry }: { message: string; onRetry?: () => void }) {
   return (
     <div className="m-4 rounded-md border border-destructive/30 bg-destructive/5 p-4 text-sm sm:m-6 lg:m-8">
       <div className="font-medium text-destructive">Something went wrong</div>

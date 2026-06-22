@@ -1,12 +1,28 @@
 import { createFileRoute, useNavigate, notFound } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
-import { Clock, Save, Flag, ChevronLeft, ChevronRight, ListChecks, Send, X, Check } from "lucide-react";
+import {
+  Clock,
+  Save,
+  Flag,
+  ChevronLeft,
+  ChevronRight,
+  ListChecks,
+  Send,
+  X,
+  Check,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import {
-  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
-  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { QUESTIONS, MY_ASSESSMENTS } from "@/lib/mock-data";
 import { cn } from "@/lib/utils";
@@ -61,7 +77,9 @@ function SolvePage() {
     navigate({ to: "/assessment/$id/result", params: { id: assessment.id } });
   };
 
-  const mm = Math.floor(seconds / 60).toString().padStart(2, "0");
+  const mm = Math.floor(seconds / 60)
+    .toString()
+    .padStart(2, "0");
   const ss = (seconds % 60).toString().padStart(2, "0");
   const progress = ((idx + 1) / questions.length) * 100;
 
@@ -76,7 +94,9 @@ function SolvePage() {
           </div>
           <div className="flex items-center gap-1.5 rounded-md bg-surface px-2.5 py-1 text-sm tabular-nums">
             <Clock className="h-4 w-4 text-muted-foreground" />
-            <span className={cn("font-semibold", seconds < 60 && "text-rose-600")}>{mm}:{ss}</span>
+            <span className={cn("font-semibold", seconds < 60 && "text-rose-600")}>
+              {mm}:{ss}
+            </span>
           </div>
           <div className="hidden items-center gap-1 text-xs text-muted-foreground sm:flex">
             <Save className="h-3.5 w-3.5 text-emerald-600" />
@@ -92,9 +112,18 @@ function SolvePage() {
         {/* Main */}
         <main className="min-w-0 flex-1">
           <div className="mb-2 flex items-center justify-between text-xs text-muted-foreground">
-            <span>Question {idx + 1} of {questions.length}</span>
-            <button onClick={toggleMark} className={cn("inline-flex items-center gap-1 rounded-md border px-2 py-1", marked.has(idx) ? "border-amber-400 bg-amber-50 text-amber-800" : "hover:bg-muted")}>
-              <Flag className="h-3.5 w-3.5" /> {marked.has(idx) ? "Marked for review" : "Mark for review"}
+            <span>
+              Question {idx + 1} of {questions.length}
+            </span>
+            <button
+              onClick={toggleMark}
+              className={cn(
+                "inline-flex items-center gap-1 rounded-md border px-2 py-1",
+                marked.has(idx) ? "border-amber-400 bg-amber-50 text-amber-800" : "hover:bg-muted",
+              )}
+            >
+              <Flag className="h-3.5 w-3.5" />{" "}
+              {marked.has(idx) ? "Marked for review" : "Mark for review"}
             </button>
           </div>
 
@@ -106,9 +135,10 @@ function SolvePage() {
                 <div className="space-y-2">
                   {q.options.map((opt) => {
                     const cur = answers[q.id];
-                    const checked = q.type === "single"
-                      ? cur === opt.id
-                      : Array.isArray(cur) && cur.includes(opt.id);
+                    const checked =
+                      q.type === "single"
+                        ? cur === opt.id
+                        : Array.isArray(cur) && cur.includes(opt.id);
                     return (
                       <label
                         key={opt.id}
@@ -172,7 +202,11 @@ function SolvePage() {
           {/* Sticky bottom nav (touch-friendly) */}
           <div className="sticky bottom-0 mt-4 -mx-3 border-t bg-background px-3 py-3 sm:-mx-6 sm:px-6">
             <div className="flex items-center gap-2">
-              <Button variant="outline" onClick={() => setIdx((i) => Math.max(0, i - 1))} disabled={idx === 0}>
+              <Button
+                variant="outline"
+                onClick={() => setIdx((i) => Math.max(0, i - 1))}
+                disabled={idx === 0}
+              >
                 <ChevronLeft className="h-4 w-4" />
                 <span className="ml-1 hidden sm:inline">Previous</span>
               </Button>
@@ -198,7 +232,13 @@ function SolvePage() {
         {/* Desktop navigator */}
         <aside className="hidden w-56 shrink-0 lg:block">
           <div className="sticky top-20 rounded-md border bg-card p-3">
-            <Navigator questions={questions} idx={idx} setIdx={setIdx} answers={answers} marked={marked} />
+            <Navigator
+              questions={questions}
+              idx={idx}
+              setIdx={setIdx}
+              answers={answers}
+              marked={marked}
+            />
             <Button className="mt-3 w-full" onClick={() => setConfirmOpen(true)}>
               <Send className="mr-1.5 h-4 w-4" /> Submit
             </Button>
@@ -213,7 +253,16 @@ function SolvePage() {
             <SheetTitle>Question navigator</SheetTitle>
           </SheetHeader>
           <div className="mt-4">
-            <Navigator questions={questions} idx={idx} setIdx={(i) => { setIdx(i); setNavOpen(false); }} answers={answers} marked={marked} />
+            <Navigator
+              questions={questions}
+              idx={idx}
+              setIdx={(i) => {
+                setIdx(i);
+                setNavOpen(false);
+              }}
+              answers={answers}
+              marked={marked}
+            />
           </div>
         </SheetContent>
       </Sheet>
@@ -226,7 +275,11 @@ function SolvePage() {
             <AlertDialogDescription>
               <div className="grid grid-cols-3 gap-2 pt-2">
                 <Stat label="Answered" value={questions.length - unansweredCount} />
-                <Stat label="Unanswered" value={unansweredCount} tone={unansweredCount > 0 ? "warning" : "muted"} />
+                <Stat
+                  label="Unanswered"
+                  value={unansweredCount}
+                  tone={unansweredCount > 0 ? "warning" : "muted"}
+                />
                 <Stat label="Marked" value={marked.size} />
               </div>
               {unansweredCount > 0 && (
@@ -246,17 +299,36 @@ function SolvePage() {
   );
 }
 
-function Stat({ label, value, tone = "muted" }: { label: string; value: number; tone?: "warning" | "muted" }) {
+function Stat({
+  label,
+  value,
+  tone = "muted",
+}: {
+  label: string;
+  value: number;
+  tone?: "warning" | "muted";
+}) {
   return (
     <div className="rounded-md border bg-card p-2 text-center">
       <div className="text-[10px] uppercase tracking-wide text-muted-foreground">{label}</div>
-      <div className={cn("mt-0.5 text-base font-semibold tabular-nums", tone === "warning" && "text-amber-700")}>{value}</div>
+      <div
+        className={cn(
+          "mt-0.5 text-base font-semibold tabular-nums",
+          tone === "warning" && "text-amber-700",
+        )}
+      >
+        {value}
+      </div>
     </div>
   );
 }
 
 function Navigator({
-  questions, idx, setIdx, answers, marked,
+  questions,
+  idx,
+  setIdx,
+  answers,
+  marked,
 }: {
   questions: typeof QUESTIONS;
   idx: number;
@@ -266,7 +338,9 @@ function Navigator({
 }) {
   return (
     <>
-      <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Questions</div>
+      <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+        Questions
+      </div>
       <div className="grid grid-cols-6 gap-1.5 lg:grid-cols-5">
         {questions.map((q, i) => {
           const isCurrent = i === idx;
@@ -294,9 +368,17 @@ function Navigator({
         })}
       </div>
       <div className="mt-3 space-y-1 text-[11px] text-muted-foreground">
-        <div className="flex items-center gap-1.5"><span className="inline-block h-2.5 w-2.5 rounded bg-emerald-100 ring-1 ring-emerald-200" /> Answered</div>
-        <div className="flex items-center gap-1.5"><span className="inline-block h-2.5 w-2.5 rounded bg-card ring-1 ring-border" /> Unanswered</div>
-        <div className="flex items-center gap-1.5"><span className="inline-block h-2.5 w-2.5 rounded bg-amber-500" /> Marked for review</div>
+        <div className="flex items-center gap-1.5">
+          <span className="inline-block h-2.5 w-2.5 rounded bg-emerald-100 ring-1 ring-emerald-200" />{" "}
+          Answered
+        </div>
+        <div className="flex items-center gap-1.5">
+          <span className="inline-block h-2.5 w-2.5 rounded bg-card ring-1 ring-border" />{" "}
+          Unanswered
+        </div>
+        <div className="flex items-center gap-1.5">
+          <span className="inline-block h-2.5 w-2.5 rounded bg-amber-500" /> Marked for review
+        </div>
       </div>
     </>
   );

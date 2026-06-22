@@ -1,11 +1,4 @@
-import {
-  createContext,
-  useCallback,
-  useContext,
-  useEffect,
-  useMemo,
-  useState,
-} from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import type { User as FirebaseUser } from "firebase/auth";
 import { onAuthStateChanged, signOut } from "firebase/auth";
 
@@ -64,8 +57,7 @@ const ROLE_FROM_BACKEND: Record<BackendRole, Role> = {
 
 const RAW_DEV_OVERRIDE = import.meta.env.VITE_DEV_ROLE_OVERRIDE as string | undefined;
 
-export const isDevRoleOverrideEnabled =
-  import.meta.env.DEV && Boolean(RAW_DEV_OVERRIDE);
+export const isDevRoleOverrideEnabled = import.meta.env.DEV && Boolean(RAW_DEV_OVERRIDE);
 
 const STORAGE_KEY = "projekt3.role";
 

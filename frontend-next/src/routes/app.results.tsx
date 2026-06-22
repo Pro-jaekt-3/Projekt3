@@ -4,9 +4,25 @@ import { PageHeader } from "@/components/common/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { MetricCard } from "@/components/common/MetricCard";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { TRAININGS, ASSESSMENTS, PRE_POST_COMPARISON, TOPIC_PERFORMANCE } from "@/lib/mock-data";
-import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, Legend } from "recharts";
+import {
+  ResponsiveContainer,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  Tooltip,
+  CartesianGrid,
+  Legend,
+} from "recharts";
 
 import { ensureRole } from "@/lib/route-guards";
 
@@ -24,8 +40,12 @@ function GlobalResults() {
         description="Cross-training learning analytics."
         actions={
           <>
-            <Button variant="outline" size="sm"><Filter className="mr-1.5 h-4 w-4" /> Filters</Button>
-            <Button variant="outline" size="sm"><Download className="mr-1.5 h-4 w-4" /> Export</Button>
+            <Button variant="outline" size="sm">
+              <Filter className="mr-1.5 h-4 w-4" /> Filters
+            </Button>
+            <Button variant="outline" size="sm">
+              <Download className="mr-1.5 h-4 w-4" /> Export
+            </Button>
           </>
         }
       />
@@ -33,13 +53,19 @@ function GlobalResults() {
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
           <MetricCard label="Average score" value="71%" trend={{ value: "+4%", positive: true }} />
           <MetricCard label="Completion rate" value="86%" />
-          <MetricCard label="Pre→Post improvement" value="+18%" trend={{ value: "vs prior cohort", positive: true }} />
+          <MetricCard
+            label="Pre→Post improvement"
+            value="+18%"
+            trend={{ value: "vs prior cohort", positive: true }}
+          />
           <MetricCard label="Weakest topic" value="Joins" hint="49% avg" />
         </div>
 
         <div className="grid gap-4 lg:grid-cols-2">
           <Card>
-            <CardHeader><CardTitle className="text-base">Pre-test vs post-test</CardTitle></CardHeader>
+            <CardHeader>
+              <CardTitle className="text-base">Pre-test vs post-test</CardTitle>
+            </CardHeader>
             <CardContent>
               <div className="h-60">
                 <ResponsiveContainer>
@@ -57,7 +83,9 @@ function GlobalResults() {
             </CardContent>
           </Card>
           <Card>
-            <CardHeader><CardTitle className="text-base">Topic breakdown</CardTitle></CardHeader>
+            <CardHeader>
+              <CardTitle className="text-base">Topic breakdown</CardTitle>
+            </CardHeader>
             <CardContent>
               <div className="h-60">
                 <ResponsiveContainer>
@@ -75,7 +103,9 @@ function GlobalResults() {
         </div>
 
         <Card>
-          <CardHeader><CardTitle className="text-base">By training and assessment</CardTitle></CardHeader>
+          <CardHeader>
+            <CardTitle className="text-base">By training and assessment</CardTitle>
+          </CardHeader>
           <div className="overflow-x-auto">
             <Table>
               <TableHeader>
@@ -92,11 +122,23 @@ function GlobalResults() {
                 {ASSESSMENTS.filter((a) => a.avgScore != null).map((a) => (
                   <TableRow key={a.id}>
                     <TableCell className="font-medium">{a.training}</TableCell>
-                    <TableCell className="hidden md:table-cell text-xs text-muted-foreground">{a.title}</TableCell>
-                    <TableCell className="hidden sm:table-cell text-right tabular-nums">{a.assigned}</TableCell>
-                    <TableCell className="text-right tabular-nums font-medium">{a.avgScore}%</TableCell>
-                    <TableCell className="hidden sm:table-cell text-right text-xs text-emerald-600">{a.type === "Post-test" ? "+18%" : "—"}</TableCell>
-                    <TableCell className="text-right"><Button size="sm" variant="outline">View</Button></TableCell>
+                    <TableCell className="hidden md:table-cell text-xs text-muted-foreground">
+                      {a.title}
+                    </TableCell>
+                    <TableCell className="hidden sm:table-cell text-right tabular-nums">
+                      {a.assigned}
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums font-medium">
+                      {a.avgScore}%
+                    </TableCell>
+                    <TableCell className="hidden sm:table-cell text-right text-xs text-emerald-600">
+                      {a.type === "Post-test" ? "+18%" : "—"}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <Button size="sm" variant="outline">
+                        View
+                      </Button>
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>

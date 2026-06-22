@@ -78,17 +78,34 @@ export const Route = createRootRouteWithContext<RouterContext>()({
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
       { title: "PROJEKT3 — Plan, deliver and analyze assessments" },
-      { name: "description", content: "AI-supported assessment platform for computer science and informatics education." },
+      {
+        name: "description",
+        content: "AI-supported assessment platform for computer science and informatics education.",
+      },
       { name: "author", content: "PROJEKT3" },
       { property: "og:title", content: "PROJEKT3 — Plan, deliver and analyze assessments" },
-      { property: "og:description", content: "AI-supported assessment platform for computer science and informatics education." },
+      {
+        property: "og:description",
+        content: "AI-supported assessment platform for computer science and informatics education.",
+      },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
       { name: "twitter:site", content: "@Lovable" },
       { name: "twitter:title", content: "PROJEKT3 — Plan, deliver and analyze assessments" },
-      { name: "twitter:description", content: "AI-supported assessment platform for computer science and informatics education." },
-      { property: "og:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/8def5a57-29cc-4d08-9537-66770f9c9f47/id-preview-d429dec9--8ef2ae1a-2ef8-45f3-8495-f5155ee8a1a8.lovable.app-1780623408244.png" },
-      { name: "twitter:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/8def5a57-29cc-4d08-9537-66770f9c9f47/id-preview-d429dec9--8ef2ae1a-2ef8-45f3-8495-f5155ee8a1a8.lovable.app-1780623408244.png" },
+      {
+        name: "twitter:description",
+        content: "AI-supported assessment platform for computer science and informatics education.",
+      },
+      {
+        property: "og:image",
+        content:
+          "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/8def5a57-29cc-4d08-9537-66770f9c9f47/id-preview-d429dec9--8ef2ae1a-2ef8-45f3-8495-f5155ee8a1a8.lovable.app-1780623408244.png",
+      },
+      {
+        name: "twitter:image",
+        content:
+          "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/8def5a57-29cc-4d08-9537-66770f9c9f47/id-preview-d429dec9--8ef2ae1a-2ef8-45f3-8495-f5155ee8a1a8.lovable.app-1780623408244.png",
+      },
     ],
   }),
   component: RootComponent,

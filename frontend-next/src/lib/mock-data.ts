@@ -13,13 +13,7 @@ export type AssessmentType = "Pre-test" | "Regular test" | "Practice" | "Post-te
 
 export type QuestionStatus = "Draft" | "Needs Review" | "Approved" | "Archived";
 
-export type QuestionType =
-  | "single"
-  | "multiple"
-  | "true_false"
-  | "short"
-  | "open"
-  | "code";
+export type QuestionType = "single" | "multiple" | "true_false" | "short" | "open" | "code";
 
 export type Difficulty = "easy" | "medium" | "hard";
 
@@ -207,14 +201,78 @@ export const TRAININGS: Training[] = [
 ];
 
 export const PARTICIPANTS: Participant[] = [
-  { id: "p1", name: "Eva Horvat", email: "eva.student@projekt3.app", status: "Active", assignedAssessments: 3, completionRate: 100, latestScore: 76 },
-  { id: "p2", name: "Luka Zupan", email: "luka.z@projekt3.app", status: "Active", assignedAssessments: 3, completionRate: 67, latestScore: 62 },
-  { id: "p3", name: "Maja Kralj", email: "maja.k@projekt3.app", status: "Active", assignedAssessments: 3, completionRate: 100, latestScore: 88 },
-  { id: "p4", name: "Tilen Vidmar", email: "tilen.v@projekt3.app", status: "Active", assignedAssessments: 3, completionRate: 33, latestScore: 54 },
-  { id: "p5", name: "Nika Šuštar", email: "nika.s@projekt3.app", status: "Active", assignedAssessments: 3, completionRate: 100, latestScore: 91 },
-  { id: "p6", name: "Jure Petrič", email: "jure.p@projekt3.app", status: "Active", assignedAssessments: 3, completionRate: 67, latestScore: 70 },
-  { id: "p7", name: "Sara Mlakar", email: "sara.m@projekt3.app", status: "Active", assignedAssessments: 3, completionRate: 100, latestScore: 82 },
-  { id: "p8", name: "Tim Kos", email: "tim.k@projekt3.app", status: "Invited", assignedAssessments: 0, completionRate: 0, latestScore: null },
+  {
+    id: "p1",
+    name: "Eva Horvat",
+    email: "eva.student@projekt3.app",
+    status: "Active",
+    assignedAssessments: 3,
+    completionRate: 100,
+    latestScore: 76,
+  },
+  {
+    id: "p2",
+    name: "Luka Zupan",
+    email: "luka.z@projekt3.app",
+    status: "Active",
+    assignedAssessments: 3,
+    completionRate: 67,
+    latestScore: 62,
+  },
+  {
+    id: "p3",
+    name: "Maja Kralj",
+    email: "maja.k@projekt3.app",
+    status: "Active",
+    assignedAssessments: 3,
+    completionRate: 100,
+    latestScore: 88,
+  },
+  {
+    id: "p4",
+    name: "Tilen Vidmar",
+    email: "tilen.v@projekt3.app",
+    status: "Active",
+    assignedAssessments: 3,
+    completionRate: 33,
+    latestScore: 54,
+  },
+  {
+    id: "p5",
+    name: "Nika Šuštar",
+    email: "nika.s@projekt3.app",
+    status: "Active",
+    assignedAssessments: 3,
+    completionRate: 100,
+    latestScore: 91,
+  },
+  {
+    id: "p6",
+    name: "Jure Petrič",
+    email: "jure.p@projekt3.app",
+    status: "Active",
+    assignedAssessments: 3,
+    completionRate: 67,
+    latestScore: 70,
+  },
+  {
+    id: "p7",
+    name: "Sara Mlakar",
+    email: "sara.m@projekt3.app",
+    status: "Active",
+    assignedAssessments: 3,
+    completionRate: 100,
+    latestScore: 82,
+  },
+  {
+    id: "p8",
+    name: "Tim Kos",
+    email: "tim.k@projekt3.app",
+    status: "Invited",
+    assignedAssessments: 0,
+    completionRate: 0,
+    latestScore: null,
+  },
 ];
 
 export const QUESTIONS: Question[] = [
@@ -237,7 +295,8 @@ export const QUESTIONS: Question[] = [
       { id: "c", text: "GROUP BY", correct: false },
       { id: "d", text: "ORDER BY", correct: false },
     ],
-    explanation: "WHERE filters individual rows before grouping. HAVING filters groups after GROUP BY.",
+    explanation:
+      "WHERE filters individual rows before grouping. HAVING filters groups after GROUP BY.",
   },
   {
     id: "q2",
@@ -258,7 +317,8 @@ export const QUESTIONS: Question[] = [
       { id: "c", text: "To speed up SELECT queries", correct: false },
       { id: "d", text: "To enforce NOT NULL constraints", correct: false },
     ],
-    explanation: "A foreign key references the primary key of another table and enforces referential integrity.",
+    explanation:
+      "A foreign key references the primary key of another table and enforces referential integrity.",
   },
   {
     id: "q3",
@@ -300,7 +360,8 @@ export const QUESTIONS: Question[] = [
       { id: "c", text: "users RIGHT JOIN orders", correct: false },
       { id: "d", text: "users CROSS JOIN orders", correct: false },
     ],
-    explanation: "LEFT JOIN keeps all rows from the left table (users) even without a match in orders.",
+    explanation:
+      "LEFT JOIN keeps all rows from the left table (users) even without a match in orders.",
   },
   {
     id: "q5",
@@ -444,13 +505,62 @@ export const ASSESSMENTS: Assessment[] = [
 ];
 
 export const USERS: User[] = [
-  { id: "u1", name: "Ana Kovač", email: "ana.admin@projekt3.app", role: "admin", status: "Active", lastActive: "10 min ago" },
-  { id: "u2", name: "Marko Novak", email: "marko.instructor@projekt3.app", role: "instructor", status: "Active", lastActive: "2 hours ago" },
-  { id: "u3", name: "Petra Mohorič", email: "petra.m@projekt3.app", role: "instructor", status: "Active", lastActive: "yesterday" },
-  { id: "u4", name: "Eva Horvat", email: "eva.student@projekt3.app", role: "participant", status: "Active", lastActive: "30 min ago" },
-  { id: "u5", name: "Luka Zupan", email: "luka.z@projekt3.app", role: "participant", status: "Active", lastActive: "1 hour ago" },
-  { id: "u6", name: "Tim Kos", email: "tim.k@projekt3.app", role: "participant", status: "Invited", lastActive: "never" },
-  { id: "u7", name: "Mojca Ribič", email: "mojca.r@projekt3.app", role: "instructor", status: "Disabled", lastActive: "3 weeks ago" },
+  {
+    id: "u1",
+    name: "Ana Kovač",
+    email: "ana.admin@projekt3.app",
+    role: "admin",
+    status: "Active",
+    lastActive: "10 min ago",
+  },
+  {
+    id: "u2",
+    name: "Marko Novak",
+    email: "marko.instructor@projekt3.app",
+    role: "instructor",
+    status: "Active",
+    lastActive: "2 hours ago",
+  },
+  {
+    id: "u3",
+    name: "Petra Mohorič",
+    email: "petra.m@projekt3.app",
+    role: "instructor",
+    status: "Active",
+    lastActive: "yesterday",
+  },
+  {
+    id: "u4",
+    name: "Eva Horvat",
+    email: "eva.student@projekt3.app",
+    role: "participant",
+    status: "Active",
+    lastActive: "30 min ago",
+  },
+  {
+    id: "u5",
+    name: "Luka Zupan",
+    email: "luka.z@projekt3.app",
+    role: "participant",
+    status: "Active",
+    lastActive: "1 hour ago",
+  },
+  {
+    id: "u6",
+    name: "Tim Kos",
+    email: "tim.k@projekt3.app",
+    role: "participant",
+    status: "Invited",
+    lastActive: "never",
+  },
+  {
+    id: "u7",
+    name: "Mojca Ribič",
+    email: "mojca.r@projekt3.app",
+    role: "instructor",
+    status: "Disabled",
+    lastActive: "3 weeks ago",
+  },
 ];
 
 export const AI_MODELS: AIModel[] = [
@@ -554,9 +664,35 @@ export interface ParticipantAssessment {
 }
 
 export const MY_ASSESSMENTS: ParticipantAssessment[] = [
-  { id: "a1", title: "Databases — Pre-test", training: "Introduction to Databases", type: "Pre-test", status: "Completed", due: "Oct 18, 2026", timeLimit: 30, score: 76, submittedAt: "Oct 17, 2026" },
-  { id: "a2", title: "SQL Joins — Practice", training: "Introduction to Databases", type: "Practice", status: "In progress", due: "Nov 3, 2026", timeLimit: 20 },
-  { id: "a4", title: "Web Basics — Pre-test", training: "Web Development Basics", type: "Pre-test", status: "To do", due: "Nov 5, 2026", timeLimit: 25 },
+  {
+    id: "a1",
+    title: "Databases — Pre-test",
+    training: "Introduction to Databases",
+    type: "Pre-test",
+    status: "Completed",
+    due: "Oct 18, 2026",
+    timeLimit: 30,
+    score: 76,
+    submittedAt: "Oct 17, 2026",
+  },
+  {
+    id: "a2",
+    title: "SQL Joins — Practice",
+    training: "Introduction to Databases",
+    type: "Practice",
+    status: "In progress",
+    due: "Nov 3, 2026",
+    timeLimit: 20,
+  },
+  {
+    id: "a4",
+    title: "Web Basics — Pre-test",
+    training: "Web Development Basics",
+    type: "Pre-test",
+    status: "To do",
+    due: "Nov 5, 2026",
+    timeLimit: 25,
+  },
 ];
 
 // Mock per-question results for an assessment

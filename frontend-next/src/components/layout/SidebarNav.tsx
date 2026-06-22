@@ -61,9 +61,7 @@ export function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
           </div>
           <div className="min-w-0">
             <div className="text-sm font-semibold leading-tight">PROJEKT3</div>
-            <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
-              {role}
-            </div>
+            <div className="text-[10px] uppercase tracking-wider text-muted-foreground">{role}</div>
           </div>
         </Link>
       </div>

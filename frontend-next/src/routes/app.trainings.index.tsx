@@ -10,7 +10,12 @@ import { StatusBadge } from "@/components/common/StatusBadge";
 import { EmptyState } from "@/components/common/EmptyState";
 import { LoadingState, ErrorState } from "@/components/common/Spinner";
 import {
-  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -78,7 +83,11 @@ function TrainingsList() {
         <LoadingState label="Loading trainings…" />
       ) : trainingsQuery.isError ? (
         <ErrorState
-          message={trainingsQuery.error instanceof Error ? trainingsQuery.error.message : "Failed to load trainings"}
+          message={
+            trainingsQuery.error instanceof Error
+              ? trainingsQuery.error.message
+              : "Failed to load trainings"
+          }
           onRetry={() => trainingsQuery.refetch()}
         />
       ) : trainings.length === 0 ? (
@@ -113,9 +122,21 @@ function TrainingsList() {
                 </div>
 
                 <dl className="grid grid-cols-3 gap-3 text-xs">
-                  <Stat icon={<Users className="h-3.5 w-3.5" />} label="Participants" value={t.participants} />
-                  <Stat icon={<ClipboardList className="h-3.5 w-3.5" />} label="Assessments" value={t.assessments} />
-                  <Stat icon={<BookOpen className="h-3.5 w-3.5" />} label="Approved Q" value={t.approvedQuestions} />
+                  <Stat
+                    icon={<Users className="h-3.5 w-3.5" />}
+                    label="Participants"
+                    value={t.participants}
+                  />
+                  <Stat
+                    icon={<ClipboardList className="h-3.5 w-3.5" />}
+                    label="Assessments"
+                    value={t.assessments}
+                  />
+                  <Stat
+                    icon={<BookOpen className="h-3.5 w-3.5" />}
+                    label="Approved Q"
+                    value={t.approvedQuestions}
+                  />
                 </dl>
 
                 <div>
@@ -124,7 +145,10 @@ function TrainingsList() {
                     <span className="font-medium tabular-nums">{t.curriculumCoverage}%</span>
                   </div>
                   <div className="h-1.5 overflow-hidden rounded-full bg-muted">
-                    <div className="h-full rounded-full bg-primary" style={{ width: `${t.curriculumCoverage}%` }} />
+                    <div
+                      className="h-full rounded-full bg-primary"
+                      style={{ width: `${t.curriculumCoverage}%` }}
+                    />
                   </div>
                 </div>
 
@@ -147,7 +171,9 @@ function TrainingsList() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Create training</DialogTitle>
-            <DialogDescription>Add a new training. You can build curriculum and assessments after.</DialogDescription>
+            <DialogDescription>
+              Add a new training. You can build curriculum and assessments after.
+            </DialogDescription>
           </DialogHeader>
           <form
             id="create-training-form"
@@ -163,15 +189,30 @@ function TrainingsList() {
           >
             <div className="space-y-1.5">
               <Label htmlFor="t-title">Title</Label>
-              <Input id="t-title" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. Databases 101" autoFocus />
+              <Input
+                id="t-title"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                placeholder="e.g. Databases 101"
+                autoFocus
+              />
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="t-desc">Description</Label>
-              <Textarea id="t-desc" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Optional summary" />
+              <Textarea
+                id="t-desc"
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder="Optional summary"
+              />
             </div>
           </form>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setCreateOpen(false)} disabled={createMutation.isPending}>
+            <Button
+              variant="outline"
+              onClick={() => setCreateOpen(false)}
+              disabled={createMutation.isPending}
+            >
               Cancel
             </Button>
             <Button type="submit" form="create-training-form" disabled={createMutation.isPending}>
@@ -184,10 +225,21 @@ function TrainingsList() {
   );
 }
 
-function Stat({ icon, label, value }: { icon: React.ReactNode; label: string; value: React.ReactNode }) {
+function Stat({
+  icon,
+  label,
+  value,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: React.ReactNode;
+}) {
   return (
     <div className="rounded-md border bg-surface p-2.5">
-      <div className="flex items-center gap-1.5 text-muted-foreground">{icon}<span>{label}</span></div>
+      <div className="flex items-center gap-1.5 text-muted-foreground">
+        {icon}
+        <span>{label}</span>
+      </div>
       <div className="mt-0.5 text-sm font-semibold tabular-nums">{value}</div>
     </div>
   );

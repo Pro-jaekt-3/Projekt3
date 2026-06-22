@@ -11,9 +11,7 @@ export type SolvingQuestion = Omit<Question, "answerOptions"> & {
   answerOptions?: SolvingAnswerOption[];
 };
 
-export function sanitizeAnswerOptionForSolving(
-  option: AnswerOption,
-): SolvingAnswerOption {
+export function sanitizeAnswerOptionForSolving(option: AnswerOption): SolvingAnswerOption {
   // Destructure isCorrect out; keep everything else.
   const { isCorrect: _omit, ...safe } = option;
   void _omit;

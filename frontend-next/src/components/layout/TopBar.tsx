@@ -1,5 +1,13 @@
 import { useNavigate } from "@tanstack/react-router";
-import { LogOut, ChevronDown, User as UserIcon, Shield, GraduationCap, UserCircle2, Menu } from "lucide-react";
+import {
+  LogOut,
+  ChevronDown,
+  User as UserIcon,
+  Shield,
+  GraduationCap,
+  UserCircle2,
+  Menu,
+} from "lucide-react";
 import { useRole, type Role } from "@/lib/role-context";
 import { Button } from "@/components/ui/button";
 import {

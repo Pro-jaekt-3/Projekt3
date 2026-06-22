@@ -7,7 +7,14 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { StatusBadge } from "@/components/common/StatusBadge";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { ASSESSMENTS, type AssessmentStatus } from "@/lib/mock-data";
 import { useRole } from "@/lib/role-context";
 
@@ -19,7 +26,14 @@ export const Route = createFileRoute("/app/assessments/")({
   component: AssessmentsList,
 });
 
-const TABS: (AssessmentStatus | "All")[] = ["All", "Draft", "Published", "Open", "Closed", "Results Ready"];
+const TABS: (AssessmentStatus | "All")[] = [
+  "All",
+  "Draft",
+  "Published",
+  "Open",
+  "Closed",
+  "Results Ready",
+];
 
 function AssessmentsList() {
   const { role } = useRole();
@@ -56,7 +70,9 @@ function AssessmentsList() {
         <Tabs value={tab} onValueChange={setTab}>
           <TabsList className="flex w-full flex-wrap gap-1 sm:w-auto sm:inline-flex">
             {TABS.map((t) => (
-              <TabsTrigger key={t} value={t}>{t}</TabsTrigger>
+              <TabsTrigger key={t} value={t}>
+                {t}
+              </TabsTrigger>
             ))}
           </TabsList>
         </Tabs>
@@ -64,7 +80,12 @@ function AssessmentsList() {
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
           <div className="relative flex-1">
             <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search by assessment title" className="pl-9" />
+            <Input
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              placeholder="Search by assessment title"
+              className="pl-9"
+            />
           </div>
           <Button variant="outline" size="sm" className="shrink-0">
             <Filter className="mr-1.5 h-4 w-4" /> Filters
@@ -89,17 +110,35 @@ function AssessmentsList() {
                 {filtered.map((a) => (
                   <TableRow key={a.id}>
                     <TableCell>
-                      <Link to="/app/assessments/$id" params={{ id: a.id }} className="font-medium hover:underline">{a.title}</Link>
-                      {isAdmin && <div className="text-xs text-muted-foreground">{a.instructor}</div>}
+                      <Link
+                        to="/app/assessments/$id"
+                        params={{ id: a.id }}
+                        className="font-medium hover:underline"
+                      >
+                        {a.title}
+                      </Link>
+                      {isAdmin && (
+                        <div className="text-xs text-muted-foreground">{a.instructor}</div>
+                      )}
                     </TableCell>
-                    <TableCell className="hidden md:table-cell text-xs text-muted-foreground">{a.training}</TableCell>
+                    <TableCell className="hidden md:table-cell text-xs text-muted-foreground">
+                      {a.training}
+                    </TableCell>
                     <TableCell className="hidden sm:table-cell text-xs">{a.type}</TableCell>
-                    <TableCell><StatusBadge status={a.status} /></TableCell>
-                    <TableCell className="hidden lg:table-cell text-right tabular-nums">{a.submitted} / {a.assigned}</TableCell>
-                    <TableCell className="hidden lg:table-cell text-right tabular-nums">{a.avgScore ? `${a.avgScore}%` : "—"}</TableCell>
+                    <TableCell>
+                      <StatusBadge status={a.status} />
+                    </TableCell>
+                    <TableCell className="hidden lg:table-cell text-right tabular-nums">
+                      {a.submitted} / {a.assigned}
+                    </TableCell>
+                    <TableCell className="hidden lg:table-cell text-right tabular-nums">
+                      {a.avgScore ? `${a.avgScore}%` : "—"}
+                    </TableCell>
                     <TableCell className="text-right">
                       <Button asChild size="sm" variant="outline">
-                        <Link to="/app/assessments/$id" params={{ id: a.id }}>Open</Link>
+                        <Link to="/app/assessments/$id" params={{ id: a.id }}>
+                          Open
+                        </Link>
                       </Button>
                     </TableCell>
                   </TableRow>

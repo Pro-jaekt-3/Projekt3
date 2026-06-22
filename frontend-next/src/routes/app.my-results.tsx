@@ -3,10 +3,25 @@ import { PageHeader } from "@/components/common/PageHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { MetricCard } from "@/components/common/MetricCard";
 import { StatusBadge } from "@/components/common/StatusBadge";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { MY_ASSESSMENTS, PROGRESS_OVER_TIME } from "@/lib/mock-data";
-import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid } from "recharts";
+import {
+  ResponsiveContainer,
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  Tooltip,
+  CartesianGrid,
+} from "recharts";
 
 export const Route = createFileRoute("/app/my-results")({
   component: MyResults,
@@ -21,12 +36,18 @@ function MyResults() {
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           <MetricCard label="Completed" value={completed.length} />
           <MetricCard label="Latest score" value={`${completed[0]?.score ?? 0}%`} />
-          <MetricCard label="Improvement" value="+18%" trend={{ value: "vs pre-test", positive: true }} />
+          <MetricCard
+            label="Improvement"
+            value="+18%"
+            trend={{ value: "vs pre-test", positive: true }}
+          />
           <MetricCard label="Weakest topic" value="Joins" />
         </div>
 
         <Card>
-          <CardHeader><CardTitle className="text-base">Progress over time</CardTitle></CardHeader>
+          <CardHeader>
+            <CardTitle className="text-base">Progress over time</CardTitle>
+          </CardHeader>
           <CardContent>
             <div className="h-60">
               <ResponsiveContainer>
@@ -35,7 +56,13 @@ function MyResults() {
                   <XAxis dataKey="date" fontSize={11} />
                   <YAxis fontSize={11} domain={[0, 100]} />
                   <Tooltip />
-                  <Line type="monotone" dataKey="score" stroke="var(--primary)" strokeWidth={2} dot={{ r: 3 }} />
+                  <Line
+                    type="monotone"
+                    dataKey="score"
+                    stroke="var(--primary)"
+                    strokeWidth={2}
+                    dot={{ r: 3 }}
+                  />
                 </LineChart>
               </ResponsiveContainer>
             </div>
@@ -43,7 +70,9 @@ function MyResults() {
         </Card>
 
         <Card>
-          <CardHeader><CardTitle className="text-base">All completed assessments</CardTitle></CardHeader>
+          <CardHeader>
+            <CardTitle className="text-base">All completed assessments</CardTitle>
+          </CardHeader>
           <div className="overflow-x-auto">
             <Table>
               <TableHeader>
@@ -62,12 +91,20 @@ function MyResults() {
                       <div className="font-medium">{a.title}</div>
                       <div className="text-xs text-muted-foreground">{a.training}</div>
                     </TableCell>
-                    <TableCell className="hidden sm:table-cell"><StatusBadge status={a.type} tone="info" /></TableCell>
-                    <TableCell className="text-right tabular-nums font-medium">{a.score}%</TableCell>
-                    <TableCell className="hidden md:table-cell text-xs text-muted-foreground">{a.submittedAt}</TableCell>
+                    <TableCell className="hidden sm:table-cell">
+                      <StatusBadge status={a.type} tone="info" />
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums font-medium">
+                      {a.score}%
+                    </TableCell>
+                    <TableCell className="hidden md:table-cell text-xs text-muted-foreground">
+                      {a.submittedAt}
+                    </TableCell>
                     <TableCell className="text-right">
                       <Button asChild size="sm" variant="outline">
-                        <Link to="/assessment/$id/result" params={{ id: a.id }}>View</Link>
+                        <Link to="/assessment/$id/result" params={{ id: a.id }}>
+                          View
+                        </Link>
                       </Button>
                     </TableCell>
                   </TableRow>

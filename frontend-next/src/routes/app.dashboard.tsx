@@ -1,16 +1,40 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import {
-  Users, GraduationCap, ClipboardList, Brain, AlertCircle, Plus,
-  UserPlus, Cpu, Eye,
+  Users,
+  GraduationCap,
+  ClipboardList,
+  Brain,
+  AlertCircle,
+  Plus,
+  UserPlus,
+  Cpu,
+  Eye,
 } from "lucide-react";
 import { useRole } from "@/lib/role-context";
 import { PageHeader } from "@/components/common/PageHeader";
 import { MetricCard } from "@/components/common/MetricCard";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/common/StatusBadge";
-import { TRAININGS, ASSESSMENTS, USERS, AI_MODELS, RECENT_ACTIVITY, MY_ASSESSMENTS, QUESTIONS, PROGRESS_OVER_TIME } from "@/lib/mock-data";
+import {
+  TRAININGS,
+  ASSESSMENTS,
+  USERS,
+  AI_MODELS,
+  RECENT_ACTIVITY,
+  MY_ASSESSMENTS,
+  QUESTIONS,
+  PROGRESS_OVER_TIME,
+} from "@/lib/mock-data";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid } from "recharts";
+import {
+  ResponsiveContainer,
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  Tooltip,
+  CartesianGrid,
+} from "recharts";
 
 export const Route = createFileRoute("/app/dashboard")({
   component: DashboardRouter,
@@ -52,10 +76,30 @@ function InstructorDashboard() {
       />
       <div className="space-y-6 p-4 sm:p-6 lg:p-8">
         <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
-          <MetricCard label="Active trainings" value={TRAININGS.length} hint="across all subjects" icon={<GraduationCap className="h-4 w-4" />} />
-          <MetricCard label="Questions to review" value={needsReview + aiDrafts} hint={`${aiDrafts} AI drafts`} icon={<Brain className="h-4 w-4" />} />
-          <MetricCard label="Open assessments" value={openAssessments} hint={`${draftAssessments} in draft`} icon={<ClipboardList className="h-4 w-4" />} />
-          <MetricCard label="Recent submissions" value="14" hint="last 24 hours" icon={<Eye className="h-4 w-4" />} />
+          <MetricCard
+            label="Active trainings"
+            value={TRAININGS.length}
+            hint="across all subjects"
+            icon={<GraduationCap className="h-4 w-4" />}
+          />
+          <MetricCard
+            label="Questions to review"
+            value={needsReview + aiDrafts}
+            hint={`${aiDrafts} AI drafts`}
+            icon={<Brain className="h-4 w-4" />}
+          />
+          <MetricCard
+            label="Open assessments"
+            value={openAssessments}
+            hint={`${draftAssessments} in draft`}
+            icon={<ClipboardList className="h-4 w-4" />}
+          />
+          <MetricCard
+            label="Recent submissions"
+            value="14"
+            hint="last 24 hours"
+            icon={<Eye className="h-4 w-4" />}
+          />
         </div>
 
         <div className="grid gap-4 lg:grid-cols-3">
@@ -95,9 +139,21 @@ function InstructorDashboard() {
               <CardTitle className="text-base">Items needing review</CardTitle>
             </CardHeader>
             <CardContent className="space-y-2 text-sm">
-              <ReviewRow label={`${aiDrafts} AI question drafts`} hint="Review or approve" to="/app/questions" />
-              <ReviewRow label={`${needsReview} questions need review`} hint="Awaiting your decision" to="/app/questions" />
-              <ReviewRow label={`${draftAssessments} assessments in draft`} hint="Continue editing" to="/app/assessments" />
+              <ReviewRow
+                label={`${aiDrafts} AI question drafts`}
+                hint="Review or approve"
+                to="/app/questions"
+              />
+              <ReviewRow
+                label={`${needsReview} questions need review`}
+                hint="Awaiting your decision"
+                to="/app/questions"
+              />
+              <ReviewRow
+                label={`${draftAssessments} assessments in draft`}
+                hint="Continue editing"
+                to="/app/assessments"
+              />
             </CardContent>
           </Card>
         </div>
@@ -127,7 +183,10 @@ function InstructorDashboard() {
 
 function ReviewRow({ label, hint, to }: { label: string; hint: string; to: string }) {
   return (
-    <Link to={to} className="flex items-start justify-between rounded-md border bg-card p-3 hover:bg-muted/50">
+    <Link
+      to={to}
+      className="flex items-start justify-between rounded-md border bg-card p-3 hover:bg-muted/50"
+    >
       <div>
         <div className="font-medium">{label}</div>
         <div className="text-xs text-muted-foreground">{hint}</div>
@@ -140,7 +199,9 @@ function ReviewRow({ label, hint, to }: { label: string; hint: string; to: strin
 // ---------- Admin ----------
 
 function AdminDashboard() {
-  const activeInstructors = USERS.filter((u) => u.role === "instructor" && u.status === "Active").length;
+  const activeInstructors = USERS.filter(
+    (u) => u.role === "instructor" && u.status === "Active",
+  ).length;
   const enabledModels = AI_MODELS.filter((m) => m.enabled).length;
   const openAssessments = ASSESSMENTS.filter((a) => a.status === "Open").length;
   return (
@@ -151,43 +212,91 @@ function AdminDashboard() {
         actions={
           <>
             <Button asChild variant="outline" size="sm">
-              <Link to="/app/users"><UserPlus className="mr-1.5 h-4 w-4" /> Invite user</Link>
+              <Link to="/app/users">
+                <UserPlus className="mr-1.5 h-4 w-4" /> Invite user
+              </Link>
             </Button>
             <Button asChild size="sm">
-              <Link to="/app/ai-models"><Cpu className="mr-1.5 h-4 w-4" /> Add AI model</Link>
+              <Link to="/app/ai-models">
+                <Cpu className="mr-1.5 h-4 w-4" /> Add AI model
+              </Link>
             </Button>
           </>
         }
       />
       <div className="space-y-6 p-4 sm:p-6 lg:p-8">
         <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
-          <MetricCard label="Total users" value={USERS.length} icon={<Users className="h-4 w-4" />} />
-          <MetricCard label="Active trainings" value={TRAININGS.length} icon={<GraduationCap className="h-4 w-4" />} />
-          <MetricCard label="Active instructors" value={activeInstructors} icon={<GraduationCap className="h-4 w-4" />} />
-          <MetricCard label="Total assessments" value={ASSESSMENTS.length} hint={`${openAssessments} open now`} icon={<ClipboardList className="h-4 w-4" />} />
-          <MetricCard label="AI models enabled" value={`${enabledModels} / ${AI_MODELS.length}`} icon={<Brain className="h-4 w-4" />} />
+          <MetricCard
+            label="Total users"
+            value={USERS.length}
+            icon={<Users className="h-4 w-4" />}
+          />
+          <MetricCard
+            label="Active trainings"
+            value={TRAININGS.length}
+            icon={<GraduationCap className="h-4 w-4" />}
+          />
+          <MetricCard
+            label="Active instructors"
+            value={activeInstructors}
+            icon={<GraduationCap className="h-4 w-4" />}
+          />
+          <MetricCard
+            label="Total assessments"
+            value={ASSESSMENTS.length}
+            hint={`${openAssessments} open now`}
+            icon={<ClipboardList className="h-4 w-4" />}
+          />
+          <MetricCard
+            label="AI models enabled"
+            value={`${enabledModels} / ${AI_MODELS.length}`}
+            icon={<Brain className="h-4 w-4" />}
+          />
           <MetricCard label="Submissions (7d)" value="142" icon={<Eye className="h-4 w-4" />} />
-          <MetricCard label="Completion rate" value="78%" icon={<ClipboardList className="h-4 w-4" />} />
+          <MetricCard
+            label="Completion rate"
+            value="78%"
+            icon={<ClipboardList className="h-4 w-4" />}
+          />
           <MetricCard label="AI usage (7d)" value="68 calls" icon={<Brain className="h-4 w-4" />} />
         </div>
 
         <div className="grid gap-4 lg:grid-cols-2">
           <Card>
-            <CardHeader><CardTitle className="text-base">Warnings</CardTitle></CardHeader>
+            <CardHeader>
+              <CardTitle className="text-base">Warnings</CardTitle>
+            </CardHeader>
             <CardContent className="space-y-2 text-sm">
-              <WarnRow tone="warning" title="1 user without assigned role" body="Review pending invitation" />
-              <WarnRow tone="warning" title="Disabled AI model in past config" body="“Legacy Local” referenced by 2 old drafts" />
-              <WarnRow tone="info" title={`${openAssessments} assessments currently open`} body="Monitor live sessions" />
+              <WarnRow
+                tone="warning"
+                title="1 user without assigned role"
+                body="Review pending invitation"
+              />
+              <WarnRow
+                tone="warning"
+                title="Disabled AI model in past config"
+                body="“Legacy Local” referenced by 2 old drafts"
+              />
+              <WarnRow
+                tone="info"
+                title={`${openAssessments} assessments currently open`}
+                body="Monitor live sessions"
+              />
             </CardContent>
           </Card>
 
           <Card>
-            <CardHeader><CardTitle className="text-base">Recent system activity</CardTitle></CardHeader>
+            <CardHeader>
+              <CardTitle className="text-base">Recent system activity</CardTitle>
+            </CardHeader>
             <CardContent>
               <ul className="divide-y">
                 {RECENT_ACTIVITY.map((a, i) => (
                   <li key={i} className="flex items-center justify-between py-2.5 text-sm">
-                    <div><span className="font-medium">{a.who}</span> <span className="text-muted-foreground">{a.what}</span></div>
+                    <div>
+                      <span className="font-medium">{a.who}</span>{" "}
+                      <span className="text-muted-foreground">{a.what}</span>
+                    </div>
                     <span className="text-xs text-muted-foreground">{a.when}</span>
                   </li>
                 ))}
@@ -241,15 +350,27 @@ function ParticipantDashboard() {
       />
       <div className="space-y-6 p-4 sm:p-6 lg:p-8">
         <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
-          <MetricCard label="To do" value={MY_ASSESSMENTS.filter(a => a.status === "To do").length} />
-          <MetricCard label="In progress" value={MY_ASSESSMENTS.filter(a => a.status === "In progress").length} />
+          <MetricCard
+            label="To do"
+            value={MY_ASSESSMENTS.filter((a) => a.status === "To do").length}
+          />
+          <MetricCard
+            label="In progress"
+            value={MY_ASSESSMENTS.filter((a) => a.status === "In progress").length}
+          />
           <MetricCard label="Completed" value={completed.length} />
-          <MetricCard label="Latest score" value={latest?.score ? `${latest.score}%` : "—"} hint={latest?.title} />
+          <MetricCard
+            label="Latest score"
+            value={latest?.score ? `${latest.score}%` : "—"}
+            hint={latest?.title}
+          />
         </div>
 
         <div className="grid gap-4 lg:grid-cols-3">
           <Card className="lg:col-span-2">
-            <CardHeader><CardTitle className="text-base">Progress over time</CardTitle></CardHeader>
+            <CardHeader>
+              <CardTitle className="text-base">Progress over time</CardTitle>
+            </CardHeader>
             <CardContent>
               <div className="h-56 w-full">
                 <ResponsiveContainer>
@@ -257,8 +378,20 @@ function ParticipantDashboard() {
                     <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                     <XAxis dataKey="date" stroke="currentColor" fontSize={11} />
                     <YAxis stroke="currentColor" fontSize={11} domain={[0, 100]} />
-                    <Tooltip contentStyle={{ background: "var(--card)", border: "1px solid var(--border)", fontSize: 12 }} />
-                    <Line type="monotone" dataKey="score" stroke="var(--primary)" strokeWidth={2} dot={{ r: 3 }} />
+                    <Tooltip
+                      contentStyle={{
+                        background: "var(--card)",
+                        border: "1px solid var(--border)",
+                        fontSize: 12,
+                      }}
+                    />
+                    <Line
+                      type="monotone"
+                      dataKey="score"
+                      stroke="var(--primary)"
+                      strokeWidth={2}
+                      dot={{ r: 3 }}
+                    />
                   </LineChart>
                 </ResponsiveContainer>
               </div>
@@ -266,7 +399,9 @@ function ParticipantDashboard() {
           </Card>
 
           <Card>
-            <CardHeader><CardTitle className="text-base">Up next</CardTitle></CardHeader>
+            <CardHeader>
+              <CardTitle className="text-base">Up next</CardTitle>
+            </CardHeader>
             <CardContent className="space-y-2">
               {MY_ASSESSMENTS.filter((a) => a.status !== "Completed").map((a) => (
                 <Link

@@ -4,8 +4,22 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { MetricCard } from "@/components/common/MetricCard";
 import { StatusBadge } from "@/components/common/StatusBadge";
-import { MY_ASSESSMENTS, TOPIC_PERFORMANCE, DIFFICULTY_PERFORMANCE, PRE_POST_COMPARISON } from "@/lib/mock-data";
-import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, Legend } from "recharts";
+import {
+  MY_ASSESSMENTS,
+  TOPIC_PERFORMANCE,
+  DIFFICULTY_PERFORMANCE,
+  PRE_POST_COMPARISON,
+} from "@/lib/mock-data";
+import {
+  ResponsiveContainer,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  Tooltip,
+  CartesianGrid,
+  Legend,
+} from "recharts";
 
 export const Route = createFileRoute("/assessment/$id/result")({
   loader: ({ params }) => {
@@ -25,7 +39,10 @@ function ParticipantResult() {
     <div className="min-h-screen bg-surface">
       <header className="border-b bg-background px-4 py-3 sm:px-6">
         <div className="mx-auto flex max-w-3xl items-center justify-between gap-2">
-          <Link to="/app/my-results" className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground">
+          <Link
+            to="/app/my-results"
+            className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
+          >
             <ArrowLeft className="h-4 w-4" /> Back to My Results
           </Link>
           <Button asChild variant="outline" size="sm">
@@ -91,7 +108,9 @@ function ParticipantResult() {
 
         <div className="grid gap-4 lg:grid-cols-2">
           <Card>
-            <CardHeader><CardTitle className="text-base">Topic breakdown</CardTitle></CardHeader>
+            <CardHeader>
+              <CardTitle className="text-base">Topic breakdown</CardTitle>
+            </CardHeader>
             <CardContent>
               <div className="h-56">
                 <ResponsiveContainer>
@@ -107,7 +126,9 @@ function ParticipantResult() {
             </CardContent>
           </Card>
           <Card>
-            <CardHeader><CardTitle className="text-base">Difficulty breakdown</CardTitle></CardHeader>
+            <CardHeader>
+              <CardTitle className="text-base">Difficulty breakdown</CardTitle>
+            </CardHeader>
             <CardContent>
               <div className="h-56">
                 <ResponsiveContainer>
@@ -125,16 +146,28 @@ function ParticipantResult() {
         </div>
 
         <Card>
-          <CardHeader><CardTitle className="text-base">Feedback</CardTitle></CardHeader>
+          <CardHeader>
+            <CardTitle className="text-base">Feedback</CardTitle>
+          </CardHeader>
           <CardContent className="space-y-3 text-sm">
-            <Section title="Strong areas" tone="success" items={["SQL Basics — WHERE / SELECT", "Difficulty: Easy"]} />
-            <Section title="Areas to improve" tone="warning" items={["SQL Joins — distinguishing LEFT vs RIGHT", "Normalization to 3NF"]} />
+            <Section
+              title="Strong areas"
+              tone="success"
+              items={["SQL Basics — WHERE / SELECT", "Difficulty: Easy"]}
+            />
+            <Section
+              title="Areas to improve"
+              tone="warning"
+              items={["SQL Joins — distinguishing LEFT vs RIGHT", "Normalization to 3NF"]}
+            />
           </CardContent>
         </Card>
 
         <div className="flex flex-wrap gap-2">
           <Button asChild variant="outline">
-            <Link to="/app/my-results"><ArrowLeft className="mr-1.5 h-4 w-4" /> Back to My Results</Link>
+            <Link to="/app/my-results">
+              <ArrowLeft className="mr-1.5 h-4 w-4" /> Back to My Results
+            </Link>
           </Button>
           <Button>
             <BookOpen className="mr-1.5 h-4 w-4" /> Review learning areas
@@ -145,14 +178,28 @@ function ParticipantResult() {
   );
 }
 
-function Section({ title, items, tone }: { title: string; items: string[]; tone: "success" | "warning" }) {
+function Section({
+  title,
+  items,
+  tone,
+}: {
+  title: string;
+  items: string[];
+  tone: "success" | "warning";
+}) {
   return (
     <div>
-      <div className={`text-xs font-semibold uppercase tracking-wide ${tone === "success" ? "text-emerald-700" : "text-amber-700"}`}>{title}</div>
+      <div
+        className={`text-xs font-semibold uppercase tracking-wide ${tone === "success" ? "text-emerald-700" : "text-amber-700"}`}
+      >
+        {title}
+      </div>
       <ul className="mt-1.5 space-y-1.5">
         {items.map((it) => (
           <li key={it} className="flex items-start gap-2">
-            <Check className={`mt-0.5 h-4 w-4 ${tone === "success" ? "text-emerald-600" : "text-amber-600"}`} />
+            <Check
+              className={`mt-0.5 h-4 w-4 ${tone === "success" ? "text-emerald-600" : "text-amber-600"}`}
+            />
             <span>{it}</span>
           </li>
         ))}

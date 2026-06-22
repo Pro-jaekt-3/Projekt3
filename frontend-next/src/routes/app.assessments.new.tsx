@@ -1,9 +1,7 @@
 import { createFileRoute, Link, useNavigate, useSearch } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { z } from "zod";
-import {
-  Check, ChevronLeft, ChevronRight, AlertTriangle, Sparkles, X, Save,
-} from "lucide-react";
+import { Check, ChevronLeft, ChevronRight, AlertTriangle, Sparkles, X, Save } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/common/PageHeader";
 import { Button } from "@/components/ui/button";
@@ -11,7 +9,13 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
 import { StatusBadge } from "@/components/common/StatusBadge";
@@ -42,7 +46,8 @@ function CreateAssessmentWizard() {
 
   const [form, setForm] = useState({
     title: "Databases — Pre-test (new)",
-    description: "Diagnostic pre-test to map prior knowledge of SQL basics, joins and normalization.",
+    description:
+      "Diagnostic pre-test to map prior knowledge of SQL basics, joins and normalization.",
     type: "Pre-test",
     trainingId: trainingId ?? "tr-db",
     timeLimit: 30,
@@ -62,7 +67,9 @@ function CreateAssessmentWizard() {
 
   const training = getTraining(form.trainingId);
   const trainingQuestions = QUESTIONS.filter((q) => q.training === training?.title);
-  const selectedQuestions = trainingQuestions.filter((q) => form.selectedQuestionIds.includes(q.id));
+  const selectedQuestions = trainingQuestions.filter((q) =>
+    form.selectedQuestionIds.includes(q.id),
+  );
 
   const back = () => setStep((s) => Math.max(1, s - 1));
   const next = () => setStep((s) => Math.min(5, s + 1));
@@ -71,7 +78,11 @@ function CreateAssessmentWizard() {
     toast.success("Assessment published", {
       description: "Open the access panel to share the QR code or link.",
     });
-    navigate({ to: "/app/assessments/$id", params: { id: "a4" }, search: { published: 1 } as never });
+    navigate({
+      to: "/app/assessments/$id",
+      params: { id: "a4" },
+      search: { published: 1 } as never,
+    });
   };
 
   const saveDraft = () => {
@@ -84,7 +95,9 @@ function CreateAssessmentWizard() {
       <PageHeader
         breadcrumbs={
           <>
-            <Link to="/app/assessments" className="hover:underline">Assessments</Link>
+            <Link to="/app/assessments" className="hover:underline">
+              Assessments
+            </Link>
             <span className="mx-1">/</span>
             <span>New assessment</span>
           </>
@@ -110,9 +123,18 @@ function CreateAssessmentWizard() {
           <div className="min-w-0">
             {step === 1 && <Step1 form={form} setForm={setForm} />}
             {step === 2 && <Step2 form={form} setForm={setForm} />}
-            {step === 3 && <Step3 form={form} setForm={setForm} questions={trainingQuestions} selected={selectedQuestions} />}
+            {step === 3 && (
+              <Step3
+                form={form}
+                setForm={setForm}
+                questions={trainingQuestions}
+                selected={selectedQuestions}
+              />
+            )}
             {step === 4 && <Step4 form={form} setForm={setForm} />}
-            {step === 5 && <Step5 form={form} training={training?.title} selected={selectedQuestions} />}
+            {step === 5 && (
+              <Step5 form={form} training={training?.title} selected={selectedQuestions} />
+            )}
 
             <div className="mt-6 flex flex-col-reverse items-stretch justify-between gap-2 sm:flex-row sm:items-center">
               <Button variant="outline" onClick={back} disabled={step === 1}>
@@ -130,14 +152,23 @@ function CreateAssessmentWizard() {
 
           <aside className="hidden lg:block">
             <Card className="sticky top-20">
-              <CardHeader><CardTitle className="text-sm">Summary</CardTitle></CardHeader>
+              <CardHeader>
+                <CardTitle className="text-sm">Summary</CardTitle>
+              </CardHeader>
               <CardContent className="space-y-2 text-xs">
                 <SumRow label="Title" value={form.title} />
                 <SumRow label="Type" value={form.type} />
                 <SumRow label="Training" value={training?.title ?? "—"} />
                 <SumRow label="Questions" value={`${form.selectedQuestionIds.length}`} />
                 <SumRow label="Time limit" value={`${form.timeLimit} min`} />
-                <SumRow label="Assigned" value={form.assignTo === "training" ? `Entire training (${PARTICIPANTS.length})` : `${form.selectedParticipantIds.length} selected`} />
+                <SumRow
+                  label="Assigned"
+                  value={
+                    form.assignTo === "training"
+                      ? `Entire training (${PARTICIPANTS.length})`
+                      : `${form.selectedParticipantIds.length} selected`
+                  }
+                />
               </CardContent>
             </Card>
           </aside>
@@ -165,7 +196,12 @@ function Stepper({ step }: { step: number }) {
               >
                 {status === "done" ? <Check className="h-3.5 w-3.5" /> : s.id}
               </span>
-              <span className={cn("text-sm font-medium", status === "pending" ? "text-muted-foreground" : "text-foreground")}>
+              <span
+                className={cn(
+                  "text-sm font-medium",
+                  status === "pending" ? "text-muted-foreground" : "text-foreground",
+                )}
+              >
                 {s.title}
               </span>
             </div>
@@ -191,18 +227,26 @@ type Form = ReturnType<typeof useState<any>>[0] extends infer _ ? any : never; /
 function Step1({ form, setForm }: { form: any; setForm: any }) {
   return (
     <Card>
-      <CardHeader><CardTitle className="text-base">Basic info</CardTitle></CardHeader>
+      <CardHeader>
+        <CardTitle className="text-base">Basic info</CardTitle>
+      </CardHeader>
       <CardContent className="space-y-4">
         <Field label="Title">
           <Input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} />
         </Field>
         <Field label="Description / instructions">
-          <Textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} rows={3} />
+          <Textarea
+            value={form.description}
+            onChange={(e) => setForm({ ...form, description: e.target.value })}
+            rows={3}
+          />
         </Field>
         <div className="grid gap-4 sm:grid-cols-2">
           <Field label="Assessment type">
             <Select value={form.type} onValueChange={(v) => setForm({ ...form, type: v })}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
               <SelectContent>
                 <SelectItem value="Pre-test">Pre-test</SelectItem>
                 <SelectItem value="Regular test">Regular test</SelectItem>
@@ -211,23 +255,49 @@ function Step1({ form, setForm }: { form: any; setForm: any }) {
             </Select>
           </Field>
           <Field label="Training">
-            <Select value={form.trainingId} onValueChange={(v) => setForm({ ...form, trainingId: v })}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
+            <Select
+              value={form.trainingId}
+              onValueChange={(v) => setForm({ ...form, trainingId: v })}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
               <SelectContent>
-                {TRAININGS.map((t) => <SelectItem key={t.id} value={t.id}>{t.title}</SelectItem>)}
+                {TRAININGS.map((t) => (
+                  <SelectItem key={t.id} value={t.id}>
+                    {t.title}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </Field>
           <Field label="Time limit (minutes)">
-            <Input type="number" value={form.timeLimit} onChange={(e) => setForm({ ...form, timeLimit: +e.target.value })} />
+            <Input
+              type="number"
+              value={form.timeLimit}
+              onChange={(e) => setForm({ ...form, timeLimit: +e.target.value })}
+            />
           </Field>
           <Field label="Availability window">
-            <Input value={form.availability} onChange={(e) => setForm({ ...form, availability: e.target.value })} />
+            <Input
+              value={form.availability}
+              onChange={(e) => setForm({ ...form, availability: e.target.value })}
+            />
           </Field>
         </div>
         <div className="space-y-2 rounded-md border bg-surface p-3">
-          <ToggleRow label="Randomize question order" desc="Each participant sees a different order." value={form.randomizeQuestions} onChange={(v) => setForm({ ...form, randomizeQuestions: v })} />
-          <ToggleRow label="Randomize answer options" desc="Shuffles answer choices for multiple/single choice." value={form.randomizeAnswers} onChange={(v) => setForm({ ...form, randomizeAnswers: v })} />
+          <ToggleRow
+            label="Randomize question order"
+            desc="Each participant sees a different order."
+            value={form.randomizeQuestions}
+            onChange={(v) => setForm({ ...form, randomizeQuestions: v })}
+          />
+          <ToggleRow
+            label="Randomize answer options"
+            desc="Shuffles answer choices for multiple/single choice."
+            value={form.randomizeAnswers}
+            onChange={(v) => setForm({ ...form, randomizeAnswers: v })}
+          />
         </div>
       </CardContent>
     </Card>
@@ -238,12 +308,16 @@ function Step2({ form, setForm }: { form: any; setForm: any }) {
   const toggleTopic = (id: string) => {
     setForm({
       ...form,
-      topicIds: form.topicIds.includes(id) ? form.topicIds.filter((t: string) => t !== id) : [...form.topicIds, id],
+      topicIds: form.topicIds.includes(id)
+        ? form.topicIds.filter((t: string) => t !== id)
+        : [...form.topicIds, id],
     });
   };
   return (
     <Card>
-      <CardHeader><CardTitle className="text-base">Scope — assessment blueprint</CardTitle></CardHeader>
+      <CardHeader>
+        <CardTitle className="text-base">Scope — assessment blueprint</CardTitle>
+      </CardHeader>
       <CardContent className="space-y-5">
         <div>
           <Label className="text-sm">Topics</Label>
@@ -263,7 +337,9 @@ function Step2({ form, setForm }: { form: any; setForm: any }) {
                   <Checkbox checked={active} className="mt-0.5 pointer-events-none" />
                   <div>
                     <div className="text-sm font-medium">{t.title}</div>
-                    <div className="text-xs text-muted-foreground">{t.objectives.length} objectives</div>
+                    <div className="text-xs text-muted-foreground">
+                      {t.objectives.length} objectives
+                    </div>
                   </div>
                 </button>
               );
@@ -274,14 +350,31 @@ function Step2({ form, setForm }: { form: any; setForm: any }) {
         <div>
           <Label className="text-sm">Difficulty distribution</Label>
           <div className="mt-2 grid grid-cols-3 gap-2">
-            <DiffField label="Easy" value={form.difficulty.easy} onChange={(v) => setForm({ ...form, difficulty: { ...form.difficulty, easy: v } })} />
-            <DiffField label="Medium" value={form.difficulty.medium} onChange={(v) => setForm({ ...form, difficulty: { ...form.difficulty, medium: v } })} />
-            <DiffField label="Hard" value={form.difficulty.hard} onChange={(v) => setForm({ ...form, difficulty: { ...form.difficulty, hard: v } })} />
+            <DiffField
+              label="Easy"
+              value={form.difficulty.easy}
+              onChange={(v) => setForm({ ...form, difficulty: { ...form.difficulty, easy: v } })}
+            />
+            <DiffField
+              label="Medium"
+              value={form.difficulty.medium}
+              onChange={(v) => setForm({ ...form, difficulty: { ...form.difficulty, medium: v } })}
+            />
+            <DiffField
+              label="Hard"
+              value={form.difficulty.hard}
+              onChange={(v) => setForm({ ...form, difficulty: { ...form.difficulty, hard: v } })}
+            />
           </div>
         </div>
 
         <Field label="Number of questions">
-          <Input type="number" className="max-w-[120px]" value={form.questionCount} onChange={(e) => setForm({ ...form, questionCount: +e.target.value })} />
+          <Input
+            type="number"
+            className="max-w-[120px]"
+            value={form.questionCount}
+            onChange={(e) => setForm({ ...form, questionCount: +e.target.value })}
+          />
         </Field>
 
         <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm dark:border-amber-900 dark:bg-amber-950/30">
@@ -289,7 +382,10 @@ function Step2({ form, setForm }: { form: any; setForm: any }) {
             <AlertTriangle className="mt-0.5 h-4 w-4" />
             <div>
               <div className="font-medium">Coverage notice</div>
-              <div className="text-xs">6 approved questions are missing equivalent variants. You can still proceed, but post-tests will require manual variants.</div>
+              <div className="text-xs">
+                6 approved questions are missing equivalent variants. You can still proceed, but
+                post-tests will require manual variants.
+              </div>
             </div>
           </div>
         </div>
@@ -298,19 +394,42 @@ function Step2({ form, setForm }: { form: any; setForm: any }) {
   );
 }
 
-function DiffField({ label, value, onChange }: { label: string; value: number; onChange: (v: number) => void }) {
+function DiffField({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: number;
+  onChange: (v: number) => void;
+}) {
   return (
     <div className="rounded-md border bg-card p-2.5">
       <Label className="text-xs text-muted-foreground">{label}</Label>
       <div className="mt-1 flex items-center gap-1">
-        <Input type="number" value={value} onChange={(e) => onChange(+e.target.value)} className="h-8" />
+        <Input
+          type="number"
+          value={value}
+          onChange={(e) => onChange(+e.target.value)}
+          className="h-8"
+        />
         <span className="text-xs text-muted-foreground">%</span>
       </div>
     </div>
   );
 }
 
-function Step3({ form, setForm, questions, selected }: { form: any; setForm: any; questions: any[]; selected: any[] }) {
+function Step3({
+  form,
+  setForm,
+  questions,
+  selected,
+}: {
+  form: any;
+  setForm: any;
+  questions: any[];
+  selected: any[];
+}) {
   const toggle = (id: string) => {
     setForm({
       ...form,
@@ -345,18 +464,26 @@ function Step3({ form, setForm, questions, selected }: { form: any; setForm: any
                   active ? "border-primary bg-primary-soft/50" : "hover:bg-muted/40",
                 )}
               >
-                <Checkbox checked={active} onCheckedChange={() => toggle(q.id)} className="mt-0.5" />
+                <Checkbox
+                  checked={active}
+                  onCheckedChange={() => toggle(q.id)}
+                  className="mt-0.5"
+                />
                 <div className="min-w-0 flex-1">
                   <div className="text-sm font-medium">{q.text}</div>
                   <div className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
-                    <span>{q.topic}</span><span>·</span>
-                    <span>{q.objective}</span><span>·</span>
+                    <span>{q.topic}</span>
+                    <span>·</span>
+                    <span>{q.objective}</span>
+                    <span>·</span>
                     <span className="capitalize">{q.difficulty}</span>
                   </div>
                 </div>
                 <div className="flex shrink-0 flex-col items-end gap-1">
                   <StatusBadge status={q.status} />
-                  {q.variants > 0 && <span className="text-[10px] text-muted-foreground">{q.variants} variants</span>}
+                  {q.variants > 0 && (
+                    <span className="text-[10px] text-muted-foreground">{q.variants} variants</span>
+                  )}
                 </div>
               </label>
             );
@@ -364,7 +491,8 @@ function Step3({ form, setForm, questions, selected }: { form: any; setForm: any
         </CardContent>
       </Card>
       <div className="rounded-md border bg-surface p-3 text-sm text-muted-foreground">
-        <strong className="text-foreground">{selected.length}</strong> question{selected.length !== 1 ? "s" : ""} selected.
+        <strong className="text-foreground">{selected.length}</strong> question
+        {selected.length !== 1 ? "s" : ""} selected.
       </div>
     </div>
   );
@@ -373,7 +501,9 @@ function Step3({ form, setForm, questions, selected }: { form: any; setForm: any
 function Step4({ form, setForm }: { form: any; setForm: any }) {
   return (
     <Card>
-      <CardHeader><CardTitle className="text-base">Assign</CardTitle></CardHeader>
+      <CardHeader>
+        <CardTitle className="text-base">Assign</CardTitle>
+      </CardHeader>
       <CardContent className="space-y-5">
         <div>
           <Label className="text-sm">Who can take this assessment?</Label>
@@ -413,10 +543,18 @@ function Step4({ form, setForm }: { form: any; setForm: any }) {
 
         <div className="grid gap-4 sm:grid-cols-2">
           <Field label="Due date">
-            <Input type="date" value={form.dueDate} onChange={(e) => setForm({ ...form, dueDate: e.target.value })} />
+            <Input
+              type="date"
+              value={form.dueDate}
+              onChange={(e) => setForm({ ...form, dueDate: e.target.value })}
+            />
           </Field>
           <Field label="Attempt limit">
-            <Input type="number" value={form.attemptLimit} onChange={(e) => setForm({ ...form, attemptLimit: +e.target.value })} />
+            <Input
+              type="number"
+              value={form.attemptLimit}
+              onChange={(e) => setForm({ ...form, attemptLimit: +e.target.value })}
+            />
           </Field>
         </div>
 
@@ -439,7 +577,9 @@ function Step5({ form, training, selected }: { form: any; training?: string; sel
   return (
     <div className="space-y-4">
       <Card>
-        <CardHeader><CardTitle className="text-base">Preview & publish</CardTitle></CardHeader>
+        <CardHeader>
+          <CardTitle className="text-base">Preview & publish</CardTitle>
+        </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid gap-2 text-sm">
             <SumRow label="Title" value={form.title} />
@@ -452,11 +592,17 @@ function Step5({ form, training, selected }: { form: any; training?: string; sel
           </div>
 
           <div className="rounded-md border bg-surface p-3">
-            <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Validation</div>
+            <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              Validation
+            </div>
             <ul className="space-y-1.5 text-sm">
               {checks.map((c, i) => (
                 <li key={i} className="flex items-center gap-2">
-                  {c.ok ? <Check className="h-4 w-4 text-emerald-600" /> : <AlertTriangle className="h-4 w-4 text-amber-600" />}
+                  {c.ok ? (
+                    <Check className="h-4 w-4 text-emerald-600" />
+                  ) : (
+                    <AlertTriangle className="h-4 w-4 text-amber-600" />
+                  )}
                   <span>{c.label}</span>
                 </li>
               ))}
@@ -466,13 +612,19 @@ function Step5({ form, training, selected }: { form: any; training?: string; sel
       </Card>
 
       <Card>
-        <CardHeader><CardTitle className="text-base">Preview (as participant)</CardTitle></CardHeader>
+        <CardHeader>
+          <CardTitle className="text-base">Preview (as participant)</CardTitle>
+        </CardHeader>
         <CardContent className="space-y-3">
           <div className="rounded-md border bg-card p-4">
             <div className="text-sm font-semibold">{form.title}</div>
-            <div className="mt-1 text-xs text-muted-foreground">{training} · {form.timeLimit} min · {selected.length} questions</div>
+            <div className="mt-1 text-xs text-muted-foreground">
+              {training} · {form.timeLimit} min · {selected.length} questions
+            </div>
             <p className="mt-3 text-sm text-muted-foreground">{form.description}</p>
-            <Button className="mt-4" disabled>Start assessment</Button>
+            <Button className="mt-4" disabled>
+              Start assessment
+            </Button>
           </div>
         </CardContent>
       </Card>
@@ -489,7 +641,17 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   );
 }
 
-function ToggleRow({ label, desc, value, onChange }: { label: string; desc: string; value: boolean; onChange: (v: boolean) => void }) {
+function ToggleRow({
+  label,
+  desc,
+  value,
+  onChange,
+}: {
+  label: string;
+  desc: string;
+  value: boolean;
+  onChange: (v: boolean) => void;
+}) {
   return (
     <label className="flex items-start justify-between gap-3">
       <div>
@@ -501,7 +663,17 @@ function ToggleRow({ label, desc, value, onChange }: { label: string; desc: stri
   );
 }
 
-function ChoiceRow({ active, onClick, title, desc }: { active: boolean; onClick: () => void; title: string; desc: string }) {
+function ChoiceRow({
+  active,
+  onClick,
+  title,
+  desc,
+}: {
+  active: boolean;
+  onClick: () => void;
+  title: string;
+  desc: string;
+}) {
   return (
     <button
       type="button"
@@ -511,7 +683,12 @@ function ChoiceRow({ active, onClick, title, desc }: { active: boolean; onClick:
         active ? "border-primary bg-primary-soft" : "hover:bg-muted/40",
       )}
     >
-      <span className={cn("mt-1 h-3.5 w-3.5 rounded-full border", active ? "border-primary bg-primary" : "border-border")} />
+      <span
+        className={cn(
+          "mt-1 h-3.5 w-3.5 rounded-full border",
+          active ? "border-primary bg-primary" : "border-border",
+        )}
+      />
       <div>
         <div className="text-sm font-medium">{title}</div>
         <div className="text-xs text-muted-foreground">{desc}</div>
