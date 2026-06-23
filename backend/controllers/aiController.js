@@ -1,5 +1,18 @@
 const prisma = require("../prisma/client");
-const { AI_PROVIDERS, getDefaultAiModelConfig } = require("../config/ai");
+const { AI_PROVIDERS, getDefaultAiModelConfig, getProviderConfig } = require("../config/ai");
+const { computePrePostComparison } = require("./analyticsController");
+const { generateWithOllama } = require("../lib/ollama");
+
+const AI_ACTIONS = [
+  "GENERATE_QUESTION",
+  "EDIT_QUESTION",
+  "GENERATE_EQUIVALENT_QUESTION",
+  "CHECK_EQUIVALENCE",
+  "CHECK_QUESTION_QUALITY",
+  "REVIEW_TEST",
+  "GENERATE_SYNTHETIC_DATA",
+];
+const AI_REVIEW_STATUSES = ["PENDING", "ACCEPTED", "REJECTED"];
 
 function missingRequiredFields(body) {
   return ["topic", "learningObjective", "questionType", "difficulty"].filter((field) => {
@@ -441,8 +454,198 @@ const reviewAiInteraction = async (req, res) => {
   }
 };
 
+const listAiInteractions = async (req, res) => {
+  try {
+    const { action, reviewStatus, requestedById } = req.query;
+
+    if (action !== undefined && !AI_ACTIONS.includes(action)) {
+      return res.status(400).json({
+        error: `Invalid action. Allowed values: ${AI_ACTIONS.join(", ")}`,
+      });
+    }
+
+    if (reviewStatus !== undefined && !AI_REVIEW_STATUSES.includes(reviewStatus)) {
+      return res.status(400).json({
+        error: `Invalid reviewStatus. Allowed values: ${AI_REVIEW_STATUSES.join(", ")}`,
+      });
+    }
+
+    const where = {};
+    if (action !== undefined) {
+      where.action = action;
+    }
+    if (reviewStatus !== undefined) {
+      where.reviewStatus = reviewStatus;
+    }
+    if (requestedById !== undefined) {
+      const parsedRequestedById = parsePositiveIntegerId(requestedById);
+      if (!parsedRequestedById) {
+        return res.status(400).json({ error: "requestedById must be a positive integer" });
+      }
+      where.requestedById = parsedRequestedById;
+    }
+
+    const parsedLimit = Number(req.query.limit);
+    const limit =
+      Number.isInteger(parsedLimit) && parsedLimit > 0 ? Math.min(parsedLimit, 200) : 50;
+    const parsedOffset = Number(req.query.offset);
+    const offset = Number.isInteger(parsedOffset) && parsedOffset >= 0 ? parsedOffset : 0;
+
+    const [total, items] = await Promise.all([
+      prisma.aiInteraction.count({ where }),
+      prisma.aiInteraction.findMany({
+        where,
+        orderBy: { createdAt: "desc" },
+        skip: offset,
+        take: limit,
+        select: {
+          id: true,
+          action: true,
+          reviewStatus: true,
+          sourceQuestionId: true,
+          generatedQuestionId: true,
+          createdAt: true,
+          reviewedAt: true,
+          aiModel: {
+            select: {
+              id: true,
+              provider: true,
+              modelName: true,
+              displayName: true,
+            },
+          },
+          requestedBy: {
+            select: {
+              id: true,
+              email: true,
+            },
+          },
+        },
+      }),
+    ]);
+
+    res.json({ items, total, limit, offset });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+function buildPrePostInsightsPrompt(comparison) {
+  return [
+    "You are assisting an instructor by interpreting pre-test vs post-test results for a training.",
+    "This is advisory only; the instructor makes all final decisions.",
+    "",
+    "Numeric comparison (averages are percentages):",
+    `- Pre-test: ${comparison.preTest.attemptCount} attempts, average ${comparison.preTest.averagePercentage}%`,
+    `- Post-test: ${comparison.postTest.attemptCount} attempts, average ${comparison.postTest.averagePercentage}%`,
+    `- Improvement (post minus pre): ${comparison.improvement} percentage points`,
+    "",
+    "Write a short narrative (3-5 sentences) for the instructor that:",
+    "- summarizes whether the training appears to have improved performance,",
+    "- notes caveats (e.g. small attempt counts, no data),",
+    "- suggests what the instructor might look into next.",
+    "Do not invent numbers beyond those provided. Do not make any final decision.",
+  ].join("\n");
+}
+
+const getPrePostInsights = async (req, res) => {
+  try {
+    const source = { ...req.query, ...req.body };
+    const trainingId = parsePositiveIntegerId(source.trainingId);
+    const preAssessmentId = parsePositiveIntegerId(source.preAssessmentId);
+    const postAssessmentId = parsePositiveIntegerId(source.postAssessmentId);
+
+    const requesterId = getRequesterId(req);
+
+    if (!requesterId) {
+      return res.status(400).json({ error: "Authenticated requester user is required." });
+    }
+
+    const comparison = await computePrePostComparison({
+      trainingId,
+      preAssessmentId,
+      postAssessmentId,
+    });
+
+    const advisoryNotice =
+      "Advisory only. These insights must be reviewed by an instructor before any decision.";
+
+    // Use the active, local Ollama model from the database (per the AI rules).
+    const aiModel = await prisma.aiModel.findFirst({
+      where: {
+        provider: AI_PROVIDERS.OLLAMA,
+        isLocal: true,
+        isActive: true,
+      },
+      orderBy: { id: "asc" },
+    });
+
+    if (!aiModel) {
+      return res.json({
+        advisory: true,
+        notice: advisoryNotice,
+        filters: { trainingId, preAssessmentId, postAssessmentId },
+        comparison,
+        narrative: null,
+        narrativeAvailable: false,
+        narrativeUnavailableReason:
+          "No active local Ollama model is configured. Activate one under AI Models.",
+        aiInteractionId: null,
+      });
+    }
+
+    const baseUrl =
+      aiModel.baseUrl || getProviderConfig(AI_PROVIDERS.OLLAMA).baseUrl;
+    const prompt = buildPrePostInsightsPrompt(comparison);
+
+    let narrative = null;
+    let narrativeUnavailableReason = null;
+
+    try {
+      narrative = await generateWithOllama({
+        baseUrl,
+        modelName: aiModel.modelName,
+        prompt,
+      });
+    } catch (error) {
+      narrativeUnavailableReason = `Ollama request failed: ${error.message}`;
+    }
+
+    // Log the advisory request as a PENDING AiInteraction; nothing is auto-applied.
+    const aiInteraction = await prisma.aiInteraction.create({
+      data: {
+        aiModelId: aiModel.id,
+        requestedById: requesterId,
+        action: "REVIEW_TEST",
+        prompt,
+        resultText: narrative,
+        resultJson: comparison,
+        reviewStatus: "PENDING",
+      },
+    });
+
+    res.json({
+      advisory: true,
+      notice: advisoryNotice,
+      filters: { trainingId, preAssessmentId, postAssessmentId },
+      comparison,
+      narrative,
+      narrativeAvailable: narrative !== null,
+      narrativeUnavailableReason,
+      aiInteractionId: aiInteraction.id,
+      provider: aiModel.provider,
+      model: aiModel.modelName,
+      reviewStatus: aiInteraction.reviewStatus,
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
 module.exports = {
   generateQuestionDraft,
   suggestQuestionEquivalence,
   reviewAiInteraction,
+  listAiInteractions,
+  getPrePostInsights,
 };
