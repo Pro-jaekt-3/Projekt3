@@ -192,69 +192,96 @@ const getAnalyticsByDifficulty = async (req, res) => {
   }
 };
 
+// Reusable pre/post numeric comparison. Optional filters narrow the attempts:
+//  - trainingId: only assessments belonging to that training
+//  - preAssessmentId / postAssessmentId: only those specific assessments
+// With no filters this reproduces the original global comparison.
+const computePrePostComparison = async ({
+  trainingId,
+  preAssessmentId,
+  postAssessmentId,
+} = {}) => {
+  const assessmentFilter = {
+    type: {
+      in: ["PRE_TEST", "POST_TEST"],
+    },
+  };
+
+  if (Number.isInteger(trainingId) && trainingId > 0) {
+    assessmentFilter.trainingId = trainingId;
+  }
+
+  const explicitIds = [preAssessmentId, postAssessmentId].filter(
+    (value) => Number.isInteger(value) && value > 0
+  );
+
+  if (explicitIds.length > 0) {
+    assessmentFilter.id = { in: explicitIds };
+  }
+
+  const attempts = await prisma.assessmentAttempt.findMany({
+    where: {
+      submittedAt: {
+        not: null,
+      },
+      assessment: assessmentFilter,
+    },
+    select: {
+      score: true,
+      maxScore: true,
+      assessment: {
+        select: {
+          type: true,
+        },
+      },
+    },
+  });
+
+  const summary = {
+    PRE_TEST: {
+      attemptCount: 0,
+      percentageTotal: 0,
+    },
+    POST_TEST: {
+      attemptCount: 0,
+      percentageTotal: 0,
+    },
+  };
+
+  for (const attempt of attempts) {
+    const type = attempt.assessment.type;
+    const percentage = toPercentage(Number(attempt.score ?? 0), Number(attempt.maxScore ?? 0));
+
+    summary[type].attemptCount += 1;
+    summary[type].percentageTotal += percentage;
+  }
+
+  const preAverage =
+    summary.PRE_TEST.attemptCount > 0
+      ? roundToTwo(summary.PRE_TEST.percentageTotal / summary.PRE_TEST.attemptCount)
+      : 0;
+  const postAverage =
+    summary.POST_TEST.attemptCount > 0
+      ? roundToTwo(summary.POST_TEST.percentageTotal / summary.POST_TEST.attemptCount)
+      : 0;
+
+  return {
+    preTest: {
+      attemptCount: summary.PRE_TEST.attemptCount,
+      averagePercentage: preAverage,
+    },
+    postTest: {
+      attemptCount: summary.POST_TEST.attemptCount,
+      averagePercentage: postAverage,
+    },
+    improvement: roundToTwo(postAverage - preAverage),
+  };
+};
+
 const getPrePostComparison = async (req, res) => {
   try {
-    const attempts = await prisma.assessmentAttempt.findMany({
-      where: {
-        submittedAt: {
-          not: null,
-        },
-        assessment: {
-          type: {
-            in: ["PRE_TEST", "POST_TEST"],
-          },
-        },
-      },
-      select: {
-        score: true,
-        maxScore: true,
-        assessment: {
-          select: {
-            type: true,
-          },
-        },
-      },
-    });
-
-    const summary = {
-      PRE_TEST: {
-        attemptCount: 0,
-        percentageTotal: 0,
-      },
-      POST_TEST: {
-        attemptCount: 0,
-        percentageTotal: 0,
-      },
-    };
-
-    for (const attempt of attempts) {
-      const type = attempt.assessment.type;
-      const percentage = toPercentage(Number(attempt.score ?? 0), Number(attempt.maxScore ?? 0));
-
-      summary[type].attemptCount += 1;
-      summary[type].percentageTotal += percentage;
-    }
-
-    const preAverage =
-      summary.PRE_TEST.attemptCount > 0
-        ? roundToTwo(summary.PRE_TEST.percentageTotal / summary.PRE_TEST.attemptCount)
-        : 0;
-    const postAverage =
-      summary.POST_TEST.attemptCount > 0
-        ? roundToTwo(summary.POST_TEST.percentageTotal / summary.POST_TEST.attemptCount)
-        : 0;
-
-    res.json({
-      preTest: {
-        attemptCount: summary.PRE_TEST.attemptCount,
-        averagePercentage: preAverage,
-      },
-      postTest: {
-        attemptCount: summary.POST_TEST.attemptCount,
-        averagePercentage: postAverage,
-      },
-      improvement: roundToTwo(postAverage - preAverage),
-    });
+    const result = await computePrePostComparison();
+    res.json(result);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -376,6 +403,7 @@ module.exports = {
   getAnalyticsByLearningObjective,
   getAnalyticsByDifficulty,
   getPrePostComparison,
+  computePrePostComparison,
   getWorstQuestions,
   getQuestionAnalytics,
 };
