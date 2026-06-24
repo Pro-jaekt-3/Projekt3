@@ -13,6 +13,7 @@ const assessmentRoutes = require("./routes/assessmentRoutes");
 const assessmentAttemptRoutes = require("./routes/assessmentAttemptRoutes");
 const analyticsRoutes = require("./routes/analyticsRoutes");
 const aiRoutes = require("./routes/aiRoutes");
+const userRoutes = require("./routes/userRoutes");
 
 const app = express();
 
@@ -35,6 +36,7 @@ app.use("/assessments", assessmentRoutes);
 app.use("/assessment-attempts", assessmentAttemptRoutes);
 app.use("/analytics", analyticsRoutes);
 app.use("/ai", aiRoutes);
+app.use("/users", userRoutes);
 const PORT = 3000;
 
 app.listen(PORT, () => {
