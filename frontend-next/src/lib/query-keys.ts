@@ -31,4 +31,5 @@ export const qk = {
   aiModels: entityKeys("ai-models"),
   aiInteractions: entityKeys("ai-interactions"),
   users: entityKeys("users"),
+  analytics: entityKeys("analytics"),
 } as const;
