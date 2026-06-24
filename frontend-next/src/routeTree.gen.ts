@@ -19,6 +19,7 @@ import { Route as AppResultsRouteImport } from './routes/app.results'
 import { Route as AppMyResultsRouteImport } from './routes/app.my-results'
 import { Route as AppMyAssessmentsRouteImport } from './routes/app.my-assessments'
 import { Route as AppDashboardRouteImport } from './routes/app.dashboard'
+import { Route as AppAiReviewRouteImport } from './routes/app.ai-review'
 import { Route as AppAiModelsRouteImport } from './routes/app.ai-models'
 import { Route as AppAiInsightsRouteImport } from './routes/app.ai-insights'
 import { Route as AppTrainingsIndexRouteImport } from './routes/app.trainings.index'
@@ -82,6 +83,11 @@ const AppMyAssessmentsRoute = AppMyAssessmentsRouteImport.update({
 const AppDashboardRoute = AppDashboardRouteImport.update({
   id: '/dashboard',
   path: '/dashboard',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppAiReviewRoute = AppAiReviewRouteImport.update({
+  id: '/ai-review',
+  path: '/ai-review',
   getParentRoute: () => AppRoute,
 } as any)
 const AppAiModelsRoute = AppAiModelsRouteImport.update({
@@ -162,6 +168,7 @@ export interface FileRoutesByFullPath {
   '/login': typeof LoginRoute
   '/app/ai-insights': typeof AppAiInsightsRoute
   '/app/ai-models': typeof AppAiModelsRoute
+  '/app/ai-review': typeof AppAiReviewRoute
   '/app/dashboard': typeof AppDashboardRoute
   '/app/my-assessments': typeof AppMyAssessmentsRoute
   '/app/my-results': typeof AppMyResultsRoute
@@ -187,6 +194,7 @@ export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/app/ai-insights': typeof AppAiInsightsRoute
   '/app/ai-models': typeof AppAiModelsRoute
+  '/app/ai-review': typeof AppAiReviewRoute
   '/app/dashboard': typeof AppDashboardRoute
   '/app/my-assessments': typeof AppMyAssessmentsRoute
   '/app/my-results': typeof AppMyResultsRoute
@@ -214,6 +222,7 @@ export interface FileRoutesById {
   '/login': typeof LoginRoute
   '/app/ai-insights': typeof AppAiInsightsRoute
   '/app/ai-models': typeof AppAiModelsRoute
+  '/app/ai-review': typeof AppAiReviewRoute
   '/app/dashboard': typeof AppDashboardRoute
   '/app/my-assessments': typeof AppMyAssessmentsRoute
   '/app/my-results': typeof AppMyResultsRoute
@@ -242,6 +251,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/app/ai-insights'
     | '/app/ai-models'
+    | '/app/ai-review'
     | '/app/dashboard'
     | '/app/my-assessments'
     | '/app/my-results'
@@ -267,6 +277,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/app/ai-insights'
     | '/app/ai-models'
+    | '/app/ai-review'
     | '/app/dashboard'
     | '/app/my-assessments'
     | '/app/my-results'
@@ -293,6 +304,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/app/ai-insights'
     | '/app/ai-models'
+    | '/app/ai-review'
     | '/app/dashboard'
     | '/app/my-assessments'
     | '/app/my-results'
@@ -393,6 +405,13 @@ declare module '@tanstack/react-router' {
       path: '/dashboard'
       fullPath: '/app/dashboard'
       preLoaderRoute: typeof AppDashboardRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/app/ai-review': {
+      id: '/app/ai-review'
+      path: '/ai-review'
+      fullPath: '/app/ai-review'
+      preLoaderRoute: typeof AppAiReviewRouteImport
       parentRoute: typeof AppRoute
     }
     '/app/ai-models': {
@@ -512,6 +531,7 @@ const AppAssessmentsIdRouteWithChildren =
 interface AppRouteChildren {
   AppAiInsightsRoute: typeof AppAiInsightsRoute
   AppAiModelsRoute: typeof AppAiModelsRoute
+  AppAiReviewRoute: typeof AppAiReviewRoute
   AppDashboardRoute: typeof AppDashboardRoute
   AppMyAssessmentsRoute: typeof AppMyAssessmentsRoute
   AppMyResultsRoute: typeof AppMyResultsRoute
@@ -531,6 +551,7 @@ interface AppRouteChildren {
 const AppRouteChildren: AppRouteChildren = {
   AppAiInsightsRoute: AppAiInsightsRoute,
   AppAiModelsRoute: AppAiModelsRoute,
+  AppAiReviewRoute: AppAiReviewRoute,
   AppDashboardRoute: AppDashboardRoute,
   AppMyAssessmentsRoute: AppMyAssessmentsRoute,
   AppMyResultsRoute: AppMyResultsRoute,
