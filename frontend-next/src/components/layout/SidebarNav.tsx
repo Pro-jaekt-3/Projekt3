@@ -11,6 +11,7 @@ import {
   FileText,
   CheckSquare,
   Sparkles,
+  Inbox,
 } from "lucide-react";
 import { useRole, type Role } from "@/lib/role-context";
 import { cn } from "@/lib/utils";
@@ -29,6 +30,7 @@ const NAV: Record<Role, NavItem[]> = {
     { to: "/app/trainings", label: "All Trainings", icon: GraduationCap },
     { to: "/app/assessments", label: "All Assessments", icon: ClipboardList },
     { to: "/app/ai-models", label: "AI Models", icon: Brain },
+    { to: "/app/ai-review", label: "AI Review", icon: Inbox },
     { to: "/app/ai-insights", label: "AI Insights", icon: Sparkles },
     { to: "/app/system-analytics", label: "System Analytics", icon: BarChart3 },
   ],
@@ -38,6 +40,7 @@ const NAV: Record<Role, NavItem[]> = {
     { to: "/app/questions", label: "Question Bank", icon: Library },
     { to: "/app/assessments", label: "Assessments", icon: ClipboardList },
     { to: "/app/results", label: "Results", icon: BarChart3 },
+    { to: "/app/ai-review", label: "AI Review", icon: Inbox },
     { to: "/app/ai-insights", label: "AI Insights", icon: Sparkles },
   ],
   participant: [
