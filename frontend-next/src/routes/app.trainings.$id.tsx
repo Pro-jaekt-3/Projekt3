@@ -55,6 +55,13 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   assessmentsForTraining,
   PARTICIPANTS,
   questionsForTraining,
@@ -75,8 +82,11 @@ import {
 import { useRole } from "@/lib/role-context";
 import { qk } from "@/lib/query-keys";
 import { trainingsService } from "@/services/trainings";
+import { topicsService } from "@/services/topics";
+import { learningObjectivesService } from "@/services/learningObjectives";
 import { trainingToView } from "@/lib/training-view";
 import { ensureRole } from "@/lib/route-guards";
+import type { Topic, LearningObjective } from "@/types";
 
 export const Route = createFileRoute("/app/trainings/$id")({
   beforeLoad: ({ context, location }) =>
@@ -125,6 +135,121 @@ function TrainingDetail() {
     // FK 500 ("training in use") and any other failure land here with the
     // backend `{ error }` message extracted by apiClient.
     onError: (err) => toast.error(err instanceof Error ? err.message : "Failed to delete training"),
+  });
+
+  // --- Curriculum: topics + learning objectives (real API) ---
+  const topicsQuery = useQuery({
+    queryKey: qk.topics.list(),
+    queryFn: topicsService.list,
+  });
+  const objectivesQuery = useQuery({
+    queryKey: qk.learningObjectives.list(),
+    queryFn: () => learningObjectivesService.list(),
+  });
+
+  const trainingTopics = (topicsQuery.data ?? []).filter((t) => t.trainingId === Number(id));
+  const trainingTopicIds = new Set(trainingTopics.map((t) => t.id));
+  const objectivesByTopic = (objectivesQuery.data ?? [])
+    .filter((o) => trainingTopicIds.has(o.topicId))
+    .reduce<Record<number, LearningObjective[]>>((acc, o) => {
+      (acc[o.topicId] ??= []).push(o);
+      return acc;
+    }, {});
+  const totalObjectives = Object.values(objectivesByTopic).reduce((s, arr) => s + arr.length, 0);
+
+  const [topicDialogOpen, setTopicDialogOpen] = useState(false);
+  const [editingTopic, setEditingTopic] = useState<Topic | null>(null);
+  const [topicName, setTopicName] = useState("");
+  const [topicDeleteTarget, setTopicDeleteTarget] = useState<Topic | null>(null);
+
+  const [objectiveDialogOpen, setObjectiveDialogOpen] = useState(false);
+  const [editingObjective, setEditingObjective] = useState<LearningObjective | null>(null);
+  const [objectiveTitle, setObjectiveTitle] = useState("");
+  const [objectiveDescription, setObjectiveDescription] = useState("");
+  const [objectiveTopicId, setObjectiveTopicId] = useState("");
+  const [objectiveDeleteTarget, setObjectiveDeleteTarget] = useState<LearningObjective | null>(
+    null,
+  );
+
+  const openCreateTopic = () => {
+    setEditingTopic(null);
+    setTopicName("");
+    setTopicDialogOpen(true);
+  };
+  const openEditTopic = (topic: Topic) => {
+    setEditingTopic(topic);
+    setTopicName(topic.name);
+    setTopicDialogOpen(true);
+  };
+
+  const topicMutation = useMutation({
+    mutationFn: () =>
+      editingTopic
+        ? topicsService.update(editingTopic.id, { name: topicName.trim() })
+        : topicsService.create({ name: topicName.trim(), trainingId: Number(id) }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: qk.topics.all });
+      toast.success(editingTopic ? "Topic updated" : "Topic created");
+      setTopicDialogOpen(false);
+    },
+    onError: (err) => toast.error(err instanceof Error ? err.message : "Failed to save topic"),
+  });
+
+  const deleteTopicMutation = useMutation({
+    mutationFn: (topicId: number) => topicsService.remove(topicId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: qk.topics.all });
+      toast.success("Topic deleted");
+      setTopicDeleteTarget(null);
+    },
+    onError: (err) => toast.error(err instanceof Error ? err.message : "Failed to delete topic"),
+  });
+
+  const openCreateObjective = (topicId?: number) => {
+    setEditingObjective(null);
+    setObjectiveTitle("");
+    setObjectiveDescription("");
+    setObjectiveTopicId(topicId ? String(topicId) : (trainingTopics[0]?.id.toString() ?? ""));
+    setObjectiveDialogOpen(true);
+  };
+  const openEditObjective = (objective: LearningObjective) => {
+    setEditingObjective(objective);
+    setObjectiveTitle(objective.title);
+    setObjectiveDescription(objective.description ?? "");
+    setObjectiveTopicId(String(objective.topicId));
+    setObjectiveDialogOpen(true);
+  };
+
+  const objectiveMutation = useMutation({
+    mutationFn: () =>
+      editingObjective
+        ? learningObjectivesService.update(editingObjective.id, {
+            title: objectiveTitle.trim(),
+            description: objectiveDescription.trim() || null,
+          })
+        : learningObjectivesService.create({
+            title: objectiveTitle.trim(),
+            description: objectiveDescription.trim() || null,
+            topicId: Number(objectiveTopicId),
+          }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: qk.learningObjectives.all });
+      toast.success(editingObjective ? "Learning objective updated" : "Learning objective created");
+      setObjectiveDialogOpen(false);
+    },
+    onError: (err) =>
+      toast.error(err instanceof Error ? err.message : "Failed to save learning objective"),
+  });
+
+  const deleteObjectiveMutation = useMutation({
+    mutationFn: (objectiveId: number) => learningObjectivesService.remove(objectiveId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: qk.learningObjectives.all });
+      toast.success("Learning objective deleted");
+      setObjectiveDeleteTarget(null);
+    },
+    onError: (err) =>
+      toast.error(err instanceof Error ? err.message : "Failed to delete learning objective"),
   });
 
   if (trainingQuery.isLoading) {
@@ -207,10 +332,7 @@ function TrainingDetail() {
       <div className="space-y-6 p-4 sm:p-6 lg:p-8">
         <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-5">
           <MetricCard label="Participants" value={training.participants} />
-          <MetricCard
-            label="Learning objectives"
-            value={training.topics.reduce((s, t) => s + t.objectives.length, 0)}
-          />
+          <MetricCard label="Learning objectives" value={totalObjectives} />
           <MetricCard
             label="Approved questions"
             value={training.approvedQuestions}
@@ -398,70 +520,134 @@ function TrainingDetail() {
               <div className="text-sm text-muted-foreground">
                 Topics and learning objectives live here — not as separate pages.
               </div>
-              <div className="flex gap-2">
-                <Button variant="outline" size="sm">
-                  Add topic
-                </Button>
-                <Button size="sm">
-                  <Plus className="mr-1.5 h-4 w-4" /> Add objective
-                </Button>
-              </div>
+              {!isAdmin && (
+                <div className="flex gap-2">
+                  <Button variant="outline" size="sm" onClick={openCreateTopic}>
+                    Add topic
+                  </Button>
+                  <Button
+                    size="sm"
+                    onClick={() => openCreateObjective()}
+                    disabled={trainingTopics.length === 0}
+                  >
+                    <Plus className="mr-1.5 h-4 w-4" /> Add objective
+                  </Button>
+                </div>
+              )}
             </div>
 
-            {training.topics.length === 0 ? (
+            {topicsQuery.isLoading || objectivesQuery.isLoading ? (
+              <LoadingState label="Loading curriculum…" />
+            ) : topicsQuery.isError || objectivesQuery.isError ? (
+              <ErrorState
+                message={
+                  topicsQuery.error instanceof Error
+                    ? topicsQuery.error.message
+                    : objectivesQuery.error instanceof Error
+                      ? objectivesQuery.error.message
+                      : "Failed to load curriculum"
+                }
+                onRetry={() => {
+                  topicsQuery.refetch();
+                  objectivesQuery.refetch();
+                }}
+              />
+            ) : trainingTopics.length === 0 ? (
               <EmptyState
                 icon={<BookOpen className="h-5 w-5" />}
                 title="Define topics and learning objectives"
                 description="Define topics and learning objectives before creating assessment blueprints."
                 action={
-                  <Button size="sm">
-                    <Plus className="mr-1.5 h-4 w-4" /> Add topic
-                  </Button>
+                  !isAdmin && (
+                    <Button size="sm" onClick={openCreateTopic}>
+                      <Plus className="mr-1.5 h-4 w-4" /> Add topic
+                    </Button>
+                  )
                 }
               />
             ) : (
               <div className="space-y-3">
-                {training.topics.map((topic) => (
-                  <Card key={topic.id}>
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
-                      <div>
-                        <CardTitle className="text-sm">{topic.title}</CardTitle>
-                        <div className="mt-1 text-xs text-muted-foreground">
-                          {topic.objectives.length} objectives ·{" "}
-                          {topic.objectives.reduce((s, o) => s + o.questionCount, 0)} questions
+                {trainingTopics.map((topic) => {
+                  const objectives = objectivesByTopic[topic.id] ?? [];
+                  return (
+                    <Card key={topic.id}>
+                      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
+                        <div>
+                          <CardTitle className="text-sm">{topic.name}</CardTitle>
+                          <div className="mt-1 text-xs text-muted-foreground">
+                            {objectives.length} objective{objectives.length === 1 ? "" : "s"}
+                          </div>
                         </div>
-                      </div>
-                      <Button variant="ghost" size="sm">
-                        Edit
-                      </Button>
-                    </CardHeader>
-                    <CardContent className="pt-0">
-                      <ul className="divide-y rounded-md border">
-                        {topic.objectives.map((o) => (
-                          <li
-                            key={o.id}
-                            className="flex items-center justify-between gap-3 px-3 py-2.5 text-sm"
-                          >
-                            <div className="min-w-0">
-                              <div className="truncate font-medium">{o.title}</div>
-                              <div className="text-xs text-muted-foreground">
-                                {o.questionCount} questions
-                              </div>
-                            </div>
-                            <div className="flex items-center gap-3">
-                              <span
-                                className={`text-xs tabular-nums ${o.avgScore < 60 ? "text-amber-600" : "text-emerald-600"}`}
+                        {!isAdmin && (
+                          <div className="flex items-center gap-1">
+                            <Button variant="ghost" size="sm" onClick={() => openEditTopic(topic)}>
+                              <Pencil className="mr-1.5 h-3.5 w-3.5" /> Edit
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => setTopicDeleteTarget(topic)}
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                          </div>
+                        )}
+                      </CardHeader>
+                      <CardContent className="pt-0 space-y-2">
+                        {objectives.length === 0 ? (
+                          <div className="rounded-md border border-dashed bg-surface p-3 text-xs text-muted-foreground">
+                            No learning objectives yet.
+                          </div>
+                        ) : (
+                          <ul className="divide-y rounded-md border">
+                            {objectives.map((o) => (
+                              <li
+                                key={o.id}
+                                className="flex items-center justify-between gap-3 px-3 py-2.5 text-sm"
                               >
-                                {o.avgScore}%
-                              </span>
-                              <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                            </div>
-                          </li>
-                        ))}
-                      </ul>
-                    </CardContent>
-                  </Card>
-                ))}
+                                <div className="min-w-0">
+                                  <div className="truncate font-medium">{o.title}</div>
+                                  {o.description && (
+                                    <div className="truncate text-xs text-muted-foreground">
+                                      {o.description}
+                                    </div>
+                                  )}
+                                </div>
+                                {!isAdmin && (
+                                  <div className="flex items-center gap-1">
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      onClick={() => openEditObjective(o)}
+                                    >
+                                      <Pencil className="h-3.5 w-3.5" />
+                                    </Button>
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      onClick={() => setObjectiveDeleteTarget(o)}
+                                    >
+                                      <Trash2 className="h-3.5 w-3.5" />
+                                    </Button>
+                                  </div>
+                                )}
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                        {!isAdmin && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => openCreateObjective(topic.id)}
+                          >
+                            <Plus className="mr-1.5 h-3.5 w-3.5" /> Add objective
+                          </Button>
+                        )}
+                      </CardContent>
+                    </Card>
+                  );
+                })}
               </div>
             )}
           </TabsContent>
@@ -751,6 +937,195 @@ function TrainingDetail() {
               disabled={deleteMutation.isPending}
             >
               {deleteMutation.isPending ? "Deleting…" : "Delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Topic create/edit dialog */}
+      <Dialog open={topicDialogOpen} onOpenChange={setTopicDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{editingTopic ? "Edit topic" : "Add topic"}</DialogTitle>
+            <DialogDescription>
+              {editingTopic
+                ? "Rename this topic."
+                : "Add a topic to organize learning objectives and questions."}
+            </DialogDescription>
+          </DialogHeader>
+          <form
+            id="topic-form"
+            className="space-y-3"
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (!topicName.trim()) {
+                toast.error("Topic name is required");
+                return;
+              }
+              topicMutation.mutate();
+            }}
+          >
+            <div className="space-y-1.5">
+              <Label htmlFor="topic-name">Name</Label>
+              <Input
+                id="topic-name"
+                value={topicName}
+                onChange={(e) => setTopicName(e.target.value)}
+                autoFocus
+              />
+            </div>
+          </form>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setTopicDialogOpen(false)}
+              disabled={topicMutation.isPending}
+            >
+              Cancel
+            </Button>
+            <Button type="submit" form="topic-form" disabled={topicMutation.isPending}>
+              {topicMutation.isPending ? "Saving…" : editingTopic ? "Save changes" : "Add topic"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Topic delete confirm */}
+      <AlertDialog
+        open={!!topicDeleteTarget}
+        onOpenChange={(open) => !open && setTopicDeleteTarget(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete this topic?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This permanently deletes “{topicDeleteTarget?.name}”. If it still has learning
+              objectives or questions attached, the server will refuse to delete it — remove those
+              first.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleteTopicMutation.isPending}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault();
+                if (topicDeleteTarget) deleteTopicMutation.mutate(topicDeleteTarget.id);
+              }}
+              disabled={deleteTopicMutation.isPending}
+            >
+              {deleteTopicMutation.isPending ? "Deleting…" : "Delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Learning objective create/edit dialog */}
+      <Dialog open={objectiveDialogOpen} onOpenChange={setObjectiveDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              {editingObjective ? "Edit learning objective" : "Add learning objective"}
+            </DialogTitle>
+            <DialogDescription>
+              {editingObjective
+                ? "Update this learning objective."
+                : "Add a learning objective under a topic."}
+            </DialogDescription>
+          </DialogHeader>
+          <form
+            id="objective-form"
+            className="space-y-3"
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (!objectiveTitle.trim()) {
+                toast.error("Title is required");
+                return;
+              }
+              if (!objectiveTopicId) {
+                toast.error("Topic is required");
+                return;
+              }
+              objectiveMutation.mutate();
+            }}
+          >
+            <div className="space-y-1.5">
+              <Label htmlFor="objective-topic">Topic</Label>
+              <Select value={objectiveTopicId} onValueChange={setObjectiveTopicId}>
+                <SelectTrigger id="objective-topic">
+                  <SelectValue placeholder="Select a topic" />
+                </SelectTrigger>
+                <SelectContent>
+                  {trainingTopics.map((t) => (
+                    <SelectItem key={t.id} value={String(t.id)}>
+                      {t.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="objective-title">Title</Label>
+              <Input
+                id="objective-title"
+                value={objectiveTitle}
+                onChange={(e) => setObjectiveTitle(e.target.value)}
+                autoFocus
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="objective-desc">Description</Label>
+              <Textarea
+                id="objective-desc"
+                value={objectiveDescription}
+                onChange={(e) => setObjectiveDescription(e.target.value)}
+                placeholder="Optional"
+              />
+            </div>
+          </form>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setObjectiveDialogOpen(false)}
+              disabled={objectiveMutation.isPending}
+            >
+              Cancel
+            </Button>
+            <Button type="submit" form="objective-form" disabled={objectiveMutation.isPending}>
+              {objectiveMutation.isPending
+                ? "Saving…"
+                : editingObjective
+                  ? "Save changes"
+                  : "Add objective"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Learning objective delete confirm */}
+      <AlertDialog
+        open={!!objectiveDeleteTarget}
+        onOpenChange={(open) => !open && setObjectiveDeleteTarget(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete this learning objective?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This permanently deletes “{objectiveDeleteTarget?.title}”. If it still has questions
+              attached, the server will refuse to delete it — remove those first.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleteObjectiveMutation.isPending}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault();
+                if (objectiveDeleteTarget) deleteObjectiveMutation.mutate(objectiveDeleteTarget.id);
+              }}
+              disabled={deleteObjectiveMutation.isPending}
+            >
+              {deleteObjectiveMutation.isPending ? "Deleting…" : "Delete"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
