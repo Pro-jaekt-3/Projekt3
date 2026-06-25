@@ -64,7 +64,6 @@ import {
 import {
   assessmentsForTraining,
   PARTICIPANTS,
-  questionsForTraining,
   PRE_POST_COMPARISON,
   TOPIC_PERFORMANCE,
   RECENT_ACTIVITY,
@@ -84,15 +83,30 @@ import { qk } from "@/lib/query-keys";
 import { trainingsService } from "@/services/trainings";
 import { topicsService } from "@/services/topics";
 import { learningObjectivesService } from "@/services/learningObjectives";
+import { questionsService } from "@/services/questions";
 import { trainingToView } from "@/lib/training-view";
 import { ensureRole } from "@/lib/route-guards";
-import type { Topic, LearningObjective } from "@/types";
+import type { Topic, LearningObjective, Question } from "@/types";
 
 export const Route = createFileRoute("/app/trainings/$id")({
   beforeLoad: ({ context, location }) =>
     ensureRole({ auth: context.auth, href: location.href }, ["admin", "instructor"]),
   component: TrainingDetail,
 });
+
+const QUESTION_DIFFICULTY_LABEL: Record<number, string> = { 1: "Easy", 2: "Medium", 3: "Hard" };
+
+const QUESTION_STATUS_META: Record<
+  string,
+  { label: string; tone: "muted" | "warning" | "success" | "danger" | "neutral" }
+> = {
+  DRAFT: { label: "Draft", tone: "muted" },
+  NEEDS_REVIEW: { label: "Needs Review", tone: "warning" },
+  REVIEW: { label: "In Review", tone: "warning" },
+  APPROVED: { label: "Approved", tone: "success" },
+  REJECTED: { label: "Rejected", tone: "danger" },
+  ARCHIVED: { label: "Archived", tone: "neutral" },
+};
 
 function TrainingDetail() {
   const { id } = Route.useParams();
@@ -156,6 +170,24 @@ function TrainingDetail() {
       return acc;
     }, {});
   const totalObjectives = Object.values(objectivesByTopic).reduce((s, arr) => s + arr.length, 0);
+
+  // --- Question Bank tab: questions for this training's topics (real API) ---
+  const questionsQuery = useQuery({
+    queryKey: qk.questions.list(),
+    queryFn: questionsService.list,
+  });
+  const [questionSearch, setQuestionSearch] = useState("");
+  const topicsById = new Map(trainingTopics.map((t) => [t.id, t]));
+  const objectivesById = new Map((objectivesQuery.data ?? []).map((o) => [o.id, o]));
+  const trainingQuestions = (questionsQuery.data ?? []).filter((q) =>
+    trainingTopicIds.has(q.topicId),
+  );
+  const visibleQuestions = trainingQuestions.filter((q) =>
+    questionSearch
+      ? q.title.toLowerCase().includes(questionSearch.toLowerCase()) ||
+        q.description.toLowerCase().includes(questionSearch.toLowerCase())
+      : true,
+  );
 
   const [topicDialogOpen, setTopicDialogOpen] = useState(false);
   const [editingTopic, setEditingTopic] = useState<Topic | null>(null);
@@ -278,7 +310,6 @@ function TrainingDetail() {
   // Related domains are still on mock (keyed by mock ids/titles); real trainings
   // surface empty states here until topics/assessments/questions are wired.
   const assessments = assessmentsForTraining(training.id);
-  const questions = questionsForTraining(training.title);
 
   const openEdit = () => {
     setTitle(trainingQuery.data.title);
@@ -659,8 +690,13 @@ function TrainingDetail() {
                 <div className="flex items-start gap-2 text-sm">
                   <Sparkles className="mt-0.5 h-4 w-4 text-accent-foreground" />
                   <span>
-                    <strong>Assessment readiness:</strong> {training.approvedQuestions} approved
-                    questions, 6 missing equivalent variants.
+                    <strong>Assessment readiness:</strong>{" "}
+                    {trainingQuestions.filter((q) => q.status === "APPROVED").length} approved
+                    question
+                    {trainingQuestions.filter((q) => q.status === "APPROVED").length === 1
+                      ? ""
+                      : "s"}{" "}
+                    out of {trainingQuestions.length} total.
                   </span>
                 </div>
                 <Button asChild size="sm">
@@ -670,68 +706,100 @@ function TrainingDetail() {
             </Card>
 
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-              <Input placeholder="Search question text" className="max-w-sm" />
+              <Input
+                placeholder="Search question text"
+                className="max-w-sm"
+                value={questionSearch}
+                onChange={(e) => setQuestionSearch(e.target.value)}
+              />
               <div className="flex gap-2">
                 <Button variant="outline" size="sm">
                   Generate draft with AI
                 </Button>
-                <Button size="sm">
-                  <Plus className="mr-1.5 h-4 w-4" /> Create question
+                <Button asChild size="sm">
+                  <Link to="/app/questions/$id" params={{ id: "new" }}>
+                    <Plus className="mr-1.5 h-4 w-4" /> Create question
+                  </Link>
                 </Button>
               </div>
             </div>
 
-            <Card>
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Question</TableHead>
-                      <TableHead className="hidden md:table-cell">Topic</TableHead>
-                      <TableHead className="hidden lg:table-cell">Objective</TableHead>
-                      <TableHead className="hidden sm:table-cell">Difficulty</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead className="hidden md:table-cell text-right">Variants</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {questions.map((q) => (
-                      <TableRow key={q.id} className="cursor-pointer hover:bg-muted/40">
-                        <TableCell className="max-w-md">
-                          <Link
-                            to="/app/questions/$id"
-                            params={{ id: q.id }}
-                            className="line-clamp-2 font-medium hover:underline"
-                          >
-                            {q.text}
-                          </Link>
-                          {q.source === "ai" && (
-                            <span className="ml-2 inline-block">
-                              <StatusBadge status="AI generated" tone="primary" />
-                            </span>
-                          )}
-                        </TableCell>
-                        <TableCell className="hidden md:table-cell text-xs text-muted-foreground">
-                          {q.topic}
-                        </TableCell>
-                        <TableCell className="hidden lg:table-cell text-xs text-muted-foreground">
-                          {q.objective}
-                        </TableCell>
-                        <TableCell className="hidden sm:table-cell text-xs capitalize">
-                          {q.difficulty}
-                        </TableCell>
-                        <TableCell>
-                          <StatusBadge status={q.status} />
-                        </TableCell>
-                        <TableCell className="hidden md:table-cell text-right tabular-nums">
-                          {q.variants}
-                        </TableCell>
+            {questionsQuery.isLoading || topicsQuery.isLoading ? (
+              <LoadingState label="Loading questions…" />
+            ) : questionsQuery.isError ? (
+              <ErrorState
+                message={
+                  questionsQuery.error instanceof Error
+                    ? questionsQuery.error.message
+                    : "Failed to load questions"
+                }
+                onRetry={() => questionsQuery.refetch()}
+              />
+            ) : trainingQuestions.length === 0 ? (
+              <EmptyState
+                icon={<ClipboardList className="h-5 w-5" />}
+                title="No questions yet"
+                description="Create questions for this training's topics to start building assessments."
+                action={
+                  <Button asChild size="sm">
+                    <Link to="/app/questions/$id" params={{ id: "new" }}>
+                      <Plus className="mr-1.5 h-4 w-4" /> Create question
+                    </Link>
+                  </Button>
+                }
+              />
+            ) : (
+              <Card>
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Question</TableHead>
+                        <TableHead className="hidden md:table-cell">Topic</TableHead>
+                        <TableHead className="hidden lg:table-cell">Objective</TableHead>
+                        <TableHead className="hidden sm:table-cell">Difficulty</TableHead>
+                        <TableHead>Status</TableHead>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-            </Card>
+                    </TableHeader>
+                    <TableBody>
+                      {visibleQuestions.map((q) => {
+                        const statusMeta = QUESTION_STATUS_META[q.status];
+                        return (
+                          <TableRow key={q.id} className="cursor-pointer hover:bg-muted/40">
+                            <TableCell className="max-w-md">
+                              <Link
+                                to="/app/questions/$id"
+                                params={{ id: String(q.id) }}
+                                className="line-clamp-2 font-medium hover:underline"
+                              >
+                                {q.title}
+                              </Link>
+                            </TableCell>
+                            <TableCell className="hidden md:table-cell text-xs text-muted-foreground">
+                              {topicsById.get(q.topicId)?.name ?? "—"}
+                            </TableCell>
+                            <TableCell className="hidden lg:table-cell text-xs text-muted-foreground">
+                              {q.learningObjectiveId
+                                ? (objectivesById.get(q.learningObjectiveId)?.title ?? "—")
+                                : "—"}
+                            </TableCell>
+                            <TableCell className="hidden sm:table-cell text-xs">
+                              {QUESTION_DIFFICULTY_LABEL[q.difficulty] ?? q.difficulty}
+                            </TableCell>
+                            <TableCell>
+                              <StatusBadge
+                                status={statusMeta?.label ?? q.status}
+                                tone={statusMeta?.tone}
+                              />
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </div>
+              </Card>
+            )}
           </TabsContent>
 
           {/* ASSESSMENTS */}
