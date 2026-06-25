@@ -51,6 +51,7 @@ import { questionsService } from "@/services/questions";
 import type { CreateQuestionInput } from "@/services/questions";
 import { topicsService } from "@/services/topics";
 import { learningObjectivesService } from "@/services/learningObjectives";
+import { equivalentGroupsService, equivalentGroupsKeys } from "@/services/equivalentGroups";
 import type { QuestionType, QuestionStatus } from "@/types";
 
 export const Route = createFileRoute("/app/questions/$id")({
@@ -106,6 +107,11 @@ function QuestionEditor() {
     queryKey: qk.learningObjectives.list(),
     queryFn: () => learningObjectivesService.list(),
   });
+  const groupsQuery = useQuery({
+    queryKey: equivalentGroupsKeys.list(),
+    queryFn: equivalentGroupsService.list,
+    enabled: !isNew,
+  });
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -115,6 +121,7 @@ function QuestionEditor() {
   const [learningObjectiveId, setLearningObjectiveId] = useState(NO_OBJECTIVE);
   const [options, setOptions] = useState<OptionDraft[]>(emptyOptions());
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [selectedGroupId, setSelectedGroupId] = useState("");
 
   // Hydrate the form once when the existing question loads — keyed on id, not the
   // whole data object, so a background refetch doesn't clobber in-progress edits.
@@ -172,6 +179,33 @@ function QuestionEditor() {
       navigate({ to: "/app/questions" });
     },
     onError: (err) => toast.error(err instanceof Error ? err.message : "Failed to delete question"),
+  });
+
+  const addToGroupMutation = useMutation({
+    mutationFn: (groupId: number) =>
+      equivalentGroupsService.addQuestion(groupId, questionQuery.data!.id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: qk.questions.detail(id) });
+      queryClient.invalidateQueries({ queryKey: equivalentGroupsKeys.all });
+      toast.success("Added to equivalent group");
+      setSelectedGroupId("");
+    },
+    onError: (err) => toast.error(err instanceof Error ? err.message : "Failed to add to group"),
+  });
+
+  const removeFromGroupMutation = useMutation({
+    mutationFn: () =>
+      equivalentGroupsService.removeQuestion(
+        questionQuery.data!.equivalentGroupId!,
+        questionQuery.data!.id,
+      ),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: qk.questions.detail(id) });
+      queryClient.invalidateQueries({ queryKey: equivalentGroupsKeys.all });
+      toast.success("Removed from equivalent group");
+    },
+    onError: (err) =>
+      toast.error(err instanceof Error ? err.message : "Failed to remove from group"),
   });
 
   const handleSave = () => {
@@ -388,18 +422,59 @@ function QuestionEditor() {
             <CardHeader>
               <CardTitle className="text-base">Equivalent group</CardTitle>
               <CardDescription>
-                Equivalent-question groups are managed elsewhere; this is a read-only view.
+                Questions in the same group are interchangeable variants. Manage the full list at{" "}
+                <Link to="/app/questions/equivalent-groups" className="underline">
+                  Equivalent groups
+                </Link>
+                .
               </CardDescription>
             </CardHeader>
             <CardContent>
-              {existing?.equivalentGroupId ? (
-                <div className="rounded-md border bg-card p-3 text-sm">
-                  Part of equivalent group{" "}
-                  <span className="font-medium">#{existing.equivalentGroupId}</span>.
+              {isNew ? (
+                <div className="rounded-md border border-dashed bg-surface p-4 text-sm text-muted-foreground">
+                  Save the question first to assign it to an equivalent group.
+                </div>
+              ) : existing?.equivalentGroup ? (
+                <div className="flex items-center justify-between gap-3 rounded-md border bg-card p-3 text-sm">
+                  <span>
+                    Part of <span className="font-medium">{existing.equivalentGroup.name}</span>
+                  </span>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    disabled={removeFromGroupMutation.isPending}
+                    onClick={() => removeFromGroupMutation.mutate()}
+                  >
+                    <X className="mr-1.5 h-3.5 w-3.5" /> Remove
+                  </Button>
                 </div>
               ) : (
-                <div className="rounded-md border border-dashed bg-surface p-4 text-sm text-muted-foreground">
-                  Not part of an equivalent group.
+                <div className="space-y-2">
+                  <div className="rounded-md border border-dashed bg-surface p-3 text-xs text-muted-foreground">
+                    Not part of an equivalent group.
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Select value={selectedGroupId} onValueChange={setSelectedGroupId}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select a group" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {(groupsQuery.data ?? []).map((g) => (
+                          <SelectItem key={g.id} value={String(g.id)}>
+                            {g.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={!selectedGroupId || addToGroupMutation.isPending}
+                      onClick={() => addToGroupMutation.mutate(Number(selectedGroupId))}
+                    >
+                      Add
+                    </Button>
+                  </div>
                 </div>
               )}
             </CardContent>

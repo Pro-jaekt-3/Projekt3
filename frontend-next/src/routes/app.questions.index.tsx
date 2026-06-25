@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
-import { Plus, Sparkles, Filter, Search } from "lucide-react";
+import { Plus, Sparkles, Filter, Search, Layers } from "lucide-react";
 import { PageHeader } from "@/components/common/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -45,6 +45,11 @@ function QuestionBank() {
           <>
             <Button variant="outline" size="sm">
               Review AI drafts
+            </Button>
+            <Button asChild variant="outline" size="sm">
+              <Link to="/app/questions/equivalent-groups">
+                <Layers className="mr-1.5 h-4 w-4" /> Equivalent groups
+              </Link>
             </Button>
             <Button asChild size="sm">
               <Link to="/app/questions/$id" params={{ id: "new" }}>
