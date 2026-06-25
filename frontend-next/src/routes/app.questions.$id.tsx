@@ -1,5 +1,6 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
-import { useState } from "react";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { useEffect, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Sparkles,
   Shield,
@@ -11,6 +12,7 @@ import {
   ArrowLeft,
   Check,
   X,
+  Trash2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/common/PageHeader";
@@ -27,11 +29,29 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { StatusBadge } from "@/components/common/StatusBadge";
-import { QUESTIONS, AI_MODELS, TRAININGS, TOPICS, getQuestion } from "@/lib/mock-data";
+import { LoadingState, ErrorState } from "@/components/common/Spinner";
+import { EmptyState } from "@/components/common/EmptyState";
+import { AI_MODELS } from "@/lib/mock-data";
 import { cn } from "@/lib/utils";
 
 import { ensureRole } from "@/lib/route-guards";
+import { qk } from "@/lib/query-keys";
+import { questionsService } from "@/services/questions";
+import type { CreateQuestionInput } from "@/services/questions";
+import { topicsService } from "@/services/topics";
+import { learningObjectivesService } from "@/services/learningObjectives";
+import type { QuestionType, QuestionStatus } from "@/types";
 
 export const Route = createFileRoute("/app/questions/$id")({
   beforeLoad: ({ context, location }) =>
@@ -39,25 +59,187 @@ export const Route = createFileRoute("/app/questions/$id")({
   component: QuestionEditor,
 });
 
+const TYPE_LABEL: Record<QuestionType, string> = {
+  OPEN: "Open question",
+  MULTIPLE_CHOICE: "Multiple choice",
+  CODE: "Code / programming",
+};
+
+const DIFFICULTY_LABEL: Record<number, string> = { 1: "Easy", 2: "Medium", 3: "Hard" };
+
+type Tone = "muted" | "warning" | "success" | "danger" | "neutral";
+
+const STATUS_META: Record<QuestionStatus, { label: string; tone: Tone }> = {
+  DRAFT: { label: "Draft", tone: "muted" },
+  NEEDS_REVIEW: { label: "Needs Review", tone: "warning" },
+  REVIEW: { label: "In Review", tone: "warning" },
+  APPROVED: { label: "Approved", tone: "success" },
+  REJECTED: { label: "Rejected", tone: "danger" },
+  ARCHIVED: { label: "Archived", tone: "neutral" },
+};
+
+const NO_OBJECTIVE = "__none__";
+
+interface OptionDraft {
+  text: string;
+  isCorrect: boolean;
+}
+
+const emptyOptions = (): OptionDraft[] => [
+  { text: "", isCorrect: false },
+  { text: "", isCorrect: false },
+];
+
 function QuestionEditor() {
   const { id } = Route.useParams();
-  const existing = getQuestion(id);
-  const [form, setForm] = useState({
-    text: existing?.text ?? "",
-    type: existing?.type ?? "single",
-    topicId: existing?.topicId ?? "t-sql",
-    objective: existing?.objective ?? "Write basic SELECT queries",
-    difficulty: existing?.difficulty ?? "medium",
-    status: existing?.status ?? "Draft",
-    explanation: existing?.explanation ?? "",
-    options: existing?.options ?? [
-      { id: "a", text: "", correct: false },
-      { id: "b", text: "", correct: false },
-      { id: "c", text: "", correct: false },
-      { id: "d", text: "", correct: false },
-    ],
-    training: existing?.training ?? "Introduction to Databases",
+  const isNew = id === "new";
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
+
+  const questionQuery = useQuery({
+    queryKey: qk.questions.detail(id),
+    queryFn: () => questionsService.get(id),
+    enabled: !isNew,
   });
+  const topicsQuery = useQuery({ queryKey: qk.topics.list(), queryFn: topicsService.list });
+  const objectivesQuery = useQuery({
+    queryKey: qk.learningObjectives.list(),
+    queryFn: () => learningObjectivesService.list(),
+  });
+
+  const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
+  const [type, setType] = useState<QuestionType>("OPEN");
+  const [difficulty, setDifficulty] = useState(2);
+  const [topicId, setTopicId] = useState("");
+  const [learningObjectiveId, setLearningObjectiveId] = useState(NO_OBJECTIVE);
+  const [options, setOptions] = useState<OptionDraft[]>(emptyOptions());
+  const [deleteOpen, setDeleteOpen] = useState(false);
+
+  // Hydrate the form once when the existing question loads — keyed on id, not the
+  // whole data object, so a background refetch doesn't clobber in-progress edits.
+  useEffect(() => {
+    const q = questionQuery.data;
+    if (!q) return;
+    setTitle(q.title);
+    setDescription(q.description);
+    setType(q.type);
+    setDifficulty(q.difficulty);
+    setTopicId(String(q.topicId));
+    setLearningObjectiveId(q.learningObjectiveId ? String(q.learningObjectiveId) : NO_OBJECTIVE);
+    if (q.type === "MULTIPLE_CHOICE" && q.answerOptions && q.answerOptions.length > 0) {
+      setOptions(q.answerOptions.map((o) => ({ text: o.text, isCorrect: o.isCorrect })));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [questionQuery.data?.id]);
+
+  const topics = topicsQuery.data ?? [];
+  const objectivesForTopic = (objectivesQuery.data ?? []).filter(
+    (o) => String(o.topicId) === topicId,
+  );
+
+  const saveMutation = useMutation({
+    mutationFn: (input: CreateQuestionInput) =>
+      isNew
+        ? questionsService.create(input)
+        : questionsService.update(questionQuery.data!.id, input),
+    onSuccess: (saved) => {
+      queryClient.invalidateQueries({ queryKey: qk.questions.all });
+      toast.success(isNew ? "Question created" : "Question saved");
+      if (isNew) {
+        navigate({ to: "/app/questions/$id", params: { id: String(saved.id) }, replace: true });
+      }
+    },
+    onError: (err) => toast.error(err instanceof Error ? err.message : "Failed to save question"),
+  });
+
+  const statusMutation = useMutation({
+    mutationFn: (status: "REVIEW" | "APPROVED" | "REJECTED" | "ARCHIVED") =>
+      questionsService.updateStatus(questionQuery.data!.id, status),
+    onSuccess: (_updated, status) => {
+      queryClient.invalidateQueries({ queryKey: qk.questions.detail(id) });
+      queryClient.invalidateQueries({ queryKey: qk.questions.lists() });
+      toast.success(`Marked as ${STATUS_META[status].label}`);
+    },
+    onError: (err) => toast.error(err instanceof Error ? err.message : "Failed to update status"),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: () => questionsService.remove(questionQuery.data!.id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: qk.questions.all });
+      toast.success("Question deleted");
+      navigate({ to: "/app/questions" });
+    },
+    onError: (err) => toast.error(err instanceof Error ? err.message : "Failed to delete question"),
+  });
+
+  const handleSave = () => {
+    if (!title.trim()) {
+      toast.error("Title is required");
+      return;
+    }
+    if (!description.trim()) {
+      toast.error("Description is required");
+      return;
+    }
+    const topicIdNum = Number(topicId);
+    if (!topicId || !Number.isInteger(topicIdNum) || topicIdNum <= 0) {
+      toast.error("Topic is required");
+      return;
+    }
+
+    let optionsPayload: OptionDraft[] | undefined;
+    if (type === "MULTIPLE_CHOICE") {
+      const cleaned = options
+        .map((o) => ({ text: o.text.trim(), isCorrect: o.isCorrect }))
+        .filter((o) => o.text !== "");
+      if (cleaned.length < 2) {
+        toast.error("Multiple choice questions require at least two options");
+        return;
+      }
+      if (!cleaned.some((o) => o.isCorrect)) {
+        toast.error("Mark at least one option as correct");
+        return;
+      }
+      optionsPayload = cleaned;
+    }
+
+    saveMutation.mutate({
+      title: title.trim(),
+      description: description.trim(),
+      difficulty,
+      topicId: topicIdNum,
+      type,
+      options: optionsPayload,
+      learningObjectiveId:
+        learningObjectiveId === NO_OBJECTIVE ? null : Number(learningObjectiveId),
+    });
+  };
+
+  if (!isNew && questionQuery.isLoading) {
+    return <LoadingState label="Loading question…" />;
+  }
+
+  if (!isNew && (questionQuery.isError || !questionQuery.data)) {
+    const message =
+      questionQuery.error instanceof Error
+        ? questionQuery.error.message
+        : "Failed to load question";
+    if (/not found/i.test(message)) {
+      return (
+        <div className="p-8">
+          <EmptyState
+            title="Question not found"
+            description="The question you are looking for does not exist or was deleted."
+          />
+        </div>
+      );
+    }
+    return <ErrorState message={message} onRetry={() => questionQuery.refetch()} />;
+  }
+
+  const existing = questionQuery.data;
 
   return (
     <>
@@ -67,7 +249,7 @@ function QuestionEditor() {
             Question bank
           </Link>
         }
-        title={existing ? "Edit question" : "Create question"}
+        title={isNew ? "Create question" : "Edit question"}
         actions={
           <>
             <Button asChild variant="ghost" size="sm">
@@ -75,11 +257,14 @@ function QuestionEditor() {
                 <ArrowLeft className="mr-1.5 h-4 w-4" /> Back
               </Link>
             </Button>
-            <Button variant="outline" size="sm" onClick={() => toast("Saved as draft")}>
-              <Save className="mr-1.5 h-4 w-4" /> Save as draft
-            </Button>
-            <Button size="sm" onClick={() => toast.success("Marked as Needs Review")}>
-              Save & request review
+            {!isNew && (
+              <Button variant="outline" size="sm" onClick={() => setDeleteOpen(true)}>
+                <Trash2 className="mr-1.5 h-4 w-4" /> Delete
+              </Button>
+            )}
+            <Button size="sm" onClick={handleSave} disabled={saveMutation.isPending}>
+              <Save className="mr-1.5 h-4 w-4" />
+              {saveMutation.isPending ? "Saving…" : isNew ? "Create question" : "Save changes"}
             </Button>
           </>
         }
@@ -93,182 +278,130 @@ function QuestionEditor() {
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-1.5">
-                <Label>Question text</Label>
+                <Label>Title</Label>
+                <Input
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  placeholder="Short title shown in lists"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Description</Label>
                 <Textarea
-                  rows={3}
-                  value={form.text}
-                  onChange={(e) => setForm({ ...form, text: e.target.value })}
-                  placeholder="Enter the question..."
+                  rows={4}
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  placeholder="The full question text shown to participants..."
                 />
               </div>
               <div className="grid gap-3 sm:grid-cols-2">
                 <div className="space-y-1.5">
                   <Label>Type</Label>
-                  <Select
-                    value={form.type}
-                    onValueChange={(v) => setForm({ ...form, type: v as any })}
-                  >
+                  <Select value={type} onValueChange={(v) => setType(v as QuestionType)}>
                     <SelectTrigger>
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="single">Single choice</SelectItem>
-                      <SelectItem value="multiple">Multiple choice</SelectItem>
-                      <SelectItem value="true_false">True / false</SelectItem>
-                      <SelectItem value="short">Short answer</SelectItem>
-                      <SelectItem value="open">Open question</SelectItem>
-                      <SelectItem value="code">Code / programming</SelectItem>
+                      {(Object.keys(TYPE_LABEL) as QuestionType[]).map((t) => (
+                        <SelectItem key={t} value={t}>
+                          {TYPE_LABEL[t]}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
                 <div className="space-y-1.5">
                   <Label>Difficulty</Label>
                   <Select
-                    value={form.difficulty}
-                    onValueChange={(v) => setForm({ ...form, difficulty: v as any })}
+                    value={String(difficulty)}
+                    onValueChange={(v) => setDifficulty(Number(v))}
                   >
                     <SelectTrigger>
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="easy">Easy</SelectItem>
-                      <SelectItem value="medium">Medium</SelectItem>
-                      <SelectItem value="hard">Hard</SelectItem>
+                      {Object.entries(DIFFICULTY_LABEL).map(([value, label]) => (
+                        <SelectItem key={value} value={value}>
+                          {label}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
               </div>
 
-              {(form.type === "single" || form.type === "multiple") && (
+              {type === "MULTIPLE_CHOICE" && (
                 <div className="space-y-2">
                   <Label>Answer options</Label>
-                  {form.options.map((opt, i) => (
-                    <div key={opt.id} className="flex items-center gap-2">
+                  {options.map((opt, i) => (
+                    <div key={i} className="flex items-center gap-2">
                       <input
-                        type={form.type === "single" ? "radio" : "checkbox"}
-                        checked={opt.correct}
+                        type="checkbox"
+                        checked={opt.isCorrect}
                         onChange={() => {
-                          const next = form.options.map((o, j) =>
-                            form.type === "single"
-                              ? { ...o, correct: j === i }
-                              : j === i
-                                ? { ...o, correct: !o.correct }
-                                : o,
+                          const next = options.map((o, j) =>
+                            j === i ? { ...o, isCorrect: !o.isCorrect } : o,
                           );
-                          setForm({ ...form, options: next });
+                          setOptions(next);
                         }}
                       />
                       <Input
                         value={opt.text}
                         onChange={(e) => {
-                          const next = [...form.options];
+                          const next = [...options];
                           next[i] = { ...next[i], text: e.target.value };
-                          setForm({ ...form, options: next });
+                          setOptions(next);
                         }}
                         placeholder={`Option ${String.fromCharCode(65 + i)}`}
                       />
+                      {options.length > 2 && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setOptions(options.filter((_, j) => j !== i))}
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </Button>
+                      )}
                     </div>
                   ))}
                   <Button
                     variant="ghost"
                     size="sm"
-                    onClick={() =>
-                      setForm({
-                        ...form,
-                        options: [
-                          ...form.options,
-                          {
-                            id: String.fromCharCode(97 + form.options.length),
-                            text: "",
-                            correct: false,
-                          },
-                        ],
-                      })
-                    }
+                    onClick={() => setOptions([...options, { text: "", isCorrect: false }])}
                   >
                     <Plus className="mr-1.5 h-4 w-4" /> Add option
                   </Button>
                 </div>
               )}
 
-              {form.type === "true_false" && (
-                <div className="space-y-2">
-                  <Label>Correct answer</Label>
-                  <div className="flex gap-2">
-                    <Button variant="outline" size="sm">
-                      True
-                    </Button>
-                    <Button variant="outline" size="sm">
-                      False
-                    </Button>
-                  </div>
+              {(type === "OPEN" || type === "CODE") && (
+                <div className="rounded-md border border-dashed bg-surface p-3 text-xs text-muted-foreground">
+                  {type === "CODE" ? "Code" : "Open"} questions are graded manually after submission
+                  — no answer options to configure here.
                 </div>
               )}
-
-              {(form.type === "short" || form.type === "open" || form.type === "code") && (
-                <div className="space-y-1.5">
-                  <Label>
-                    {form.type === "code"
-                      ? "Expected output / rubric"
-                      : "Expected answer / grading note"}
-                  </Label>
-                  <Textarea rows={3} placeholder="Grading guidance..." />
-                </div>
-              )}
-
-              <div className="space-y-1.5">
-                <Label>Explanation (shown after submission)</Label>
-                <Textarea
-                  rows={2}
-                  value={form.explanation}
-                  onChange={(e) => setForm({ ...form, explanation: e.target.value })}
-                />
-              </div>
             </CardContent>
           </Card>
 
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">Equivalent variants</CardTitle>
+              <CardTitle className="text-base">Equivalent group</CardTitle>
               <CardDescription>
-                Variants test the same learning objective at the same difficulty, but must not be
-                identical.
+                Equivalent-question groups are managed elsewhere; this is a read-only view.
               </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-3">
-              {(existing?.variants ?? 0) > 0 ? (
-                <div className="grid gap-2 sm:grid-cols-2">
-                  {Array.from({ length: existing!.variants }).map((_, i) => (
-                    <div key={i} className="rounded-md border bg-card p-3">
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs text-muted-foreground">Variant {i + 1}</span>
-                        <StatusBadge status="Approved" />
-                      </div>
-                      <p className="mt-1 line-clamp-2 text-sm">
-                        {existing!.text
-                          .replace(/^Which/, "Identify which")
-                          .replace(/SQL/, "relational")}
-                      </p>
-                    </div>
-                  ))}
+            <CardContent>
+              {existing?.equivalentGroupId ? (
+                <div className="rounded-md border bg-card p-3 text-sm">
+                  Part of equivalent group{" "}
+                  <span className="font-medium">#{existing.equivalentGroupId}</span>.
                 </div>
               ) : (
                 <div className="rounded-md border border-dashed bg-surface p-4 text-sm text-muted-foreground">
-                  No variants yet. Variants are used in post-tests to measure the same knowledge
-                  without repeating identical questions.
+                  Not part of an equivalent group.
                 </div>
               )}
-              <div className="flex flex-wrap gap-2">
-                <Button variant="outline" size="sm">
-                  <Plus className="mr-1.5 h-4 w-4" /> Add manual variant
-                </Button>
-                <Button size="sm">
-                  <Sparkles className="mr-1.5 h-4 w-4" /> Generate variant with AI
-                </Button>
-                <Button variant="ghost" size="sm">
-                  Compare variants
-                </Button>
-              </div>
             </CardContent>
           </Card>
         </div>
@@ -280,54 +413,74 @@ function QuestionEditor() {
               <CardTitle className="text-sm">Metadata</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
-              <div className="space-y-1.5">
-                <Label className="text-xs">Status</Label>
-                <Select
-                  value={form.status}
-                  onValueChange={(v) => setForm({ ...form, status: v as any })}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Draft">Draft</SelectItem>
-                    <SelectItem value="Needs Review">Needs Review</SelectItem>
-                    <SelectItem value="Approved">Approved</SelectItem>
-                    <SelectItem value="Archived">Archived</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs">Training</Label>
-                <Select
-                  value={form.training}
-                  onValueChange={(v) => setForm({ ...form, training: v })}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {TRAININGS.map((t) => (
-                      <SelectItem key={t.id} value={t.title}>
-                        {t.title}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+              {!isNew && existing && (
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Status</Label>
+                  <div>
+                    <StatusBadge
+                      status={STATUS_META[existing.status].label}
+                      tone={STATUS_META[existing.status].tone}
+                    />
+                  </div>
+                  <div className="flex flex-wrap gap-1.5 pt-1">
+                    {(existing.status === "DRAFT" || existing.status === "NEEDS_REVIEW") && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={statusMutation.isPending}
+                        onClick={() => statusMutation.mutate("REVIEW")}
+                      >
+                        Submit for review
+                      </Button>
+                    )}
+                    {existing.status === "REVIEW" && (
+                      <>
+                        <Button
+                          size="sm"
+                          disabled={statusMutation.isPending}
+                          onClick={() => statusMutation.mutate("APPROVED")}
+                        >
+                          <Check className="mr-1.5 h-3.5 w-3.5" /> Approve
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          disabled={statusMutation.isPending}
+                          onClick={() => statusMutation.mutate("REJECTED")}
+                        >
+                          <X className="mr-1.5 h-3.5 w-3.5" /> Reject
+                        </Button>
+                      </>
+                    )}
+                    {(existing.status === "APPROVED" || existing.status === "REJECTED") && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={statusMutation.isPending}
+                        onClick={() => statusMutation.mutate("ARCHIVED")}
+                      >
+                        Archive
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              )}
               <div className="space-y-1.5">
                 <Label className="text-xs">Topic</Label>
                 <Select
-                  value={form.topicId}
-                  onValueChange={(v) => setForm({ ...form, topicId: v })}
+                  value={topicId}
+                  onValueChange={(v) => {
+                    setTopicId(v);
+                    setLearningObjectiveId(NO_OBJECTIVE);
+                  }}
                 >
                   <SelectTrigger>
-                    <SelectValue />
+                    <SelectValue placeholder="Select a topic" />
                   </SelectTrigger>
                   <SelectContent>
-                    {TOPICS.map((t) => (
-                      <SelectItem key={t.id} value={t.id}>
-                        {t.title}
+                    {topics.map((t) => (
+                      <SelectItem key={t.id} value={String(t.id)}>
+                        {t.name}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -335,10 +488,23 @@ function QuestionEditor() {
               </div>
               <div className="space-y-1.5">
                 <Label className="text-xs">Learning objective</Label>
-                <Input
-                  value={form.objective}
-                  onChange={(e) => setForm({ ...form, objective: e.target.value })}
-                />
+                <Select
+                  value={learningObjectiveId}
+                  onValueChange={setLearningObjectiveId}
+                  disabled={!topicId}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={NO_OBJECTIVE}>None</SelectItem>
+                    {objectivesForTopic.map((o) => (
+                      <SelectItem key={o.id} value={String(o.id)}>
+                        {o.title}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
             </CardContent>
           </Card>
@@ -346,6 +512,30 @@ function QuestionEditor() {
           <AIAssistantPanel />
         </aside>
       </div>
+
+      <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete this question?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This permanently deletes “{existing?.title}”. If it is used in an assessment, the
+              server may refuse to delete it.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleteMutation.isPending}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault();
+                deleteMutation.mutate();
+              }}
+              disabled={deleteMutation.isPending}
+            >
+              {deleteMutation.isPending ? "Deleting…" : "Delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 }
