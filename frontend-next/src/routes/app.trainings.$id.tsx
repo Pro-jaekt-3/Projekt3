@@ -258,6 +258,7 @@ function TrainingDetail() {
         ? learningObjectivesService.update(editingObjective.id, {
             title: objectiveTitle.trim(),
             description: objectiveDescription.trim() || null,
+            topicId: Number(objectiveTopicId),
           })
         : learningObjectivesService.create({
             title: objectiveTitle.trim(),
@@ -277,6 +278,10 @@ function TrainingDetail() {
     mutationFn: (objectiveId: number) => learningObjectivesService.remove(objectiveId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: qk.learningObjectives.all });
+      // Question.learningObjectiveId is ON DELETE SET NULL, so deleting this
+      // objective detaches (not blocks) any questions that referenced it —
+      // refresh questions too so the Question Bank tab doesn't show stale data.
+      queryClient.invalidateQueries({ queryKey: qk.questions.all });
       toast.success("Learning objective deleted");
       setObjectiveDeleteTarget(null);
     },
@@ -1178,8 +1183,8 @@ function TrainingDetail() {
           <AlertDialogHeader>
             <AlertDialogTitle>Delete this learning objective?</AlertDialogTitle>
             <AlertDialogDescription>
-              This permanently deletes “{objectiveDeleteTarget?.title}”. If it still has questions
-              attached, the server will refuse to delete it — remove those first.
+              This permanently deletes “{objectiveDeleteTarget?.title}”. Questions linked to it will
+              be detached (kept, just no longer mapped to this objective), not deleted.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
