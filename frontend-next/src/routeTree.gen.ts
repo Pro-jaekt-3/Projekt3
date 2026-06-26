@@ -25,6 +25,7 @@ import { Route as AppAiModelsRouteImport } from './routes/app.ai-models'
 import { Route as AppAiInsightsRouteImport } from './routes/app.ai-insights'
 import { Route as AppTrainingsIndexRouteImport } from './routes/app.trainings.index'
 import { Route as AppQuestionsIndexRouteImport } from './routes/app.questions.index'
+import { Route as AppParticipantsIndexRouteImport } from './routes/app.participants.index'
 import { Route as AppAssessmentsIndexRouteImport } from './routes/app.assessments.index'
 import { Route as AssessmentIdSolveRouteImport } from './routes/assessment.$id.solve'
 import { Route as AssessmentIdResultRouteImport } from './routes/assessment.$id.result'
@@ -32,6 +33,7 @@ import { Route as AssessmentIdAccessRouteImport } from './routes/assessment.$id.
 import { Route as AppTrainingsIdRouteImport } from './routes/app.trainings.$id'
 import { Route as AppQuestionsEquivalentGroupsRouteImport } from './routes/app.questions.equivalent-groups'
 import { Route as AppQuestionsIdRouteImport } from './routes/app.questions.$id'
+import { Route as AppParticipantsUserIdRouteImport } from './routes/app.participants.$userId'
 import { Route as AppAssessmentsNewRouteImport } from './routes/app.assessments.new'
 import { Route as AppAssessmentsIdRouteImport } from './routes/app.assessments.$id'
 import { Route as AppAssessmentsIdResultsRouteImport } from './routes/app.assessments.$id.results'
@@ -117,6 +119,11 @@ const AppQuestionsIndexRoute = AppQuestionsIndexRouteImport.update({
   path: '/questions/',
   getParentRoute: () => AppRoute,
 } as any)
+const AppParticipantsIndexRoute = AppParticipantsIndexRouteImport.update({
+  id: '/participants/',
+  path: '/participants/',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppAssessmentsIndexRoute = AppAssessmentsIndexRouteImport.update({
   id: '/assessments/',
   path: '/assessments/',
@@ -151,6 +158,11 @@ const AppQuestionsEquivalentGroupsRoute =
 const AppQuestionsIdRoute = AppQuestionsIdRouteImport.update({
   id: '/questions/$id',
   path: '/questions/$id',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppParticipantsUserIdRoute = AppParticipantsUserIdRouteImport.update({
+  id: '/participants/$userId',
+  path: '/participants/$userId',
   getParentRoute: () => AppRoute,
 } as any)
 const AppAssessmentsNewRoute = AppAssessmentsNewRouteImport.update({
@@ -192,6 +204,7 @@ export interface FileRoutesByFullPath {
   '/app/': typeof AppIndexRoute
   '/app/assessments/$id': typeof AppAssessmentsIdRouteWithChildren
   '/app/assessments/new': typeof AppAssessmentsNewRoute
+  '/app/participants/$userId': typeof AppParticipantsUserIdRoute
   '/app/questions/$id': typeof AppQuestionsIdRoute
   '/app/questions/equivalent-groups': typeof AppQuestionsEquivalentGroupsRoute
   '/app/trainings/$id': typeof AppTrainingsIdRoute
@@ -199,6 +212,7 @@ export interface FileRoutesByFullPath {
   '/assessment/$id/result': typeof AssessmentIdResultRoute
   '/assessment/$id/solve': typeof AssessmentIdSolveRoute
   '/app/assessments/': typeof AppAssessmentsIndexRoute
+  '/app/participants/': typeof AppParticipantsIndexRoute
   '/app/questions/': typeof AppQuestionsIndexRoute
   '/app/trainings/': typeof AppTrainingsIndexRoute
   '/app/assessments/$id/post-test': typeof AppAssessmentsIdPostTestRoute
@@ -220,6 +234,7 @@ export interface FileRoutesByTo {
   '/app': typeof AppIndexRoute
   '/app/assessments/$id': typeof AppAssessmentsIdRouteWithChildren
   '/app/assessments/new': typeof AppAssessmentsNewRoute
+  '/app/participants/$userId': typeof AppParticipantsUserIdRoute
   '/app/questions/$id': typeof AppQuestionsIdRoute
   '/app/questions/equivalent-groups': typeof AppQuestionsEquivalentGroupsRoute
   '/app/trainings/$id': typeof AppTrainingsIdRoute
@@ -227,6 +242,7 @@ export interface FileRoutesByTo {
   '/assessment/$id/result': typeof AssessmentIdResultRoute
   '/assessment/$id/solve': typeof AssessmentIdSolveRoute
   '/app/assessments': typeof AppAssessmentsIndexRoute
+  '/app/participants': typeof AppParticipantsIndexRoute
   '/app/questions': typeof AppQuestionsIndexRoute
   '/app/trainings': typeof AppTrainingsIndexRoute
   '/app/assessments/$id/post-test': typeof AppAssessmentsIdPostTestRoute
@@ -250,6 +266,7 @@ export interface FileRoutesById {
   '/app/': typeof AppIndexRoute
   '/app/assessments/$id': typeof AppAssessmentsIdRouteWithChildren
   '/app/assessments/new': typeof AppAssessmentsNewRoute
+  '/app/participants/$userId': typeof AppParticipantsUserIdRoute
   '/app/questions/$id': typeof AppQuestionsIdRoute
   '/app/questions/equivalent-groups': typeof AppQuestionsEquivalentGroupsRoute
   '/app/trainings/$id': typeof AppTrainingsIdRoute
@@ -257,6 +274,7 @@ export interface FileRoutesById {
   '/assessment/$id/result': typeof AssessmentIdResultRoute
   '/assessment/$id/solve': typeof AssessmentIdSolveRoute
   '/app/assessments/': typeof AppAssessmentsIndexRoute
+  '/app/participants/': typeof AppParticipantsIndexRoute
   '/app/questions/': typeof AppQuestionsIndexRoute
   '/app/trainings/': typeof AppTrainingsIndexRoute
   '/app/assessments/$id/post-test': typeof AppAssessmentsIdPostTestRoute
@@ -281,6 +299,7 @@ export interface FileRouteTypes {
     | '/app/'
     | '/app/assessments/$id'
     | '/app/assessments/new'
+    | '/app/participants/$userId'
     | '/app/questions/$id'
     | '/app/questions/equivalent-groups'
     | '/app/trainings/$id'
@@ -288,6 +307,7 @@ export interface FileRouteTypes {
     | '/assessment/$id/result'
     | '/assessment/$id/solve'
     | '/app/assessments/'
+    | '/app/participants/'
     | '/app/questions/'
     | '/app/trainings/'
     | '/app/assessments/$id/post-test'
@@ -309,6 +329,7 @@ export interface FileRouteTypes {
     | '/app'
     | '/app/assessments/$id'
     | '/app/assessments/new'
+    | '/app/participants/$userId'
     | '/app/questions/$id'
     | '/app/questions/equivalent-groups'
     | '/app/trainings/$id'
@@ -316,6 +337,7 @@ export interface FileRouteTypes {
     | '/assessment/$id/result'
     | '/assessment/$id/solve'
     | '/app/assessments'
+    | '/app/participants'
     | '/app/questions'
     | '/app/trainings'
     | '/app/assessments/$id/post-test'
@@ -338,6 +360,7 @@ export interface FileRouteTypes {
     | '/app/'
     | '/app/assessments/$id'
     | '/app/assessments/new'
+    | '/app/participants/$userId'
     | '/app/questions/$id'
     | '/app/questions/equivalent-groups'
     | '/app/trainings/$id'
@@ -345,6 +368,7 @@ export interface FileRouteTypes {
     | '/assessment/$id/result'
     | '/assessment/$id/solve'
     | '/app/assessments/'
+    | '/app/participants/'
     | '/app/questions/'
     | '/app/trainings/'
     | '/app/assessments/$id/post-test'
@@ -474,6 +498,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppQuestionsIndexRouteImport
       parentRoute: typeof AppRoute
     }
+    '/app/participants/': {
+      id: '/app/participants/'
+      path: '/participants'
+      fullPath: '/app/participants/'
+      preLoaderRoute: typeof AppParticipantsIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/app/assessments/': {
       id: '/app/assessments/'
       path: '/assessments'
@@ -521,6 +552,13 @@ declare module '@tanstack/react-router' {
       path: '/questions/$id'
       fullPath: '/app/questions/$id'
       preLoaderRoute: typeof AppQuestionsIdRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/app/participants/$userId': {
+      id: '/app/participants/$userId'
+      path: '/participants/$userId'
+      fullPath: '/app/participants/$userId'
+      preLoaderRoute: typeof AppParticipantsUserIdRouteImport
       parentRoute: typeof AppRoute
     }
     '/app/assessments/new': {
@@ -581,10 +619,12 @@ interface AppRouteChildren {
   AppIndexRoute: typeof AppIndexRoute
   AppAssessmentsIdRoute: typeof AppAssessmentsIdRouteWithChildren
   AppAssessmentsNewRoute: typeof AppAssessmentsNewRoute
+  AppParticipantsUserIdRoute: typeof AppParticipantsUserIdRoute
   AppQuestionsIdRoute: typeof AppQuestionsIdRoute
   AppQuestionsEquivalentGroupsRoute: typeof AppQuestionsEquivalentGroupsRoute
   AppTrainingsIdRoute: typeof AppTrainingsIdRoute
   AppAssessmentsIndexRoute: typeof AppAssessmentsIndexRoute
+  AppParticipantsIndexRoute: typeof AppParticipantsIndexRoute
   AppQuestionsIndexRoute: typeof AppQuestionsIndexRoute
   AppTrainingsIndexRoute: typeof AppTrainingsIndexRoute
 }
@@ -603,10 +643,12 @@ const AppRouteChildren: AppRouteChildren = {
   AppIndexRoute: AppIndexRoute,
   AppAssessmentsIdRoute: AppAssessmentsIdRouteWithChildren,
   AppAssessmentsNewRoute: AppAssessmentsNewRoute,
+  AppParticipantsUserIdRoute: AppParticipantsUserIdRoute,
   AppQuestionsIdRoute: AppQuestionsIdRoute,
   AppQuestionsEquivalentGroupsRoute: AppQuestionsEquivalentGroupsRoute,
   AppTrainingsIdRoute: AppTrainingsIdRoute,
   AppAssessmentsIndexRoute: AppAssessmentsIndexRoute,
+  AppParticipantsIndexRoute: AppParticipantsIndexRoute,
   AppQuestionsIndexRoute: AppQuestionsIndexRoute,
   AppTrainingsIndexRoute: AppTrainingsIndexRoute,
 }
