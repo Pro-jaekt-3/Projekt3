@@ -127,17 +127,17 @@ function GlobalResults() {
             <MetricCard
               label="Pre-test average"
               value={pp ? pct(pp.preTest.averagePercentage) : "—"}
-              hint={pp ? `${pp.preTest.attemptCount} submitted` : "No attempts"}
+              hint={pp ? `${pp.pairedUserCount} paired` : "No paired participants"}
             />
             <MetricCard
               label="Post-test average"
               value={pp ? pct(pp.postTest.averagePercentage) : "—"}
-              hint={pp ? `${pp.postTest.attemptCount} submitted` : "No attempts"}
+              hint={pp ? `${pp.pairedUserCount} paired` : "No paired participants"}
             />
             <MetricCard
               label="Pre→Post improvement"
               value={pp ? signed(pp.improvement) : "—"}
-              trend={pp ? { value: "cohort average", positive: pp.improvement >= 0 } : undefined}
+              trend={pp ? { value: "paired average", positive: pp.improvement >= 0 } : undefined}
             />
             <MetricCard
               label="Weakest topic"
@@ -166,8 +166,9 @@ function GlobalResults() {
                       </ResponsiveContainer>
                     </div>
                     <p className="mt-2 text-xs text-muted-foreground">
-                      Cohort averages across all submitted pre/post attempts (not paired per
-                      participant).
+                      Paired averages — improvement of {pp?.pairedUserCount ?? 0} participant
+                      {(pp?.pairedUserCount ?? 0) === 1 ? "" : "s"} who submitted both a pre- and a
+                      post-test.
                     </p>
                   </>
                 ) : (

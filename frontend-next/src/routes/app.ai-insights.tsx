@@ -98,7 +98,7 @@ function AIInsights() {
                   <MetricCard
                     label="Pre→Post improvement"
                     value={signed(pp.improvement)}
-                    trend={{ value: "cohort average", positive: pp.improvement >= 0 }}
+                    trend={{ value: "paired average", positive: pp.improvement >= 0 }}
                   />
                   <MetricCard
                     label="Attempts analyzed"
@@ -125,8 +125,8 @@ function AIInsights() {
                           </ResponsiveContainer>
                         </div>
                         <p className="mt-2 text-xs text-muted-foreground">
-                          Cohort averages across all submitted pre/post attempts (not paired per
-                          participant).
+                          Paired averages over participants who submitted both a pre- and a
+                          post-test.
                         </p>
                       </>
                     ) : (
