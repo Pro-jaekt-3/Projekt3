@@ -18,6 +18,7 @@ import { Route as AppSystemAnalyticsRouteImport } from './routes/app.system-anal
 import { Route as AppResultsRouteImport } from './routes/app.results'
 import { Route as AppMyResultsRouteImport } from './routes/app.my-results'
 import { Route as AppMyAssessmentsRouteImport } from './routes/app.my-assessments'
+import { Route as AppLeaderboardRouteImport } from './routes/app.leaderboard'
 import { Route as AppDashboardRouteImport } from './routes/app.dashboard'
 import { Route as AppAnalyticsRouteImport } from './routes/app.analytics'
 import { Route as AppAiReviewRouteImport } from './routes/app.ai-review'
@@ -82,6 +83,11 @@ const AppMyResultsRoute = AppMyResultsRouteImport.update({
 const AppMyAssessmentsRoute = AppMyAssessmentsRouteImport.update({
   id: '/my-assessments',
   path: '/my-assessments',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppLeaderboardRoute = AppLeaderboardRouteImport.update({
+  id: '/leaderboard',
+  path: '/leaderboard',
   getParentRoute: () => AppRoute,
 } as any)
 const AppDashboardRoute = AppDashboardRouteImport.update({
@@ -196,6 +202,7 @@ export interface FileRoutesByFullPath {
   '/app/ai-review': typeof AppAiReviewRoute
   '/app/analytics': typeof AppAnalyticsRoute
   '/app/dashboard': typeof AppDashboardRoute
+  '/app/leaderboard': typeof AppLeaderboardRoute
   '/app/my-assessments': typeof AppMyAssessmentsRoute
   '/app/my-results': typeof AppMyResultsRoute
   '/app/results': typeof AppResultsRoute
@@ -226,6 +233,7 @@ export interface FileRoutesByTo {
   '/app/ai-review': typeof AppAiReviewRoute
   '/app/analytics': typeof AppAnalyticsRoute
   '/app/dashboard': typeof AppDashboardRoute
+  '/app/leaderboard': typeof AppLeaderboardRoute
   '/app/my-assessments': typeof AppMyAssessmentsRoute
   '/app/my-results': typeof AppMyResultsRoute
   '/app/results': typeof AppResultsRoute
@@ -258,6 +266,7 @@ export interface FileRoutesById {
   '/app/ai-review': typeof AppAiReviewRoute
   '/app/analytics': typeof AppAnalyticsRoute
   '/app/dashboard': typeof AppDashboardRoute
+  '/app/leaderboard': typeof AppLeaderboardRoute
   '/app/my-assessments': typeof AppMyAssessmentsRoute
   '/app/my-results': typeof AppMyResultsRoute
   '/app/results': typeof AppResultsRoute
@@ -291,6 +300,7 @@ export interface FileRouteTypes {
     | '/app/ai-review'
     | '/app/analytics'
     | '/app/dashboard'
+    | '/app/leaderboard'
     | '/app/my-assessments'
     | '/app/my-results'
     | '/app/results'
@@ -321,6 +331,7 @@ export interface FileRouteTypes {
     | '/app/ai-review'
     | '/app/analytics'
     | '/app/dashboard'
+    | '/app/leaderboard'
     | '/app/my-assessments'
     | '/app/my-results'
     | '/app/results'
@@ -352,6 +363,7 @@ export interface FileRouteTypes {
     | '/app/ai-review'
     | '/app/analytics'
     | '/app/dashboard'
+    | '/app/leaderboard'
     | '/app/my-assessments'
     | '/app/my-results'
     | '/app/results'
@@ -447,6 +459,13 @@ declare module '@tanstack/react-router' {
       path: '/my-assessments'
       fullPath: '/app/my-assessments'
       preLoaderRoute: typeof AppMyAssessmentsRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/app/leaderboard': {
+      id: '/app/leaderboard'
+      path: '/leaderboard'
+      fullPath: '/app/leaderboard'
+      preLoaderRoute: typeof AppLeaderboardRouteImport
       parentRoute: typeof AppRoute
     }
     '/app/dashboard': {
@@ -611,6 +630,7 @@ interface AppRouteChildren {
   AppAiReviewRoute: typeof AppAiReviewRoute
   AppAnalyticsRoute: typeof AppAnalyticsRoute
   AppDashboardRoute: typeof AppDashboardRoute
+  AppLeaderboardRoute: typeof AppLeaderboardRoute
   AppMyAssessmentsRoute: typeof AppMyAssessmentsRoute
   AppMyResultsRoute: typeof AppMyResultsRoute
   AppResultsRoute: typeof AppResultsRoute
@@ -635,6 +655,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppAiReviewRoute: AppAiReviewRoute,
   AppAnalyticsRoute: AppAnalyticsRoute,
   AppDashboardRoute: AppDashboardRoute,
+  AppLeaderboardRoute: AppLeaderboardRoute,
   AppMyAssessmentsRoute: AppMyAssessmentsRoute,
   AppMyResultsRoute: AppMyResultsRoute,
   AppResultsRoute: AppResultsRoute,
