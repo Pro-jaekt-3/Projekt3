@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { BarChart3, Users } from "lucide-react";
+import { BarChart3, Users, Trophy } from "lucide-react";
 import { PageHeader } from "@/components/common/PageHeader";
 import { Button } from "@/components/ui/button";
 import { MetricCard } from "@/components/common/MetricCard";
@@ -81,12 +81,20 @@ function AnalyticsDashboard() {
         title="Analytics dashboard"
         description="Overview across trainings, filtered by the selectors below. Computed from submitted attempts only — advisory; review before acting."
         actions={
-          <Button asChild variant="outline" size="sm">
-            <Link to="/app/participants" search={search}>
-              <Users className="mr-1.5 h-4 w-4" />
-              Participant progress
-            </Link>
-          </Button>
+          <>
+            <Button asChild variant="outline" size="sm">
+              <Link to="/app/participants" search={search}>
+                <Users className="mr-1.5 h-4 w-4" />
+                Participant progress
+              </Link>
+            </Button>
+            <Button asChild variant="outline" size="sm">
+              <Link to="/app/leaderboard" search={search}>
+                <Trophy className="mr-1.5 h-4 w-4" />
+                Leaderboard
+              </Link>
+            </Button>
+          </>
         }
       />
 
