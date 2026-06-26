@@ -1,7 +1,8 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { BarChart3 } from "lucide-react";
+import { BarChart3, Users } from "lucide-react";
 import { PageHeader } from "@/components/common/PageHeader";
+import { Button } from "@/components/ui/button";
 import { MetricCard } from "@/components/common/MetricCard";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/common/EmptyState";
@@ -79,6 +80,14 @@ function AnalyticsDashboard() {
       <PageHeader
         title="Analytics dashboard"
         description="Overview across trainings, filtered by the selectors below. Computed from submitted attempts only — advisory; review before acting."
+        actions={
+          <Button asChild variant="outline" size="sm">
+            <Link to="/app/participants" search={search}>
+              <Users className="mr-1.5 h-4 w-4" />
+              Participant progress
+            </Link>
+          </Button>
+        }
       />
 
       <div className="space-y-6 p-4 sm:p-6 lg:p-8">
