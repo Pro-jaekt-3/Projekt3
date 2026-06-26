@@ -14,6 +14,7 @@ import { Route as AppRouteImport } from './routes/app'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AppIndexRouteImport } from './routes/app.index'
 import { Route as AppUsersRouteImport } from './routes/app.users'
+import { Route as AppTrendsRouteImport } from './routes/app.trends'
 import { Route as AppSystemAnalyticsRouteImport } from './routes/app.system-analytics'
 import { Route as AppResultsRouteImport } from './routes/app.results'
 import { Route as AppMyResultsRouteImport } from './routes/app.my-results'
@@ -63,6 +64,11 @@ const AppIndexRoute = AppIndexRouteImport.update({
 const AppUsersRoute = AppUsersRouteImport.update({
   id: '/users',
   path: '/users',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppTrendsRoute = AppTrendsRouteImport.update({
+  id: '/trends',
+  path: '/trends',
   getParentRoute: () => AppRoute,
 } as any)
 const AppSystemAnalyticsRoute = AppSystemAnalyticsRouteImport.update({
@@ -207,6 +213,7 @@ export interface FileRoutesByFullPath {
   '/app/my-results': typeof AppMyResultsRoute
   '/app/results': typeof AppResultsRoute
   '/app/system-analytics': typeof AppSystemAnalyticsRoute
+  '/app/trends': typeof AppTrendsRoute
   '/app/users': typeof AppUsersRoute
   '/app/': typeof AppIndexRoute
   '/app/assessments/$id': typeof AppAssessmentsIdRouteWithChildren
@@ -238,6 +245,7 @@ export interface FileRoutesByTo {
   '/app/my-results': typeof AppMyResultsRoute
   '/app/results': typeof AppResultsRoute
   '/app/system-analytics': typeof AppSystemAnalyticsRoute
+  '/app/trends': typeof AppTrendsRoute
   '/app/users': typeof AppUsersRoute
   '/app': typeof AppIndexRoute
   '/app/assessments/$id': typeof AppAssessmentsIdRouteWithChildren
@@ -271,6 +279,7 @@ export interface FileRoutesById {
   '/app/my-results': typeof AppMyResultsRoute
   '/app/results': typeof AppResultsRoute
   '/app/system-analytics': typeof AppSystemAnalyticsRoute
+  '/app/trends': typeof AppTrendsRoute
   '/app/users': typeof AppUsersRoute
   '/app/': typeof AppIndexRoute
   '/app/assessments/$id': typeof AppAssessmentsIdRouteWithChildren
@@ -305,6 +314,7 @@ export interface FileRouteTypes {
     | '/app/my-results'
     | '/app/results'
     | '/app/system-analytics'
+    | '/app/trends'
     | '/app/users'
     | '/app/'
     | '/app/assessments/$id'
@@ -336,6 +346,7 @@ export interface FileRouteTypes {
     | '/app/my-results'
     | '/app/results'
     | '/app/system-analytics'
+    | '/app/trends'
     | '/app/users'
     | '/app'
     | '/app/assessments/$id'
@@ -368,6 +379,7 @@ export interface FileRouteTypes {
     | '/app/my-results'
     | '/app/results'
     | '/app/system-analytics'
+    | '/app/trends'
     | '/app/users'
     | '/app/'
     | '/app/assessments/$id'
@@ -431,6 +443,13 @@ declare module '@tanstack/react-router' {
       path: '/users'
       fullPath: '/app/users'
       preLoaderRoute: typeof AppUsersRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/app/trends': {
+      id: '/app/trends'
+      path: '/trends'
+      fullPath: '/app/trends'
+      preLoaderRoute: typeof AppTrendsRouteImport
       parentRoute: typeof AppRoute
     }
     '/app/system-analytics': {
@@ -635,6 +654,7 @@ interface AppRouteChildren {
   AppMyResultsRoute: typeof AppMyResultsRoute
   AppResultsRoute: typeof AppResultsRoute
   AppSystemAnalyticsRoute: typeof AppSystemAnalyticsRoute
+  AppTrendsRoute: typeof AppTrendsRoute
   AppUsersRoute: typeof AppUsersRoute
   AppIndexRoute: typeof AppIndexRoute
   AppAssessmentsIdRoute: typeof AppAssessmentsIdRouteWithChildren
@@ -660,6 +680,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppMyResultsRoute: AppMyResultsRoute,
   AppResultsRoute: AppResultsRoute,
   AppSystemAnalyticsRoute: AppSystemAnalyticsRoute,
+  AppTrendsRoute: AppTrendsRoute,
   AppUsersRoute: AppUsersRoute,
   AppIndexRoute: AppIndexRoute,
   AppAssessmentsIdRoute: AppAssessmentsIdRouteWithChildren,
