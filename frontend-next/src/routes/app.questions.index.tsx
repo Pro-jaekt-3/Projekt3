@@ -1,12 +1,15 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
-import { Plus, Sparkles, Filter, Search, Layers } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { Plus, Filter, Search, Layers } from "lucide-react";
 import { PageHeader } from "@/components/common/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { StatusBadge } from "@/components/common/StatusBadge";
+import { LoadingState, ErrorState } from "@/components/common/Spinner";
+import { EmptyState } from "@/components/common/EmptyState";
 import {
   Table,
   TableBody,
@@ -15,7 +18,9 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { QUESTIONS, type QuestionStatus } from "@/lib/mock-data";
+import { qk } from "@/lib/query-keys";
+import { questionsService } from "@/services/questions";
+import type { QuestionStatus } from "@/types";
 
 import { ensureRole } from "@/lib/route-guards";
 
@@ -25,14 +30,43 @@ export const Route = createFileRoute("/app/questions/")({
   component: QuestionBank,
 });
 
-const TABS: (QuestionStatus | "All")[] = ["All", "Draft", "Needs Review", "Approved", "Archived"];
+const DIFFICULTY_LABEL: Record<number, string> = { 1: "Easy", 2: "Medium", 3: "Hard" };
+
+type Tone = "muted" | "warning" | "success" | "danger" | "neutral";
+
+const STATUS_META: Record<QuestionStatus, { label: string; tone: Tone }> = {
+  DRAFT: { label: "Draft", tone: "muted" },
+  NEEDS_REVIEW: { label: "Needs Review", tone: "warning" },
+  REVIEW: { label: "In Review", tone: "warning" },
+  APPROVED: { label: "Approved", tone: "success" },
+  REJECTED: { label: "Rejected", tone: "danger" },
+  ARCHIVED: { label: "Archived", tone: "neutral" },
+};
+
+const TABS: { value: "All" | QuestionStatus; label: string }[] = [
+  { value: "All", label: "All" },
+  { value: "DRAFT", label: "Draft" },
+  { value: "NEEDS_REVIEW", label: "Needs Review" },
+  { value: "REVIEW", label: "In Review" },
+  { value: "REJECTED", label: "Rejected" },
+  { value: "APPROVED", label: "Approved" },
+  { value: "ARCHIVED", label: "Archived" },
+];
 
 function QuestionBank() {
   const [tab, setTab] = useState<string>("All");
   const [q, setQ] = useState("");
-  const filtered = QUESTIONS.filter((it) => {
+
+  const questionsQuery = useQuery({
+    queryKey: qk.questions.list(),
+    queryFn: questionsService.list,
+  });
+
+  const all = questionsQuery.data ?? [];
+  // GET /questions returns every status for every training — filter client-side.
+  const filtered = all.filter((it) => {
     if (tab !== "All" && it.status !== tab) return false;
-    if (q && !it.text.toLowerCase().includes(q.toLowerCase())) return false;
+    if (q && !it.title.toLowerCase().includes(q.toLowerCase())) return false;
     return true;
   });
 
@@ -63,8 +97,8 @@ function QuestionBank() {
         <Tabs value={tab} onValueChange={setTab}>
           <TabsList className="flex w-full flex-wrap sm:w-auto sm:inline-flex">
             {TABS.map((t) => (
-              <TabsTrigger key={t} value={t}>
-                {t}
+              <TabsTrigger key={t.value} value={t.value}>
+                {t.label}
               </TabsTrigger>
             ))}
           </TabsList>
@@ -85,61 +119,79 @@ function QuestionBank() {
           </Button>
         </div>
 
-        <Card>
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Question</TableHead>
-                  <TableHead className="hidden md:table-cell">Training</TableHead>
-                  <TableHead className="hidden lg:table-cell">Topic</TableHead>
-                  <TableHead className="hidden sm:table-cell">Difficulty</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="hidden md:table-cell text-right">Variants</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filtered.map((it) => (
-                  <TableRow key={it.id}>
-                    <TableCell className="max-w-md">
-                      <Link
-                        to="/app/questions/$id"
-                        params={{ id: it.id }}
-                        className="line-clamp-2 font-medium hover:underline"
-                      >
-                        {it.text}
-                      </Link>
-                      {it.source === "ai" && (
-                        <span className="ml-2 inline-block">
-                          <StatusBadge
-                            status="AI generated"
-                            tone="primary"
-                            icon={<Sparkles className="h-3 w-3" />}
-                          />
-                        </span>
-                      )}
-                    </TableCell>
-                    <TableCell className="hidden md:table-cell text-xs text-muted-foreground">
-                      {it.training}
-                    </TableCell>
-                    <TableCell className="hidden lg:table-cell text-xs text-muted-foreground">
-                      {it.topic}
-                    </TableCell>
-                    <TableCell className="hidden sm:table-cell text-xs capitalize">
-                      {it.difficulty}
-                    </TableCell>
-                    <TableCell>
-                      <StatusBadge status={it.status} />
-                    </TableCell>
-                    <TableCell className="hidden md:table-cell text-right tabular-nums">
-                      {it.variants}
-                    </TableCell>
+        {questionsQuery.isLoading ? (
+          <LoadingState label="Loading questions…" />
+        ) : questionsQuery.isError ? (
+          <ErrorState
+            message={
+              questionsQuery.error instanceof Error
+                ? questionsQuery.error.message
+                : "Failed to load questions"
+            }
+            onRetry={() => questionsQuery.refetch()}
+          />
+        ) : filtered.length === 0 ? (
+          <EmptyState
+            icon={<Search className="h-5 w-5" />}
+            title={all.length === 0 ? "No questions yet" : "No questions match your filters"}
+            description={
+              all.length === 0
+                ? "Create your first question to start building the bank."
+                : "Try a different tab or search term."
+            }
+            action={
+              all.length === 0 && (
+                <Button asChild size="sm">
+                  <Link to="/app/questions/$id" params={{ id: "new" }}>
+                    <Plus className="mr-1.5 h-4 w-4" /> Create question
+                  </Link>
+                </Button>
+              )
+            }
+          />
+        ) : (
+          <Card>
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Question</TableHead>
+                    <TableHead className="hidden md:table-cell">Topic</TableHead>
+                    <TableHead className="hidden sm:table-cell">Difficulty</TableHead>
+                    <TableHead>Status</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
-        </Card>
+                </TableHeader>
+                <TableBody>
+                  {filtered.map((it) => {
+                    const statusMeta = STATUS_META[it.status];
+                    return (
+                      <TableRow key={it.id}>
+                        <TableCell className="max-w-md">
+                          <Link
+                            to="/app/questions/$id"
+                            params={{ id: String(it.id) }}
+                            className="line-clamp-2 font-medium hover:underline"
+                          >
+                            {it.title}
+                          </Link>
+                        </TableCell>
+                        <TableCell className="hidden md:table-cell text-xs text-muted-foreground">
+                          {it.topic?.name ?? "—"}
+                        </TableCell>
+                        <TableCell className="hidden sm:table-cell text-xs">
+                          {DIFFICULTY_LABEL[it.difficulty] ?? it.difficulty}
+                        </TableCell>
+                        <TableCell>
+                          <StatusBadge status={statusMeta.label} tone={statusMeta.tone} />
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </div>
+          </Card>
+        )}
       </div>
     </>
   );
