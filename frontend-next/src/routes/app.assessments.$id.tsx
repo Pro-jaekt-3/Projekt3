@@ -1,5 +1,6 @@
-import { createFileRoute, Link, notFound, useSearch } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate, useSearch } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { z } from "zod";
 import {
   QrCode,
@@ -9,8 +10,13 @@ import {
   Play,
   AlertTriangle,
   Check,
-  Users,
+  ClipboardList,
   Clock,
+  Pencil,
+  Trash2,
+  Send,
+  Archive,
+  RotateCcw,
 } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/common/PageHeader";
@@ -19,6 +25,8 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { StatusBadge } from "@/components/common/StatusBadge";
 import { MetricCard } from "@/components/common/MetricCard";
+import { EmptyState } from "@/components/common/EmptyState";
+import { LoadingState, ErrorState } from "@/components/common/Spinner";
 import {
   Sheet,
   SheetContent,
@@ -35,43 +43,227 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
-import { ASSESSMENTS, PARTICIPANTS, QUESTIONS, getAssessment } from "@/lib/mock-data";
-import type { Assessment } from "@/lib/mock-data";
-
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { qk } from "@/lib/query-keys";
+import { assessmentsService } from "@/services/assessments";
 import { ensureRole } from "@/lib/route-guards";
+import type {
+  Assessment,
+  AssessmentQuestion,
+  AssessmentStatus,
+  AssessmentType,
+} from "@/types";
 
 export const Route = createFileRoute("/app/assessments/$id")({
   validateSearch: z.object({ published: z.coerce.number().optional() }),
   beforeLoad: ({ context, location }) =>
     ensureRole({ auth: context.auth, href: location.href }, ["admin", "instructor"]),
-  loader: ({ params }): { assessment: Assessment } => {
-    const assessment = getAssessment(params.id) ?? ASSESSMENTS[0];
-    if (!assessment) throw notFound();
-    return { assessment };
-  },
   component: AssessmentDetail,
 });
 
+const STATUS_META: Record<
+  AssessmentStatus,
+  { label: string; tone: "muted" | "info" | "neutral" }
+> = {
+  DRAFT: { label: "Draft", tone: "muted" },
+  PUBLISHED: { label: "Published", tone: "info" },
+  ARCHIVED: { label: "Archived", tone: "neutral" },
+};
+
+const TYPE_LABEL: Record<AssessmentType, string> = {
+  PRE_TEST: "Pre-test",
+  POST_TEST: "Post-test",
+  QUIZ: "Quiz",
+};
+
+const QUESTION_STATUS_LABEL: Record<string, string> = {
+  DRAFT: "Draft",
+  NEEDS_REVIEW: "Needs Review",
+  REVIEW: "In Review",
+  APPROVED: "Approved",
+  REJECTED: "Rejected",
+  ARCHIVED: "Archived",
+};
+
 function AssessmentDetail() {
-  const { assessment } = Route.useLoaderData() as { assessment: Assessment };
+  const { id } = Route.useParams();
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const { published } = useSearch({ from: "/app/assessments/$id" });
+
   const [accessOpen, setAccessOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [editError, setEditError] = useState<string | null>(null);
+  const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
+  const [type, setType] = useState<AssessmentType>("QUIZ");
+  const [showPublishedBanner, setShowPublishedBanner] = useState(Boolean(published));
+
+  const assessmentQuery = useQuery({
+    queryKey: qk.assessments.detail(id),
+    queryFn: () => assessmentsService.get(id),
+  });
 
   useEffect(() => {
-    if (published) setAccessOpen(true);
+    if (published) {
+      setAccessOpen(true);
+      setShowPublishedBanner(true);
+    }
   }, [published]);
 
-  const questions = QUESTIONS.filter((q) => assessment.questionIds.includes(q.id));
-  const primary =
-    assessment.status === "Draft"
-      ? { label: "Continue editing", to: "/app/assessments/new" as const }
-      : assessment.status === "Results Ready"
-        ? {
-            label: "View results",
-            to: "/app/assessments/$id/results" as const,
-            params: { id: assessment.id },
-          }
-        : null;
+  useEffect(() => {
+    const assessment = assessmentQuery.data;
+    if (!assessment) return;
+    setTitle(assessment.title);
+    setDescription(assessment.description ?? "");
+    setType(assessment.type);
+    setEditError(null);
+  }, [assessmentQuery.data?.id]);
+
+  const editMutation = useMutation({
+    mutationFn: () =>
+      assessmentsService.update(id, {
+        title: title.trim(),
+        description: description.trim() || null,
+        type,
+      }),
+    onSuccess: (updated) => {
+      queryClient.invalidateQueries({ queryKey: qk.assessments.detail(id) });
+      queryClient.invalidateQueries({ queryKey: qk.assessments.lists() });
+      setActionError(null);
+      setEditError(null);
+      toast.success(`Saved “${updated.title}”`);
+      setEditOpen(false);
+    },
+    onError: (error) => {
+      const message = errText(error);
+      setEditError(message);
+      toast.error(message);
+    },
+  });
+
+  const statusMutation = useMutation({
+    mutationFn: (status: AssessmentStatus) => assessmentsService.updateStatus(id, status),
+    onSuccess: (updated, status) => {
+      queryClient.invalidateQueries({ queryKey: qk.assessments.detail(id) });
+      queryClient.invalidateQueries({ queryKey: qk.assessments.lists() });
+      setActionError(null);
+      setShowPublishedBanner(status === "PUBLISHED");
+      if (status === "PUBLISHED") {
+        setAccessOpen(true);
+      }
+      toast.success(`Assessment marked as ${STATUS_META[status].label.toLowerCase()}`);
+      if (status === "ARCHIVED") {
+        toast("Archived assessments stay read-only until restored to draft.");
+      }
+      setTitle(updated.title);
+      setDescription(updated.description ?? "");
+      setType(updated.type);
+    },
+    onError: (error) => {
+      const message = errText(error);
+      setActionError(message);
+      toast.error(message);
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: () => assessmentsService.remove(id),
+    onSuccess: (result) => {
+      queryClient.invalidateQueries({ queryKey: qk.assessments.all });
+      setActionError(null);
+      toast.success(result.message || "Assessment deleted");
+      setDeleteOpen(false);
+      navigate({ to: "/app/assessments" });
+    },
+    onError: (error) => {
+      const message = errText(error);
+      setActionError(message);
+      toast.error(message);
+    },
+  });
+
+  if (assessmentQuery.isLoading) {
+    return <LoadingState label="Loading assessment…" />;
+  }
+
+  if (assessmentQuery.isError || !assessmentQuery.data) {
+    const message =
+      assessmentQuery.error instanceof Error
+        ? assessmentQuery.error.message
+        : "Failed to load assessment";
+    if (/not found/i.test(message)) {
+      return (
+        <div className="p-8">
+          <EmptyState
+            title="Assessment not found"
+            description="The assessment you are looking for does not exist or has been removed."
+          />
+        </div>
+      );
+    }
+    return <ErrorState message={message} onRetry={() => assessmentQuery.refetch()} />;
+  }
+
+  const assessment = assessmentQuery.data;
+  const statusMeta = STATUS_META[assessment.status];
+  const questions = assessment.questions ?? [];
+  const approvedCount = questions.filter((item) => item.question?.status === "APPROVED").length;
+  const canEdit = assessment.status === "DRAFT";
+  const publishDisabled = statusMutation.isPending || deleteMutation.isPending;
+  const editDisabled = !canEdit || editMutation.isPending || statusMutation.isPending;
+
+  const summaryRows = [
+    { label: "Type", value: TYPE_LABEL[assessment.type] },
+    { label: "Status", value: statusMeta.label },
+    { label: "Training", value: assessment.training?.title ?? "—" },
+    { label: "Created", value: formatDateTime(assessment.createdAt) },
+    { label: "Updated", value: formatDateTime(assessment.updatedAt) },
+    {
+      label: "Time limit",
+      value: assessment.timeLimitMinutes ? `${assessment.timeLimitMinutes} min` : "—",
+    },
+  ];
+
+  const validationChecks = [
+    {
+      ok: questions.length > 0 && approvedCount === questions.length,
+      label: "All selected questions are approved",
+    },
+    { ok: canEdit, label: "Draft can still be edited" },
+    { ok: assessment.status === "PUBLISHED", label: "Participant access is enabled" },
+    { ok: !!assessment.description, label: "Instructions added" },
+  ];
+
+  const statusActions = statusActionsFor(assessment.status);
 
   return (
     <>
@@ -82,67 +274,91 @@ function AssessmentDetail() {
           </Link>
         }
         title={assessment.title}
+        description={assessment.description ?? "Assessment details and status controls."}
         meta={
           <>
-            <StatusBadge status={assessment.status} />
+            <StatusBadge status={statusMeta.label} tone={statusMeta.tone} />
             <span>·</span>
-            <span>{assessment.training}</span>
+            <span>{assessment.training?.title ?? "No training"}</span>
             <span>·</span>
-            <span>{assessment.type}</span>
+            <span>{TYPE_LABEL[assessment.type]}</span>
           </>
         }
         actions={
           <>
-            {assessment.status !== "Draft" && (
+            {assessment.status === "PUBLISHED" && (
               <Button variant="outline" size="sm" onClick={() => setAccessOpen(true)}>
                 <QrCode className="mr-1.5 h-4 w-4" /> Access & QR
               </Button>
             )}
-            {primary && (
-              <Button asChild size="sm">
-                {primary.to === "/app/assessments/$id/results" ? (
-                  <Link to={primary.to} params={primary.params!}>
-                    {primary.label}
-                  </Link>
-                ) : (
-                  <Link to={primary.to as any}>{primary.label}</Link>
-                )}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setEditError(null);
+                setEditOpen(true);
+              }}
+              disabled={editDisabled}
+              title={!canEdit ? "Only draft assessments can be edited" : undefined}
+            >
+              <Pencil className="mr-1.5 h-4 w-4" /> Edit
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setDeleteOpen(true)}
+              disabled={statusMutation.isPending || deleteMutation.isPending}
+            >
+              <Trash2 className="mr-1.5 h-4 w-4" /> Delete
+            </Button>
+            {statusActions.map((action) => (
+              <Button
+                key={action.target}
+                variant={action.variant}
+                size="sm"
+                onClick={() => statusMutation.mutate(action.target)}
+                disabled={publishDisabled}
+              >
+                <action.icon className="mr-1.5 h-4 w-4" />{" "}
+                {statusMutation.isPending && statusMutation.variables === action.target
+                  ? action.pendingLabel
+                  : action.label}
               </Button>
-            )}
+            ))}
           </>
         }
       />
 
-      {published && (
+      {showPublishedBanner && assessment.status === "PUBLISHED" && (
         <div className="border-b bg-emerald-50 px-4 py-3 dark:bg-emerald-950/30 sm:px-6 lg:px-8">
           <div className="flex items-start gap-2 text-sm text-emerald-800 dark:text-emerald-200">
             <Check className="mt-0.5 h-4 w-4" />
             <div>
-              <strong>Assessment published.</strong> Share the QR code or copy the participant link
-              to begin.
+              <strong>Assessment published.</strong> Participant access is now available through
+              the access panel.
             </div>
           </div>
         </div>
       )}
 
       <div className="space-y-6 p-4 sm:p-6 lg:p-8">
+        {actionError && (
+          <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
+            {actionError}
+          </div>
+        )}
+
         <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
           <MetricCard
-            label="Assigned"
-            value={assessment.assigned}
-            icon={<Users className="h-4 w-4" />}
+            label="Questions"
+            value={questions.length}
+            icon={<ClipboardList className="h-4 w-4" />}
           />
-          <MetricCard
-            label="Submitted"
-            value={`${assessment.submitted} / ${assessment.assigned}`}
-          />
-          <MetricCard
-            label="Avg score"
-            value={assessment.avgScore ? `${assessment.avgScore}%` : "—"}
-          />
+          <MetricCard label="Approved" value={`${approvedCount} / ${questions.length}`} />
+          <MetricCard label="Status" value={statusMeta.label} />
           <MetricCard
             label="Time limit"
-            value={`${assessment.timeLimit} min`}
+            value={assessment.timeLimitMinutes ? `${assessment.timeLimitMinutes} min` : "—"}
             icon={<Clock className="h-4 w-4" />}
           />
         </div>
@@ -162,11 +378,9 @@ function AssessmentDetail() {
                 <CardTitle className="text-base">Summary</CardTitle>
               </CardHeader>
               <CardContent className="space-y-2 text-sm">
-                <SumRow label="Type" value={assessment.type} />
-                <SumRow label="Time limit" value={`${assessment.timeLimit} min`} />
-                <SumRow label="Created" value={assessment.createdAt} />
-                <SumRow label="Due" value={assessment.dueDate ?? "—"} />
-                <SumRow label="Access code" value={assessment.accessCode ?? "—"} />
+                {summaryRows.map((row) => (
+                  <SumRow key={row.label} label={row.label} value={row.value} />
+                ))}
               </CardContent>
             </Card>
             <Card>
@@ -174,10 +388,9 @@ function AssessmentDetail() {
                 <CardTitle className="text-base">Validation</CardTitle>
               </CardHeader>
               <CardContent className="space-y-2 text-sm">
-                <Validate ok={true} label="All questions approved" />
-                <Validate ok={assessment.assigned > 0} label="Participants assigned" />
-                <Validate ok={!!assessment.dueDate} label="Availability set" />
-                <Validate ok={true} label="Instructions added" />
+                {validationChecks.map((check) => (
+                  <Validate key={check.label} ok={check.ok} label={check.label} />
+                ))}
               </CardContent>
             </Card>
           </TabsContent>
@@ -196,31 +409,20 @@ function AssessmentDetail() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {questions.map((q, i) => (
-                      <TableRow key={q.id}>
-                        <TableCell className="text-muted-foreground tabular-nums">
-                          {i + 1}
-                        </TableCell>
-                        <TableCell className="max-w-md">
-                          <Link
-                            to="/app/questions/$id"
-                            params={{ id: q.id }}
-                            className="line-clamp-2 font-medium hover:underline"
-                          >
-                            {q.text}
-                          </Link>
-                        </TableCell>
-                        <TableCell className="hidden md:table-cell text-xs text-muted-foreground">
-                          {q.topic}
-                        </TableCell>
-                        <TableCell className="hidden sm:table-cell text-xs capitalize">
-                          {q.difficulty}
-                        </TableCell>
-                        <TableCell>
-                          <StatusBadge status={q.status} />
+                    {questions.length > 0 ? (
+                      questions.map((item, index) => (
+                        <AssessmentQuestionRow key={item.id} item={item} index={index} />
+                      ))
+                    ) : (
+                      <TableRow>
+                        <TableCell colSpan={5} className="py-8">
+                          <EmptyState
+                            title="No questions attached"
+                            description="This assessment does not have any question rows yet."
+                          />
                         </TableCell>
                       </TableRow>
-                    ))}
+                    )}
                   </TableBody>
                 </Table>
               </div>
@@ -229,39 +431,10 @@ function AssessmentDetail() {
 
           <TabsContent value="assignments" className="mt-4">
             <Card>
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Participant</TableHead>
-                      <TableHead className="hidden sm:table-cell">Status</TableHead>
-                      <TableHead className="hidden md:table-cell">Started</TableHead>
-                      <TableHead className="text-right">Submitted</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {PARTICIPANTS.slice(0, 8).map((p, i) => (
-                      <TableRow key={p.id}>
-                        <TableCell>
-                          <div className="font-medium">{p.name}</div>
-                          <div className="text-xs text-muted-foreground">{p.email}</div>
-                        </TableCell>
-                        <TableCell className="hidden sm:table-cell">
-                          <StatusBadge
-                            status={i < 6 ? "Completed" : i === 6 ? "In progress" : "To do"}
-                          />
-                        </TableCell>
-                        <TableCell className="hidden md:table-cell text-xs text-muted-foreground">
-                          {i < 7 ? "2 hours ago" : "—"}
-                        </TableCell>
-                        <TableCell className="text-right text-xs text-muted-foreground">
-                          {i < 6 ? "Yes" : "—"}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
+              <CardContent className="py-10 text-center text-sm text-muted-foreground">
+                Assignment and attempt tracking will be wired when the solving and results routes
+                are connected. This detail page now uses the real assessment record only.
+              </CardContent>
             </Card>
           </TabsContent>
 
@@ -270,39 +443,227 @@ function AssessmentDetail() {
               <CardHeader>
                 <CardTitle className="text-base">Access</CardTitle>
                 <CardDescription>
-                  QR code, link, access code and live session monitoring.
+                  QR code, participant link and publish state are available here.
                 </CardDescription>
               </CardHeader>
-              <CardContent>
-                <Button onClick={() => setAccessOpen(true)}>
+              <CardContent className="space-y-3">
+                <Button
+                  onClick={() => setAccessOpen(true)}
+                  disabled={assessment.status !== "PUBLISHED"}
+                >
                   <QrCode className="mr-1.5 h-4 w-4" /> Open access & live session
                 </Button>
+                {assessment.status !== "PUBLISHED" && (
+                  <div className="rounded-md border bg-surface p-3 text-sm text-muted-foreground">
+                    Publish the assessment first to enable participant access.
+                  </div>
+                )}
               </CardContent>
             </Card>
           </TabsContent>
 
           <TabsContent value="results" className="mt-4">
-            {assessment.status === "Results Ready" ? (
-              <div className="rounded-lg border bg-card p-6 text-center">
-                <Button asChild>
-                  <Link to="/app/assessments/$id/results" params={{ id: assessment.id }}>
-                    Open detailed results
-                  </Link>
-                </Button>
-              </div>
-            ) : (
-              <Card>
-                <CardContent className="py-10 text-center text-sm text-muted-foreground">
-                  Results will appear after participants submit attempts.
-                </CardContent>
-              </Card>
-            )}
+            <Card>
+              <CardContent className="py-10 text-center text-sm text-muted-foreground">
+                Per-assessment results are not wired in this step yet. Use this page for real
+                detail, draft editing and status transitions only.
+              </CardContent>
+            </Card>
           </TabsContent>
         </Tabs>
       </div>
 
+      <EditAssessmentDialog
+        open={editOpen}
+        onOpenChange={setEditOpen}
+        title={title}
+        description={description}
+        type={type}
+        editError={editError}
+        canEdit={canEdit}
+        isPending={editMutation.isPending}
+        onTitleChange={setTitle}
+        onDescriptionChange={setDescription}
+        onTypeChange={setType}
+        onSubmit={() => {
+          if (!title.trim()) {
+            setEditError("Title is required");
+            toast.error("Title is required");
+            return;
+          }
+          setEditError(null);
+          editMutation.mutate();
+        }}
+      />
+
+      <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete this assessment?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This permanently deletes “{assessment.title}”. If other records still depend on it,
+              the server will refuse the delete and return its error message.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleteMutation.isPending}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(event) => {
+                event.preventDefault();
+                deleteMutation.mutate();
+              }}
+              disabled={deleteMutation.isPending}
+            >
+              {deleteMutation.isPending ? "Deleting…" : "Delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       <AccessDrawer open={accessOpen} onOpenChange={setAccessOpen} assessment={assessment} />
     </>
+  );
+}
+
+function AssessmentQuestionRow({
+  item,
+  index,
+}: {
+  item: AssessmentQuestion;
+  index: number;
+}) {
+  const question = item.question;
+  const questionStatus = question?.status ? QUESTION_STATUS_LABEL[question.status] : "Unavailable";
+
+  return (
+    <TableRow>
+      <TableCell className="text-muted-foreground tabular-nums">{index + 1}</TableCell>
+      <TableCell className="max-w-md">
+        {question ? (
+          <Link
+            to="/app/questions/$id"
+            params={{ id: String(question.id) }}
+            className="line-clamp-2 font-medium hover:underline"
+          >
+            {question.title}
+          </Link>
+        ) : (
+          <span className="text-sm text-muted-foreground">Question unavailable</span>
+        )}
+      </TableCell>
+      <TableCell className="hidden md:table-cell text-xs text-muted-foreground">
+        {question?.topic?.name ?? "—"}
+      </TableCell>
+      <TableCell className="hidden sm:table-cell text-xs">{difficultyLabel(question?.difficulty)}</TableCell>
+      <TableCell>
+        <StatusBadge status={questionStatus} />
+      </TableCell>
+    </TableRow>
+  );
+}
+
+function EditAssessmentDialog({
+  open,
+  onOpenChange,
+  title,
+  description,
+  type,
+  editError,
+  canEdit,
+  isPending,
+  onTitleChange,
+  onDescriptionChange,
+  onTypeChange,
+  onSubmit,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  title: string;
+  description: string;
+  type: AssessmentType;
+  editError: string | null;
+  canEdit: boolean;
+  isPending: boolean;
+  onTitleChange: (value: string) => void;
+  onDescriptionChange: (value: string) => void;
+  onTypeChange: (value: AssessmentType) => void;
+  onSubmit: () => void;
+}) {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Edit assessment</DialogTitle>
+          <DialogDescription>
+            Only draft assessments can be edited. Publishing or submitted attempts lock the record.
+          </DialogDescription>
+        </DialogHeader>
+        <form
+          id="edit-assessment-form"
+          className="space-y-3"
+          onSubmit={(event) => {
+            event.preventDefault();
+            onSubmit();
+          }}
+        >
+          <div className="space-y-1.5">
+            <Label htmlFor="assessment-title">Title</Label>
+            <Input
+              id="assessment-title"
+              value={title}
+              onChange={(event) => onTitleChange(event.target.value)}
+              autoFocus
+              disabled={!canEdit || isPending}
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="assessment-description">Description</Label>
+            <Textarea
+              id="assessment-description"
+              value={description}
+              onChange={(event) => onDescriptionChange(event.target.value)}
+              disabled={!canEdit || isPending}
+              rows={4}
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label>Assessment type</Label>
+            <Select
+              value={type}
+              onValueChange={(value) => onTypeChange(value as AssessmentType)}
+              disabled={!canEdit || isPending}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="PRE_TEST">Pre-test</SelectItem>
+                <SelectItem value="POST_TEST">Post-test</SelectItem>
+                <SelectItem value="QUIZ">Quiz</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          {editError && (
+            <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
+              {editError}
+            </div>
+          )}
+        </form>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isPending}>
+            Cancel
+          </Button>
+          <Button
+            type="submit"
+            form="edit-assessment-form"
+            disabled={!canEdit || isPending}
+            title={!canEdit ? "Only draft assessments can be edited" : undefined}
+          >
+            {isPending ? "Saving…" : "Save changes"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -334,17 +695,23 @@ function AccessDrawer({
   assessment,
 }: {
   open: boolean;
-  onOpenChange: (v: boolean) => void;
+  onOpenChange: (value: boolean) => void;
   assessment: Assessment;
 }) {
-  const link = `${typeof window !== "undefined" ? window.location.origin : "https://projekt3.app"}/assessment/${assessment.id}/access`;
+  const link = `${
+    typeof window !== "undefined" ? window.location.origin : "https://projekt3.app"
+  }/assessment/${assessment.id}/access`;
+  const statusMeta = STATUS_META[assessment.status];
   const copy = () => {
-    if (typeof navigator !== "undefined") navigator.clipboard?.writeText(link);
+    if (typeof navigator !== "undefined") {
+      navigator.clipboard?.writeText(link);
+    }
     toast.success("Link copied");
   };
+
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="w-full sm:max-w-lg overflow-y-auto">
+      <SheetContent className="w-full overflow-y-auto sm:max-w-lg">
         <SheetHeader>
           <SheetTitle>Assessment access & live session</SheetTitle>
           <SheetDescription>{assessment.title}</SheetDescription>
@@ -352,80 +719,68 @@ function AccessDrawer({
 
         <div className="mt-4 space-y-4">
           <div className="flex items-center gap-2">
-            <StatusBadge status={assessment.status} />
+            <StatusBadge status={statusMeta.label} tone={statusMeta.tone} />
             <span className="text-xs text-muted-foreground">
-              Access code: <span className="font-mono">{assessment.accessCode ?? "—"}</span>
+              Training: <span className="font-medium">{assessment.training?.title ?? "—"}</span>
             </span>
           </div>
 
-          <div className="rounded-md border bg-card p-4">
-            <div className="flex justify-center">
-              <QrPlaceholder value={link} />
+          {assessment.status !== "PUBLISHED" ? (
+            <div className="rounded-md border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-200">
+              Publish this assessment before sharing the participant link or QR code.
             </div>
-            <div className="mt-3 text-center text-xs text-muted-foreground">
-              QR respects assignment. Unassigned users see access-denied.
-            </div>
-          </div>
+          ) : (
+            <>
+              <div className="rounded-md border bg-card p-4">
+                <div className="flex justify-center">
+                  <QrPlaceholder value={link} />
+                </div>
+                <div className="mt-3 text-center text-xs text-muted-foreground">
+                  QR respects assignment rules once the participant flow is wired.
+                </div>
+              </div>
 
-          <div className="space-y-1.5">
-            <label className="text-xs font-medium">Participant link</label>
-            <div className="flex gap-2">
-              <Input value={link} readOnly className="font-mono text-xs" />
-              <Button variant="outline" size="icon" onClick={copy}>
-                <Copy className="h-4 w-4" />
-              </Button>
-              <Button asChild variant="outline" size="icon">
-                <a href={link} target="_blank" rel="noreferrer">
-                  <ExternalLink className="h-4 w-4" />
-                </a>
-              </Button>
-            </div>
-          </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium">Participant link</label>
+                <div className="flex gap-2">
+                  <Input value={link} readOnly className="font-mono text-xs" />
+                  <Button variant="outline" size="icon" onClick={copy}>
+                    <Copy className="h-4 w-4" />
+                  </Button>
+                  <Button asChild variant="outline" size="icon">
+                    <a href={link} target="_blank" rel="noreferrer">
+                      <ExternalLink className="h-4 w-4" />
+                    </a>
+                  </Button>
+                </div>
+              </div>
+            </>
+          )}
 
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <LiveStat label="Assigned" value={assessment.assigned} />
+            <LiveStat label="Status" value={statusMeta.label} />
+            <LiveStat label="Questions" value={assessment.questions?.length ?? 0} />
             <LiveStat
-              label="Opened"
-              value={Math.min(assessment.assigned, assessment.submitted + 3)}
+              label="Time limit"
+              value={assessment.timeLimitMinutes ? `${assessment.timeLimitMinutes} min` : "—"}
             />
-            <LiveStat label="In progress" value={Math.max(0, 3)} />
-            <LiveStat label="Submitted" value={assessment.submitted} />
+            <LiveStat label="Type" value={TYPE_LABEL[assessment.type]} />
           </div>
 
-          <div className="rounded-md border bg-card">
-            <div className="border-b px-3 py-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-              Live participants
-            </div>
-            <ul className="divide-y text-sm">
-              {PARTICIPANTS.slice(0, 5).map((p, i) => (
-                <li key={p.id} className="flex items-center justify-between px-3 py-2">
-                  <div className="min-w-0">
-                    <div className="truncate font-medium">{p.name}</div>
-                    <div className="text-xs text-muted-foreground">
-                      {i < 3
-                        ? "Submitted · 18 min"
-                        : i === 3
-                          ? "In progress · Q5/8"
-                          : "Not started"}
-                    </div>
-                  </div>
-                  <StatusBadge status={i < 3 ? "Completed" : i === 3 ? "In progress" : "To do"} />
-                </li>
-              ))}
-            </ul>
+          <div className="rounded-md border bg-card p-4 text-sm text-muted-foreground">
+            Live participant monitoring and submission tracking will be added when the attempt and
+            results routes are wired.
           </div>
 
           <div className="flex flex-wrap gap-2 pt-2">
-            <Button variant="outline" size="sm">
+            <Button variant="outline" size="sm" disabled={assessment.status !== "PUBLISHED"}>
               <Eye className="mr-1.5 h-4 w-4" /> Display QR fullscreen
             </Button>
-            <Button variant="outline" size="sm">
+            <Button variant="outline" size="sm" disabled={assessment.status !== "PUBLISHED"}>
               <Play className="mr-1.5 h-4 w-4" /> Open / close
             </Button>
-            <Button asChild size="sm">
-              <Link to="/app/assessments/$id/results" params={{ id: assessment.id }}>
-                View results
-              </Link>
+            <Button size="sm" disabled>
+              View results
             </Button>
           </div>
         </div>
@@ -444,35 +799,115 @@ function LiveStat({ label, value }: { label: string; value: React.ReactNode }) {
 }
 
 function QrPlaceholder({ value }: { value: string }) {
-  // Decorative QR: deterministic pixel pattern from string.
   const cells = 21;
-  let h = 0;
-  for (let i = 0; i < value.length; i++) h = (h * 31 + value.charCodeAt(i)) >>> 0;
-  const pixels: boolean[] = [];
-  let s = h || 1;
-  for (let i = 0; i < cells * cells; i++) {
-    s = (s * 1103515245 + 12345) & 0x7fffffff;
-    pixels.push((s >> 16) % 4 !== 0);
+  let hash = 0;
+  for (let index = 0; index < value.length; index += 1) {
+    hash = (hash * 31 + value.charCodeAt(index)) >>> 0;
   }
-  // mark corner finder patterns
-  const setBlock = (r: number, c: number) => {
-    for (let i = 0; i < 7; i++)
-      for (let j = 0; j < 7; j++) {
-        const v =
-          i === 0 || i === 6 || j === 0 || j === 6 || (i >= 2 && i <= 4 && j >= 2 && j <= 4);
-        pixels[(r + i) * cells + (c + j)] = v;
+  const pixels: boolean[] = [];
+  let seed = hash || 1;
+  for (let index = 0; index < cells * cells; index += 1) {
+    seed = (seed * 1103515245 + 12345) & 0x7fffffff;
+    pixels.push((seed >> 16) % 4 !== 0);
+  }
+  const setBlock = (row: number, column: number) => {
+    for (let r = 0; r < 7; r += 1) {
+      for (let c = 0; c < 7; c += 1) {
+        const isFilled =
+          r === 0 ||
+          r === 6 ||
+          c === 0 ||
+          c === 6 ||
+          (r >= 2 && r <= 4 && c >= 2 && c <= 4);
+        pixels[(row + r) * cells + (column + c)] = isFilled;
       }
+    }
   };
   setBlock(0, 0);
   setBlock(0, cells - 7);
   setBlock(cells - 7, 0);
+
   return (
     <div className="rounded-md border bg-white p-3">
       <div className="grid h-44 w-44 grid-cols-[repeat(21,minmax(0,1fr))] gap-[1px]">
-        {pixels.map((on, i) => (
-          <div key={i} className={on ? "bg-foreground" : "bg-white"} />
+        {pixels.map((pixel, index) => (
+          <div key={index} className={pixel ? "bg-foreground" : "bg-white"} />
         ))}
       </div>
     </div>
   );
+}
+
+function difficultyLabel(value?: number) {
+  if (value === 1) return "Easy";
+  if (value === 2) return "Medium";
+  if (value === 3) return "Hard";
+  return value ? String(value) : "—";
+}
+
+function formatDateTime(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleString();
+}
+
+function errText(error: unknown) {
+  return error instanceof Error ? error.message : "Request failed";
+}
+
+function statusActionsFor(status: AssessmentStatus) {
+  if (status === "DRAFT") {
+    return [
+      {
+        label: "Archive",
+        pendingLabel: "Archiving…",
+        target: "ARCHIVED" as const,
+        icon: Archive,
+        variant: "outline" as const,
+      },
+      {
+        label: "Publish",
+        pendingLabel: "Publishing…",
+        target: "PUBLISHED" as const,
+        icon: Send,
+        variant: "default" as const,
+      },
+    ];
+  }
+
+  if (status === "PUBLISHED") {
+    return [
+      {
+        label: "Move to draft",
+        pendingLabel: "Reverting…",
+        target: "DRAFT" as const,
+        icon: RotateCcw,
+        variant: "outline" as const,
+      },
+      {
+        label: "Archive",
+        pendingLabel: "Archiving…",
+        target: "ARCHIVED" as const,
+        icon: Archive,
+        variant: "outline" as const,
+      },
+    ];
+  }
+
+  return [
+    {
+      label: "Restore draft",
+      pendingLabel: "Restoring…",
+      target: "DRAFT" as const,
+      icon: RotateCcw,
+      variant: "outline" as const,
+    },
+    {
+      label: "Publish",
+      pendingLabel: "Publishing…",
+      target: "PUBLISHED" as const,
+      icon: Send,
+      variant: "default" as const,
+    },
+  ];
 }
