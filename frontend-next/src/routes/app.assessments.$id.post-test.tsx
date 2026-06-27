@@ -1,5 +1,6 @@
-import { createFileRoute, Link, notFound, useNavigate } from "@tanstack/react-router";
-import { useState } from "react";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { useEffect, useMemo, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Check,
   ChevronLeft,
@@ -16,6 +17,8 @@ import { PageHeader } from "@/components/common/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { StatusBadge } from "@/components/common/StatusBadge";
+import { EmptyState } from "@/components/common/EmptyState";
+import { LoadingState, ErrorState } from "@/components/common/Spinner";
 import {
   Select,
   SelectContent,
@@ -32,20 +35,20 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Checkbox } from "@/components/ui/checkbox";
-import { ASSESSMENTS, AI_MODELS, QUESTIONS, getAssessment } from "@/lib/mock-data";
-import type { Assessment } from "@/lib/mock-data";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { assessmentsService } from "@/services/assessments";
+import { topicsService } from "@/services/topics";
+import { learningObjectivesService } from "@/services/learningObjectives";
+import { questionsService } from "@/services/questions";
+import { qk } from "@/lib/query-keys";
 import { cn } from "@/lib/utils";
-
 import { ensureRole } from "@/lib/route-guards";
+import type { Assessment, AssessmentStatus, LearningObjective, Question, Topic } from "@/types";
 
 export const Route = createFileRoute("/app/assessments/$id/post-test")({
   beforeLoad: ({ context, location }) =>
     ensureRole({ auth: context.auth, href: location.href }, ["admin", "instructor"]),
-  loader: ({ params }): { related: Assessment } => {
-    const a = getAssessment(params.id) ?? ASSESSMENTS[0];
-    if (!a) throw notFound();
-    return { related: a };
-  },
   component: PostTestWizard,
 });
 
@@ -57,29 +60,379 @@ const STEPS = [
   { id: 5, title: "Review & publish" },
 ];
 
+const AI_MODEL_OPTIONS = [
+  {
+    id: "local-default",
+    displayName: "Local QA Model",
+    location: "local" as const,
+    quality: "Balanced",
+    speed: "Fast",
+    defaultFor: ["Equivalent variants"],
+  },
+  {
+    id: "cloud-default",
+    displayName: "Cloud Reasoning Model",
+    location: "cloud" as const,
+    quality: "High quality",
+    speed: "Moderate",
+    defaultFor: ["Equivalent variants"],
+  },
+];
+
+const STATUS_LABEL: Record<AssessmentStatus, string> = {
+  DRAFT: "Draft",
+  PUBLISHED: "Published",
+  ARCHIVED: "Archived",
+};
+
 function PostTestWizard() {
-  const { related } = Route.useLoaderData() as { related: Assessment };
+  const { id } = Route.useParams();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
+
   const [step, setStep] = useState(1);
-  const [pre, setPre] = useState<Assessment>(related);
-  const [modelId, setModelId] = useState(AI_MODELS.filter((m) => m.enabled)[0]?.id ?? "");
-  const [generated, setGenerated] = useState(false);
-  const [reviewed, setReviewed] = useState<
-    Record<string, "approved" | "rejected" | "later" | null>
-  >({});
-  const questions = QUESTIONS.filter((q) => pre.questionIds.includes(q.id));
+  const [selectedPreId, setSelectedPreId] = useState(id);
+  const [modelId, setModelId] = useState(AI_MODEL_OPTIONS[0]?.id ?? "");
+  const [generatedAssessment, setGeneratedAssessment] = useState<Assessment | null>(null);
+  const [generatedSignature, setGeneratedSignature] = useState<string | null>(null);
+  const [reviewed, setReviewed] = useState<Record<string, "approved" | "rejected" | "later" | null>>(
+    {},
+  );
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [config, setConfig] = useState({
+    title: "Post-test draft",
+    description:
+      "Follow-up assessment using approved same-training questions for comparable post-test review.",
+    topicId: "all",
+    learningObjectiveId: "all",
+    difficulty: "any" as "any" | "easy" | "medium" | "hard",
+    count: 0,
+  });
 
-  const back = () => setStep((s) => Math.max(1, s - 1));
-  const next = () => setStep((s) => Math.min(5, s + 1));
+  const relatedAssessmentQuery = useQuery({
+    queryKey: qk.assessments.detail(id),
+    queryFn: () => assessmentsService.get(id),
+  });
+  const assessmentsQuery = useQuery({
+    queryKey: qk.assessments.list(),
+    queryFn: assessmentsService.list,
+  });
+  const topicsQuery = useQuery({
+    queryKey: qk.topics.list(),
+    queryFn: topicsService.list,
+  });
+  const objectivesQuery = useQuery({
+    queryKey: qk.learningObjectives.list(),
+    queryFn: () => learningObjectivesService.list(),
+  });
+  const questionsQuery = useQuery({
+    queryKey: qk.questions.list(),
+    queryFn: questionsService.list,
+  });
 
-  const publish = () => {
-    toast.success("Post-test published");
-    navigate({
-      to: "/app/assessments/$id",
-      params: { id: "a3" },
-      search: { published: 1 } as never,
+  const loading =
+    relatedAssessmentQuery.isLoading ||
+    assessmentsQuery.isLoading ||
+    topicsQuery.isLoading ||
+    objectivesQuery.isLoading ||
+    questionsQuery.isLoading;
+  const dataError =
+    relatedAssessmentQuery.error ??
+    assessmentsQuery.error ??
+    topicsQuery.error ??
+    objectivesQuery.error ??
+    questionsQuery.error ??
+    null;
+
+  const allAssessments = assessmentsQuery.data ?? [];
+  const preTests = allAssessments.filter((assessment) => assessment.type === "PRE_TEST");
+  const topics = topicsQuery.data ?? [];
+  const objectives = objectivesQuery.data ?? [];
+  const questionsCatalog = questionsQuery.data ?? [];
+  const questionById = useMemo(
+    () => new Map(questionsCatalog.map((question) => [question.id, question])),
+    [questionsCatalog],
+  );
+
+  useEffect(() => {
+    if (preTests.length === 0) return;
+    if (preTests.some((assessment) => String(assessment.id) === selectedPreId)) return;
+    setSelectedPreId(String(preTests[0].id));
+  }, [preTests, selectedPreId]);
+
+  const selectedPre =
+    (String(relatedAssessmentQuery.data?.id) === selectedPreId
+      ? relatedAssessmentQuery.data
+      : preTests.find((assessment) => String(assessment.id) === selectedPreId)) ?? null;
+
+  const trainingTopics = useMemo(() => {
+    if (!selectedPre) return [];
+    return topics.filter((topic) => topic.trainingId === selectedPre.trainingId);
+  }, [topics, selectedPre]);
+  const trainingTopicIds = useMemo(
+    () => new Set(trainingTopics.map((topic) => topic.id)),
+    [trainingTopics],
+  );
+  const visibleObjectives = useMemo(() => {
+    if (!selectedPre) return [];
+    if (config.topicId === "all") {
+      return objectives.filter((objective) => trainingTopicIds.has(objective.topicId));
+    }
+    return objectives.filter((objective) => objective.topicId === Number(config.topicId));
+  }, [objectives, trainingTopicIds, selectedPre, config.topicId]);
+  const approvedTrainingQuestions = useMemo(
+    () =>
+      questionsCatalog.filter(
+        (question) => question.status === "APPROVED" && trainingTopicIds.has(question.topicId),
+      ),
+    [questionsCatalog, trainingTopicIds],
+  );
+  const preQuestions = useMemo(() => {
+    if (!selectedPre) return [];
+    return (selectedPre.questions ?? [])
+      .map((item) => questionById.get(item.questionId) ?? item.question)
+      .filter((question): question is Question => Boolean(question));
+  }, [selectedPre, questionById]);
+  const groupedVariants = useMemo(() => {
+    const byGroup = new Map<number, Question[]>();
+    for (const question of approvedTrainingQuestions) {
+      if (!question.equivalentGroupId) continue;
+      const list = byGroup.get(question.equivalentGroupId) ?? [];
+      list.push(question);
+      byGroup.set(question.equivalentGroupId, list);
+    }
+    return byGroup;
+  }, [approvedTrainingQuestions]);
+  const variantCandidatesByQuestionId = useMemo(() => {
+    const map = new Map<number, Question | null>();
+    for (const question of preQuestions) {
+      if (!question.equivalentGroupId) {
+        map.set(question.id, null);
+        continue;
+      }
+      const candidate =
+        groupedVariants
+          .get(question.equivalentGroupId)
+          ?.find((item) => item.id !== question.id && item.status === "APPROVED") ?? null;
+      map.set(question.id, candidate);
+    }
+    return map;
+  }, [groupedVariants, preQuestions]);
+  const missingVariantQuestions = useMemo(
+    () => preQuestions.filter((question) => !variantCandidatesByQuestionId.get(question.id)),
+    [preQuestions, variantCandidatesByQuestionId],
+  );
+
+  useEffect(() => {
+    if (!selectedPre) return;
+    const suggestedTitle = resolvePostTestTitle(selectedPre.title);
+    setConfig((current) => ({
+      ...current,
+      title: current.title === "Post-test draft" ? suggestedTitle : current.title,
+      count:
+        current.count > 0 && current.count <= approvedTrainingQuestions.length
+          ? current.count
+          : Math.max(1, preQuestions.length),
+    }));
+  }, [selectedPre, preQuestions.length, approvedTrainingQuestions.length]);
+
+  useEffect(() => {
+    if (config.learningObjectiveId === "all") return;
+    if (visibleObjectives.some((objective) => String(objective.id) === config.learningObjectiveId)) {
+      return;
+    }
+    setConfig((current) => ({ ...current, learningObjectiveId: "all" }));
+  }, [visibleObjectives, config.learningObjectiveId]);
+
+  useEffect(() => {
+    setGeneratedAssessment(null);
+    setGeneratedSignature(null);
+    setReviewed({});
+    setActionError(null);
+  }, [selectedPreId, config.topicId, config.learningObjectiveId, config.difficulty, config.count, config.title, config.description]);
+
+  const generationSignature = selectedPre
+    ? buildGenerationSignature({
+        preId: selectedPre.id,
+        title: config.title,
+        description: config.description,
+        topicId: config.topicId,
+        learningObjectiveId: config.learningObjectiveId,
+        difficulty: config.difficulty,
+        count: config.count,
+      })
+    : "";
+
+  const generateMutation = useMutation({
+    mutationFn: async () => {
+      if (!selectedPre) {
+        throw new Error("Choose a related pre-test first");
+      }
+      if (
+        generatedAssessment &&
+        generatedSignature &&
+        generatedSignature !== generationSignature &&
+        generatedAssessment.status === "DRAFT"
+      ) {
+        await assessmentsService.removeQuietly(generatedAssessment.id);
+      }
+
+      const generated = await assessmentsService.generate({
+        title: config.title.trim(),
+        description: config.description.trim() || null,
+        trainingId: selectedPre.trainingId,
+        topicId: config.topicId !== "all" ? Number(config.topicId) : undefined,
+        learningObjectiveId:
+          config.learningObjectiveId !== "all" ? Number(config.learningObjectiveId) : undefined,
+        difficulty: config.difficulty === "any" ? undefined : config.difficulty,
+        count: config.count,
+      });
+
+      const updated = await assessmentsService.update(generated.id, {
+        title: config.title.trim(),
+        description: config.description.trim() || null,
+        type: "POST_TEST",
+      });
+
+      return updated;
+    },
+    onSuccess: (generated) => {
+      queryClient.invalidateQueries({ queryKey: qk.assessments.all });
+      setGeneratedAssessment(generated);
+      setGeneratedSignature(generationSignature);
+      setActionError(null);
+      toast.success(`Generated “${generated.title}” as a draft`, {
+        description: "Review the draft and publish it only if you want it live immediately.",
+      });
+    },
+    onError: (error) => {
+      const message = errText(error);
+      setActionError(message);
+      toast.error(message);
+    },
+  });
+
+  const publishMutation = useMutation({
+    mutationFn: (assessmentId: number | string) =>
+      assessmentsService.updateStatus(assessmentId, "PUBLISHED"),
+    onSuccess: (publishedAssessment) => {
+      queryClient.invalidateQueries({ queryKey: qk.assessments.all });
+      setActionError(null);
+      toast.success("Post-test published");
+      navigate({
+        to: "/app/assessments/$id",
+        params: { id: String(publishedAssessment.id) },
+        search: { published: 1 } as never,
+      });
+    },
+    onError: (error) => {
+      const message = errText(error);
+      setActionError(message);
+      toast.error(message);
+    },
+  });
+
+  const back = () => setStep((current) => Math.max(1, current - 1));
+  const next = () => setStep((current) => Math.min(5, current + 1));
+
+  const ensureDraft = async () => {
+    const validationError = validatePostTestConfig({
+      pre: selectedPre,
+      count: config.count,
+      title: config.title,
     });
+    if (validationError) {
+      setActionError(validationError);
+      toast.error(validationError);
+      throw new Error(validationError);
+    }
+
+    setActionError(null);
+    if (
+      generatedAssessment &&
+      generatedSignature === generationSignature &&
+      generatedAssessment.status === "DRAFT"
+    ) {
+      return generatedAssessment;
+    }
+    return generateMutation.mutateAsync();
   };
+
+  const saveDraft = async () => {
+    try {
+      const draft = await ensureDraft();
+      navigate({
+        to: "/app/assessments/$id",
+        params: { id: String(draft.id) },
+      });
+    } catch {
+      // Handled by mutation / validation UI.
+    }
+  };
+
+  const publish = async () => {
+    try {
+      const draft = await ensureDraft();
+      await publishMutation.mutateAsync(draft.id);
+    } catch {
+      // Handled by mutation / validation UI.
+    }
+  };
+
+  if (loading) {
+    return <LoadingState label="Loading post-test builder…" />;
+  }
+
+  if (dataError) {
+    const message = errText(dataError);
+    if (/not found/i.test(message)) {
+      return (
+        <div className="p-8">
+          <EmptyState
+            title="Assessment not found"
+            description="The related assessment could not be loaded."
+          />
+        </div>
+      );
+    }
+    return (
+      <ErrorState
+        message={message}
+        onRetry={() => {
+          relatedAssessmentQuery.refetch();
+          assessmentsQuery.refetch();
+          topicsQuery.refetch();
+          objectivesQuery.refetch();
+          questionsQuery.refetch();
+        }}
+      />
+    );
+  }
+
+  if (preTests.length === 0 || !selectedPre) {
+    return (
+      <div className="p-8">
+        <EmptyState
+          title="No pre-tests available"
+          description="Create at least one pre-test before generating a related post-test."
+        />
+      </div>
+    );
+  }
+
+  const generatedQuestions = (generatedAssessment?.questions ?? [])
+    .map((item) => questionById.get(item.questionId) ?? item.question)
+    .filter((question): question is Question => Boolean(question));
+  const comparabilityChecks = [
+    { ok: generatedAssessment !== null, label: "Draft generated from approved same-training questions" },
+    { ok: config.count > 0, label: "Question count defined" },
+    {
+      ok: missingVariantQuestions.every((question) => reviewed[String(question.id)] === "approved"),
+      label: "Missing variants reviewed",
+    },
+    { ok: true, label: "Publish remains a separate explicit step" },
+  ];
+  const actionPending = generateMutation.isPending || publishMutation.isPending;
 
   return (
     <>
@@ -90,14 +443,14 @@ function PostTestWizard() {
           </Link>
         }
         title="Create post-test"
-        description="Post-tests measure the same knowledge using equivalent but not identical questions."
+        description="Post-tests measure the same knowledge using approved same-training questions and comparable focus."
         actions={
           <>
             <Button variant="ghost" size="sm" onClick={() => navigate({ to: "/app/assessments" })}>
               <X className="mr-1.5 h-4 w-4" /> Cancel
             </Button>
-            <Button variant="outline" size="sm">
-              <Save className="mr-1.5 h-4 w-4" /> Save as draft
+            <Button variant="outline" size="sm" onClick={saveDraft} disabled={actionPending}>
+              <Save className="mr-1.5 h-4 w-4" /> {generateMutation.isPending ? "Saving…" : "Save as draft"}
             </Button>
           </>
         }
@@ -107,39 +460,46 @@ function PostTestWizard() {
         <Stepper step={step} />
 
         <div className="mt-6 max-w-4xl space-y-4">
+          {actionError && (
+            <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
+              {actionError}
+            </div>
+          )}
+
           {step === 1 && (
             <Card>
               <CardHeader>
                 <CardTitle className="text-base">Choose related pre-test</CardTitle>
               </CardHeader>
               <CardContent className="space-y-2">
-                {ASSESSMENTS.filter((a) => a.type === "Pre-test").map((a) => (
+                {preTests.map((assessment) => (
                   <label
-                    key={a.id}
+                    key={assessment.id}
                     className={cn(
                       "flex cursor-pointer items-start gap-3 rounded-md border bg-card p-4",
-                      pre.id === a.id && "border-primary bg-primary-soft/50",
+                      String(assessment.id) === selectedPreId && "border-primary bg-primary-soft/50",
                     )}
                   >
                     <input
                       type="radio"
-                      checked={pre.id === a.id}
-                      onChange={() => setPre(a)}
+                      checked={String(assessment.id) === selectedPreId}
+                      onChange={() => setSelectedPreId(String(assessment.id))}
                       className="mt-1"
                     />
                     <div className="flex-1">
                       <div className="flex items-start justify-between gap-2">
                         <div>
-                          <div className="text-sm font-semibold">{a.title}</div>
-                          <div className="text-xs text-muted-foreground">{a.training}</div>
+                          <div className="text-sm font-semibold">{assessment.title}</div>
+                          <div className="text-xs text-muted-foreground">
+                            {assessment.training?.title ?? "No training"}
+                          </div>
                         </div>
-                        <StatusBadge status={a.status} />
+                        <StatusBadge status={STATUS_LABEL[assessment.status]} />
                       </div>
                       <div className="mt-2 flex flex-wrap gap-3 text-xs text-muted-foreground">
-                        <span>Date: {a.createdAt}</span>
-                        <span>Participants: {a.assigned}</span>
-                        <span>Avg: {a.avgScore ?? "—"}%</span>
-                        <span className="text-amber-700">Weakest: SQL Joins (49%)</span>
+                        <span>Date: {formatDate(assessment.createdAt)}</span>
+                        <span>Questions: {assessment.questions?.length ?? 0}</span>
+                        <span>Type: Pre-test</span>
                       </div>
                     </div>
                   </label>
@@ -153,31 +513,126 @@ function PostTestWizard() {
               <CardHeader>
                 <CardTitle className="text-base">Reuse the same blueprint</CardTitle>
                 <CardDescription>
-                  Same topics, objectives and difficulty as <strong>{pre.title}</strong>.
+                  Same training scope as <strong>{selectedPre.title}</strong>, with optional focus
+                  filters for generation.
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="grid gap-3 sm:grid-cols-2">
-                  <BlueprintCard title="Topics" lines={["SQL Basics", "Joins", "Normalization"]} />
+                  <BlueprintCard
+                    title="Topics"
+                    lines={trainingTopics.slice(0, 3).map((topic) => topic.name)}
+                  />
                   <BlueprintCard
                     title="Difficulty"
-                    lines={["Easy 40%", "Medium 40%", "Hard 20%"]}
+                    lines={summarizeDifficulty(preQuestions)}
                   />
                   <BlueprintCard
                     title="Question count"
-                    lines={[`${pre.questionIds.length} questions`]}
+                    lines={[`${config.count} questions requested`]}
                   />
-                  <BlueprintCard title="Focus" lines={["Weak areas: SQL Joins"]} />
+                  <BlueprintCard
+                    title="Scope"
+                    lines={[selectedPre.training?.title ?? "Same training"]}
+                  />
                 </div>
-                <label className="flex items-start gap-2 rounded-md border bg-surface p-3 text-sm">
-                  <Checkbox defaultChecked className="mt-0.5" />
-                  <div>
-                    <div className="font-medium">Include focus on weak areas</div>
-                    <div className="text-xs text-muted-foreground">
-                      Slightly weight questions from SQL Joins.
-                    </div>
-                  </div>
-                </label>
+
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <Field label="Generated title">
+                    <Input
+                      value={config.title}
+                      onChange={(event) =>
+                        setConfig((current) => ({ ...current, title: event.target.value }))
+                      }
+                    />
+                  </Field>
+                  <Field label="Question count">
+                    <Input
+                      type="number"
+                      min={1}
+                      value={config.count}
+                      onChange={(event) =>
+                        setConfig((current) => ({
+                          ...current,
+                          count: Number(event.target.value),
+                        }))
+                      }
+                    />
+                  </Field>
+                  <Field label="Topic focus">
+                    <Select
+                      value={config.topicId}
+                      onValueChange={(value) =>
+                        setConfig((current) => ({
+                          ...current,
+                          topicId: value,
+                          learningObjectiveId: "all",
+                        }))
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All topics</SelectItem>
+                        {trainingTopics.map((topic) => (
+                          <SelectItem key={topic.id} value={String(topic.id)}>
+                            {topic.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </Field>
+                  <Field label="Learning objective focus">
+                    <Select
+                      value={config.learningObjectiveId}
+                      onValueChange={(value) =>
+                        setConfig((current) => ({ ...current, learningObjectiveId: value }))
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All learning objectives</SelectItem>
+                        {visibleObjectives.map((objective) => (
+                          <SelectItem key={objective.id} value={String(objective.id)}>
+                            {objective.title}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </Field>
+                  <Field label="Difficulty focus">
+                    <Select
+                      value={config.difficulty}
+                      onValueChange={(value) =>
+                        setConfig((current) => ({
+                          ...current,
+                          difficulty: value as typeof current.difficulty,
+                        }))
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="any">Any difficulty</SelectItem>
+                        <SelectItem value="easy">Easy</SelectItem>
+                        <SelectItem value="medium">Medium</SelectItem>
+                        <SelectItem value="hard">Hard</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </Field>
+                  <Field label="Description">
+                    <Input
+                      value={config.description}
+                      onChange={(event) =>
+                        setConfig((current) => ({ ...current, description: event.target.value }))
+                      }
+                    />
+                  </Field>
+                </div>
               </CardContent>
             </Card>
           )}
@@ -187,8 +642,8 @@ function PostTestWizard() {
               <CardHeader>
                 <CardTitle className="text-base">Prefer equivalent variants</CardTitle>
                 <CardDescription>
-                  Post-tests should measure the same knowledge using equivalent but not identical
-                  questions.
+                  Existing equivalent groups are preferred when available. Missing ones stay
+                  advisory until you generate a draft.
                 </CardDescription>
               </CardHeader>
               <div className="overflow-x-auto">
@@ -201,37 +656,53 @@ function PostTestWizard() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {questions.map((q, i) => {
-                      const has = i < 3;
+                    {preQuestions.map((question) => {
+                      const candidate = variantCandidatesByQuestionId.get(question.id) ?? null;
                       return (
-                        <TableRow key={q.id}>
+                        <TableRow key={question.id}>
                           <TableCell className="max-w-xs">
-                            <span className="line-clamp-2 text-sm font-medium">{q.text}</span>
+                            <span className="line-clamp-2 text-sm font-medium">{question.title}</span>
                             <div className="mt-1 text-xs text-muted-foreground">
-                              {q.topic} · {q.difficulty}
+                              {question.topic?.name ?? "—"} · {difficultyLabel(question.difficulty)}
                             </div>
                           </TableCell>
                           <TableCell className="max-w-xs">
-                            {has ? (
+                            {candidate ? (
                               <>
-                                <span className="line-clamp-2 text-sm">
-                                  {q.text
-                                    .replace("Which", "Identify which")
-                                    .replace("SQL", "relational")}
-                                </span>
-                                <StatusBadge status="Approved" />
+                                <span className="line-clamp-2 text-sm">{candidate.title}</span>
+                                <div className="mt-1">
+                                  <StatusBadge status="Approved" />
+                                </div>
                               </>
                             ) : (
                               <StatusBadge status="Needs Review" tone="warning" />
                             )}
                           </TableCell>
                           <TableCell className="text-right">
-                            {has ? (
-                              <Button size="sm" variant="outline">
+                            {candidate ? (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() =>
+                                  setReviewed((current) => ({
+                                    ...current,
+                                    [String(question.id)]: "approved",
+                                  }))
+                                }
+                              >
                                 Use variant
                               </Button>
                             ) : (
-                              <Button size="sm" variant="ghost">
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() =>
+                                  setReviewed((current) => ({
+                                    ...current,
+                                    [String(question.id)]: "later",
+                                  }))
+                                }
+                              >
                                 Mark for AI
                               </Button>
                             )}
@@ -251,87 +722,123 @@ function PostTestWizard() {
                 modelId={modelId}
                 setModelId={setModelId}
                 onGenerate={() => {
-                  setGenerated(true);
-                  toast("Generated 2 draft variants — review required");
+                  void ensureDraft();
                 }}
+                pending={generateMutation.isPending}
               />
 
-              {generated ? (
+              {generatedAssessment ? (
                 <Card>
                   <CardHeader>
-                    <CardTitle className="text-base">Review AI-generated variants</CardTitle>
+                    <CardTitle className="text-base">Generated draft</CardTitle>
                     <CardDescription>
-                      All AI variants are marked <strong>Needs Review</strong>. Approve before
-                      publish.
+                      This is still a draft. Publishing remains a separate explicit step.
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-3">
-                    {questions.slice(3, 5).map((q) => (
-                      <div key={q.id} className="rounded-md border bg-card">
-                        <div className="grid gap-4 p-4 md:grid-cols-2">
-                          <div>
-                            <div className="text-[10px] uppercase tracking-wide text-muted-foreground">
-                              Original
-                            </div>
-                            <div className="mt-1 text-sm font-medium">{q.text}</div>
-                            <div className="mt-1 text-xs text-muted-foreground">
-                              {q.topic} · {q.difficulty}
-                            </div>
-                          </div>
-                          <div className="rounded-md border-l-2 border-primary bg-primary-soft/40 p-3">
-                            <div className="flex items-center justify-between">
-                              <span className="text-[10px] uppercase tracking-wide text-accent-foreground">
-                                Equivalent variant (AI draft)
-                              </span>
-                              <StatusBadge status="AI generated" tone="primary" />
-                            </div>
-                            <div className="mt-1 text-sm font-medium">
-                              {q.text
-                                .replace(/^Which/, "Identify which")
-                                .replace(/SQL/g, "relational")}
-                            </div>
-                            <div className="mt-1 text-xs text-muted-foreground">
-                              Same topic · Same difficulty
-                            </div>
+                    <div className="rounded-md border bg-card p-4">
+                      <div className="flex items-center justify-between gap-2">
+                        <div>
+                          <div className="text-sm font-semibold">{generatedAssessment.title}</div>
+                          <div className="text-xs text-muted-foreground">
+                            {generatedAssessment.training?.title ?? selectedPre.training?.title ?? "—"} ·{" "}
+                            {generatedQuestions.length} generated questions
                           </div>
                         </div>
-                        <div className="flex flex-wrap items-center justify-end gap-2 border-t bg-surface px-4 py-2">
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => setReviewed({ ...reviewed, [q.id]: "rejected" })}
-                          >
-                            Reject
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => setReviewed({ ...reviewed, [q.id]: "later" })}
-                          >
-                            Mark for later
-                          </Button>
-                          <Button
-                            size="sm"
-                            onClick={() => setReviewed({ ...reviewed, [q.id]: "approved" })}
-                          >
-                            {reviewed[q.id] === "approved" ? (
-                              <>
-                                <Check className="mr-1.5 h-4 w-4" /> Approved
-                              </>
-                            ) : (
-                              "Approve as Needs Review"
-                            )}
-                          </Button>
-                        </div>
+                        <StatusBadge status={STATUS_LABEL[generatedAssessment.status]} />
                       </div>
-                    ))}
+                      <div className="mt-3 space-y-2">
+                        {generatedQuestions.slice(0, 5).map((question) => (
+                          <div key={question.id} className="rounded-md border bg-surface p-3">
+                            <div className="text-sm font-medium">{question.title}</div>
+                            <div className="mt-1 text-xs text-muted-foreground">
+                              {question.topic?.name ?? "—"} · {difficultyLabel(question.difficulty)}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {missingVariantQuestions.length > 0 && (
+                      <div className="space-y-3">
+                        {missingVariantQuestions.map((question) => (
+                          <div key={question.id} className="rounded-md border bg-card">
+                            <div className="grid gap-4 p-4 md:grid-cols-2">
+                              <div>
+                                <div className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                                  Original
+                                </div>
+                                <div className="mt-1 text-sm font-medium">{question.title}</div>
+                                <div className="mt-1 text-xs text-muted-foreground">
+                                  {question.topic?.name ?? "—"} · {difficultyLabel(question.difficulty)}
+                                </div>
+                              </div>
+                              <div className="rounded-md border-l-2 border-primary bg-primary-soft/40 p-3">
+                                <div className="flex items-center justify-between">
+                                  <span className="text-[10px] uppercase tracking-wide text-accent-foreground">
+                                    Generated draft (advisory)
+                                  </span>
+                                  <StatusBadge status="AI generated" tone="primary" />
+                                </div>
+                                <div className="mt-1 text-sm font-medium">
+                                  Review on the draft detail page before publishing.
+                                </div>
+                              </div>
+                            </div>
+                            <div className="flex flex-wrap items-center justify-end gap-2 border-t bg-surface px-4 py-2">
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() =>
+                                  setReviewed((current) => ({
+                                    ...current,
+                                    [String(question.id)]: "rejected",
+                                  }))
+                                }
+                              >
+                                Reject
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() =>
+                                  setReviewed((current) => ({
+                                    ...current,
+                                    [String(question.id)]: "later",
+                                  }))
+                                }
+                              >
+                                Mark for later
+                              </Button>
+                              <Button
+                                size="sm"
+                                onClick={() =>
+                                  setReviewed((current) => ({
+                                    ...current,
+                                    [String(question.id)]: "approved",
+                                  }))
+                                }
+                              >
+                                {reviewed[String(question.id)] === "approved" ? (
+                                  <>
+                                    <Check className="mr-1.5 h-4 w-4" /> Approved
+                                  </>
+                                ) : (
+                                  "Approve as advisory"
+                                )}
+                              </Button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </CardContent>
                 </Card>
               ) : (
                 <Card>
                   <CardContent className="py-10 text-center text-sm text-muted-foreground">
-                    2 questions are missing equivalent variants. Click{" "}
-                    <strong>Generate draft variants with AI</strong> above.
+                    Generate a draft post-test from the selected approved same-training question
+                    pool. It stays unpublished until you explicitly publish it.
                   </CardContent>
                 </Card>
               )}
@@ -345,32 +852,26 @@ function PostTestWizard() {
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="grid gap-2 text-sm">
-                  <Row label="Related pre-test" value={pre.title} />
-                  <Row label="Blueprint" value="Reused" />
-                  <Row
-                    label="Questions"
-                    value={`${pre.questionIds.length} (equivalent variants preferred)`}
-                  />
-                  <Row label="Assigned to" value="Same participants as pre-test" />
+                  <Row label="Related pre-test" value={selectedPre.title} />
+                  <Row label="Blueprint" value="Reused with generation filters" />
+                  <Row label="Questions" value={`${config.count} requested`} />
+                  <Row label="Draft status" value={generatedAssessment ? STATUS_LABEL[generatedAssessment.status] : "Not generated yet"} />
                 </div>
                 <div className="rounded-md border bg-surface p-3 text-sm">
                   <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                     Comparability checklist
                   </div>
                   <ul className="space-y-1.5">
-                    <li className="flex items-center gap-2">
-                      <Check className="h-4 w-4 text-emerald-600" /> Same blueprint
-                    </li>
-                    <li className="flex items-center gap-2">
-                      <Check className="h-4 w-4 text-emerald-600" /> Equivalent variants selected
-                    </li>
-                    <li className="flex items-center gap-2">
-                      <AlertTriangle className="h-4 w-4 text-amber-600" /> 2 AI variants need
-                      approval
-                    </li>
-                    <li className="flex items-center gap-2">
-                      <Check className="h-4 w-4 text-emerald-600" /> Participants assigned
-                    </li>
+                    {comparabilityChecks.map((check) => (
+                      <li key={check.label} className="flex items-center gap-2">
+                        {check.ok ? (
+                          <Check className="h-4 w-4 text-emerald-600" />
+                        ) : (
+                          <AlertTriangle className="h-4 w-4 text-amber-600" />
+                        )}
+                        <span>{check.label}</span>
+                      </li>
+                    ))}
                   </ul>
                 </div>
               </CardContent>
@@ -386,7 +887,9 @@ function PostTestWizard() {
                 Continue <ChevronRight className="ml-1.5 h-4 w-4" />
               </Button>
             ) : (
-              <Button onClick={publish}>Publish post-test</Button>
+              <Button onClick={() => void publish()} disabled={actionPending}>
+                {publishMutation.isPending ? "Publishing…" : "Publish post-test"}
+              </Button>
             )}
           </div>
         </div>
@@ -398,10 +901,10 @@ function PostTestWizard() {
 function Stepper({ step }: { step: number }) {
   return (
     <ol className="grid grid-cols-2 gap-2 sm:flex sm:items-center">
-      {STEPS.map((s, i) => {
-        const status = s.id < step ? "done" : s.id === step ? "active" : "pending";
+      {STEPS.map((item, index) => {
+        const status = item.id < step ? "done" : item.id === step ? "active" : "pending";
         return (
-          <li key={s.id} className="flex items-center gap-2 sm:flex-1">
+          <li key={item.id} className="flex items-center gap-2 sm:flex-1">
             <span
               className={cn(
                 "flex h-7 w-7 items-center justify-center rounded-full border text-xs font-semibold",
@@ -410,19 +913,17 @@ function Stepper({ step }: { step: number }) {
                 status === "pending" && "border-border text-muted-foreground",
               )}
             >
-              {status === "done" ? <Check className="h-3.5 w-3.5" /> : s.id}
+              {status === "done" ? <Check className="h-3.5 w-3.5" /> : item.id}
             </span>
             <span
               className={cn(
-                "text-xs sm:text-sm font-medium",
+                "text-xs font-medium sm:text-sm",
                 status === "pending" && "text-muted-foreground",
               )}
             >
-              {s.title}
+              {item.title}
             </span>
-            {i < STEPS.length - 1 && (
-              <span className="hidden flex-1 border-t border-dashed sm:block" />
-            )}
+            {index < STEPS.length - 1 && <span className="hidden flex-1 border-t border-dashed sm:block" />}
           </li>
         );
       })}
@@ -431,12 +932,13 @@ function Stepper({ step }: { step: number }) {
 }
 
 function BlueprintCard({ title, lines }: { title: string; lines: string[] }) {
+  const displayLines = lines.length > 0 ? lines : ["—"];
   return (
     <div className="rounded-md border bg-card p-3">
       <div className="text-[10px] uppercase tracking-wide text-muted-foreground">{title}</div>
       <ul className="mt-1 space-y-0.5 text-sm">
-        {lines.map((l) => (
-          <li key={l}>{l}</li>
+        {displayLines.map((line) => (
+          <li key={line}>{line}</li>
         ))}
       </ul>
     </div>
@@ -456,21 +958,24 @@ function AIPanel({
   modelId,
   setModelId,
   onGenerate,
+  pending,
 }: {
   modelId: string;
-  setModelId: (v: string) => void;
+  setModelId: (value: string) => void;
   onGenerate: () => void;
+  pending: boolean;
 }) {
-  const model = AI_MODELS.find((m) => m.id === modelId);
-  const enabled = AI_MODELS.filter((m) => m.enabled);
+  const model = AI_MODEL_OPTIONS.find((item) => item.id === modelId);
   return (
     <Card className="border-primary/30 bg-primary-soft/30">
       <CardHeader>
         <div className="flex items-start gap-2">
           <Sparkles className="mt-0.5 h-4 w-4 text-accent-foreground" />
           <div>
-            <CardTitle className="text-base">AI assistant — generate equivalent variants</CardTitle>
-            <CardDescription>All generated variants will be marked Needs Review.</CardDescription>
+            <CardTitle className="text-base">AI assistant — generate comparable draft</CardTitle>
+            <CardDescription>
+              Generation is advisory and creates only a draft until you explicitly publish it.
+            </CardDescription>
           </div>
         </div>
       </CardHeader>
@@ -483,9 +988,9 @@ function AIPanel({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {enabled.map((m) => (
-                  <SelectItem key={m.id} value={m.id}>
-                    {m.displayName} — {m.location}
+                {AI_MODEL_OPTIONS.map((item) => (
+                  <SelectItem key={item.id} value={item.id}>
+                    {item.displayName} — {item.location}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -504,8 +1009,8 @@ function AIPanel({
                   )
                 }
               />
-              <StatusBadge status={`${model.quality}`} tone="info" />
-              <StatusBadge status={`${model.speed}`} tone="muted" />
+              <StatusBadge status={model.quality} tone="info" />
+              <StatusBadge status={model.speed} tone="muted" />
               {model.defaultFor.length > 0 && (
                 <StatusBadge status={`Recommended: ${model.defaultFor[0]}`} tone="primary" />
               )}
@@ -515,14 +1020,105 @@ function AIPanel({
         {model && (
           <div className="text-xs text-muted-foreground">
             {model.location === "local"
-              ? "Data stays on local infrastructure."
-              : "Cloud model — avoid sending sensitive participant data."}
+              ? "Draft generation stays on local infrastructure."
+              : "Cloud model selected — keep participant data out of prompts."}
           </div>
         )}
-        <Button onClick={onGenerate}>
-          <Sparkles className="mr-1.5 h-4 w-4" /> Generate draft variants with AI
+        <Button onClick={onGenerate} disabled={pending}>
+          <Sparkles className="mr-1.5 h-4 w-4" />{" "}
+          {pending ? "Generating draft…" : "Generate draft variants with AI"}
         </Button>
       </CardContent>
     </Card>
   );
+}
+
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="space-y-1.5">
+      <Label className="text-sm">{label}</Label>
+      {children}
+    </div>
+  );
+}
+
+function summarizeDifficulty(questions: Question[]) {
+  const counts = { easy: 0, medium: 0, hard: 0 };
+  for (const question of questions) {
+    if (question.difficulty === 1) counts.easy += 1;
+    else if (question.difficulty === 2) counts.medium += 1;
+    else if (question.difficulty === 3) counts.hard += 1;
+  }
+  return [
+    `Easy ${counts.easy}`,
+    `Medium ${counts.medium}`,
+    `Hard ${counts.hard}`,
+  ];
+}
+
+function difficultyLabel(value?: number) {
+  if (value === 1) return "Easy";
+  if (value === 2) return "Medium";
+  if (value === 3) return "Hard";
+  return value ? String(value) : "—";
+}
+
+function formatDate(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleDateString();
+}
+
+function resolvePostTestTitle(title: string) {
+  if (/pre-test/i.test(title)) {
+    return title.replace(/pre-test/i, "Post-test");
+  }
+  return `${title} — Post-test`;
+}
+
+function validatePostTestConfig({
+  pre,
+  count,
+  title,
+}: {
+  pre: Assessment | null;
+  count: number;
+  title: string;
+}) {
+  if (!pre) return "Choose a related pre-test first";
+  if (!title.trim()) return "Generated title is required";
+  if (!Number.isInteger(count) || count < 1) return "Question count must be at least 1";
+  return null;
+}
+
+function buildGenerationSignature({
+  preId,
+  title,
+  description,
+  topicId,
+  learningObjectiveId,
+  difficulty,
+  count,
+}: {
+  preId: number;
+  title: string;
+  description: string;
+  topicId: string;
+  learningObjectiveId: string;
+  difficulty: string;
+  count: number;
+}) {
+  return JSON.stringify({
+    preId,
+    title: title.trim(),
+    description: description.trim(),
+    topicId,
+    learningObjectiveId,
+    difficulty,
+    count,
+  });
+}
+
+function errText(error: unknown) {
+  return error instanceof Error ? error.message : "Request failed";
 }

@@ -27,9 +27,10 @@ import { qk } from "@/lib/query-keys";
 import { assessmentsService } from "@/services/assessments";
 import { trainingsService } from "@/services/trainings";
 import { topicsService } from "@/services/topics";
+import { learningObjectivesService } from "@/services/learningObjectives";
 import { questionsService } from "@/services/questions";
 import { cn } from "@/lib/utils";
-import type { AssessmentType, Question, Topic, Training } from "@/types";
+import type { AssessmentType, LearningObjective, Question, Topic, Training } from "@/types";
 import { ensureRole } from "@/lib/route-guards";
 
 export const Route = createFileRoute("/app/assessments/new")({
@@ -62,6 +63,10 @@ function CreateAssessmentWizard() {
     queryKey: qk.topics.list(),
     queryFn: topicsService.list,
   });
+  const objectivesQuery = useQuery({
+    queryKey: qk.learningObjectives.list(),
+    queryFn: () => learningObjectivesService.list(),
+  });
   const questionsQuery = useQuery({
     queryKey: qk.questions.list(),
     queryFn: questionsService.list,
@@ -78,6 +83,8 @@ function CreateAssessmentWizard() {
     randomizeQuestions: true,
     randomizeAnswers: false,
     topicIds: [] as string[],
+    learningObjectiveId: "all",
+    generationDifficulty: "any" as "any" | "easy" | "medium" | "hard",
     difficulty: { easy: 40, medium: 40, hard: 20 },
     questionCount: 8,
     selectedQuestionIds: [] as string[],
@@ -90,6 +97,7 @@ function CreateAssessmentWizard() {
 
   const trainings = trainingsQuery.data ?? [];
   const topics = topicsQuery.data ?? [];
+  const objectives = objectivesQuery.data ?? [];
   const questions = questionsQuery.data ?? [];
   const selectedTrainingId = Number(form.trainingId);
 
@@ -120,6 +128,11 @@ function CreateAssessmentWizard() {
       ),
     [trainingQuestions, form.selectedQuestionIds],
   );
+  const visibleObjectives = useMemo(() => {
+    if (form.topicIds.length === 0) return [];
+    const selectedTopicIds = new Set(form.topicIds.map((id) => Number(id)));
+    return objectives.filter((objective) => selectedTopicIds.has(objective.topicId));
+  }, [objectives, form.topicIds]);
   const topicQuestionCounts = useMemo(() => {
     const counts = new Map<number, number>();
     for (const question of questions) {
@@ -140,10 +153,17 @@ function CreateAssessmentWizard() {
 
   useEffect(() => {
     if (trainingTopics.length === 0) {
-      if (form.topicIds.length === 0 && form.selectedQuestionIds.length === 0) return;
+      if (
+        form.topicIds.length === 0 &&
+        form.selectedQuestionIds.length === 0 &&
+        form.learningObjectiveId === "all"
+      ) {
+        return;
+      }
       setForm((current) => ({
         ...current,
         topicIds: [],
+        learningObjectiveId: "all",
         selectedQuestionIds: [],
       }));
       return;
@@ -162,10 +182,20 @@ function CreateAssessmentWizard() {
         .map((question) => String(question.id)),
     );
     const nextSelectedQuestionIds = form.selectedQuestionIds.filter((id) => validQuestionIds.has(id));
+    const validObjectiveIds = new Set(
+      objectives
+        .filter((objective) => resolvedTopicIdSet.has(objective.topicId))
+        .map((objective) => String(objective.id)),
+    );
+    const nextLearningObjectiveId =
+      form.learningObjectiveId === "all" || validObjectiveIds.has(form.learningObjectiveId)
+        ? form.learningObjectiveId
+        : "all";
 
     if (
       arraysEqual(resolvedTopicIds, form.topicIds) &&
-      arraysEqual(nextSelectedQuestionIds, form.selectedQuestionIds)
+      arraysEqual(nextSelectedQuestionIds, form.selectedQuestionIds) &&
+      nextLearningObjectiveId === form.learningObjectiveId
     ) {
       return;
     }
@@ -173,9 +203,17 @@ function CreateAssessmentWizard() {
     setForm((current) => ({
       ...current,
       topicIds: resolvedTopicIds,
+      learningObjectiveId: nextLearningObjectiveId,
       selectedQuestionIds: nextSelectedQuestionIds,
     }));
-  }, [trainingTopics, questions, form.topicIds, form.selectedQuestionIds]);
+  }, [
+    trainingTopics,
+    questions,
+    objectives,
+    form.topicIds,
+    form.selectedQuestionIds,
+    form.learningObjectiveId,
+  ]);
 
   const createMutation = useMutation({
     mutationFn: () =>
@@ -199,6 +237,41 @@ function CreateAssessmentWizard() {
     },
     onError: (error) => {
       const message = error instanceof Error ? error.message : "Failed to create assessment";
+      setSubmitError(message);
+      toast.error(message);
+    },
+  });
+  const generateMutation = useMutation({
+    mutationFn: async () => {
+      const singleTopicId =
+        form.topicIds.length === 1 ? Number(form.topicIds[0]) : undefined;
+      const learningObjectiveId =
+        form.learningObjectiveId !== "all" ? Number(form.learningObjectiveId) : undefined;
+
+      return assessmentsService.generate({
+        title: form.title.trim(),
+        description: form.description.trim() || null,
+        trainingId: selectedTrainingId,
+        topicId: singleTopicId,
+        learningObjectiveId,
+        difficulty:
+          form.generationDifficulty === "any" ? undefined : form.generationDifficulty,
+        count: form.questionCount,
+      });
+    },
+    onSuccess: (created) => {
+      queryClient.invalidateQueries({ queryKey: qk.assessments.all });
+      setSubmitError(null);
+      toast.success(`Generated “${created.title}” as a draft`, {
+        description: "Review the generated draft before deciding whether to publish it.",
+      });
+      navigate({
+        to: "/app/assessments/$id",
+        params: { id: String(created.id) },
+      });
+    },
+    onError: (error) => {
+      const message = error instanceof Error ? error.message : "Failed to generate assessment";
       setSubmitError(message);
       toast.error(message);
     },
@@ -228,11 +301,32 @@ function CreateAssessmentWizard() {
     setSubmitError(null);
     createMutation.mutate();
   };
+  const generateDraft = () => {
+    const validationError = validateGeneratedDraft({
+      title: form.title,
+      trainingId: form.trainingId,
+      count: form.questionCount,
+    });
+    if (validationError) {
+      setSubmitError(validationError);
+      toast.error(validationError);
+      return;
+    }
+    setSubmitError(null);
+    generateMutation.mutate();
+  };
 
   const loading =
-    trainingsQuery.isLoading || topicsQuery.isLoading || questionsQuery.isLoading;
+    trainingsQuery.isLoading ||
+    topicsQuery.isLoading ||
+    objectivesQuery.isLoading ||
+    questionsQuery.isLoading;
   const dataError =
-    trainingsQuery.error ?? topicsQuery.error ?? questionsQuery.error ?? null;
+    trainingsQuery.error ??
+    topicsQuery.error ??
+    objectivesQuery.error ??
+    questionsQuery.error ??
+    null;
 
   if (loading) {
     return (
@@ -276,6 +370,7 @@ function CreateAssessmentWizard() {
           onRetry={() => {
             trainingsQuery.refetch();
             topicsQuery.refetch();
+            objectivesQuery.refetch();
             questionsQuery.refetch();
           }}
         />
@@ -352,6 +447,7 @@ function CreateAssessmentWizard() {
                 form={form}
                 setForm={setForm}
                 topics={trainingTopics}
+                objectives={visibleObjectives}
                 topicQuestionCounts={topicQuestionCounts}
               />
             )}
@@ -361,6 +457,8 @@ function CreateAssessmentWizard() {
                 setForm={setForm}
                 questions={trainingQuestions}
                 selected={selectedQuestions}
+                onGenerate={generateDraft}
+                generatePending={generateMutation.isPending}
               />
             )}
             {step === 4 && <Step4 form={form} setForm={setForm} />}
@@ -471,6 +569,8 @@ type AssessmentFormState = {
   randomizeQuestions: boolean;
   randomizeAnswers: boolean;
   topicIds: string[];
+  learningObjectiveId: string;
+  generationDifficulty: "any" | "easy" | "medium" | "hard";
   difficulty: { easy: number; medium: number; hard: number };
   questionCount: number;
   selectedQuestionIds: string[];
@@ -578,11 +678,13 @@ function Step2({
   form,
   setForm,
   topics,
+  objectives,
   topicQuestionCounts,
 }: {
   form: AssessmentFormState;
   setForm: React.Dispatch<React.SetStateAction<AssessmentFormState>>;
   topics: Topic[];
+  objectives: LearningObjective[];
   topicQuestionCounts: Map<number, number>;
 }) {
   const toggleTopic = (id: string) => {
@@ -663,6 +765,48 @@ function Step2({
           />
         </Field>
 
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field label="Learning objective filter">
+            <Select
+              value={form.learningObjectiveId}
+              onValueChange={(value) => setForm({ ...form, learningObjectiveId: value })}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All learning objectives</SelectItem>
+                {objectives.map((objective) => (
+                  <SelectItem key={objective.id} value={String(objective.id)}>
+                    {objective.title}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </Field>
+          <Field label="AI generation difficulty">
+            <Select
+              value={form.generationDifficulty}
+              onValueChange={(value) =>
+                setForm({
+                  ...form,
+                  generationDifficulty: value as AssessmentFormState["generationDifficulty"],
+                })
+              }
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="any">Any difficulty</SelectItem>
+                <SelectItem value="easy">Easy</SelectItem>
+                <SelectItem value="medium">Medium</SelectItem>
+                <SelectItem value="hard">Hard</SelectItem>
+              </SelectContent>
+            </Select>
+          </Field>
+        </div>
+
         <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm dark:border-amber-900 dark:bg-amber-950/30">
           <div className="flex items-start gap-2 text-amber-800 dark:text-amber-200">
             <AlertTriangle className="mt-0.5 h-4 w-4" />
@@ -710,11 +854,15 @@ function Step3({
   setForm,
   questions,
   selected,
+  onGenerate,
+  generatePending,
 }: {
   form: AssessmentFormState;
   setForm: React.Dispatch<React.SetStateAction<AssessmentFormState>>;
   questions: Question[];
   selected: Question[];
+  onGenerate: () => void;
+  generatePending: boolean;
 }) {
   const toggle = (id: string) => {
     setForm((current) => ({
@@ -731,12 +879,14 @@ function Step3({
         <CardHeader>
           <div className="flex flex-wrap items-center justify-between gap-2">
             <CardTitle className="text-base">Questions</CardTitle>
-            <Button variant="outline" size="sm" disabled>
-              <Sparkles className="mr-1.5 h-4 w-4" /> Ask AI to suggest missing drafts
+            <Button variant="outline" size="sm" onClick={onGenerate} disabled={generatePending}>
+              <Sparkles className="mr-1.5 h-4 w-4" />{" "}
+              {generatePending ? "Generating draft…" : "Generate draft assessment"}
             </Button>
           </div>
           <p className="text-xs text-muted-foreground">
-            Only approved questions can be published. AI suggestions become drafts that you review.
+            Only approved questions can be published. Generation creates a draft assessment that
+            you review before any separate publish step.
           </p>
         </CardHeader>
         <CardContent className="space-y-2">
@@ -975,6 +1125,21 @@ function validateDraft({
   if (!title.trim()) return "Title is required";
   if (!trainingId) return "Training is required";
   if (selectedQuestionIds.length === 0) return "Select at least one approved question";
+  return null;
+}
+
+function validateGeneratedDraft({
+  title,
+  trainingId,
+  count,
+}: {
+  title: string;
+  trainingId: string;
+  count: number;
+}) {
+  if (!title.trim()) return "Title is required";
+  if (!trainingId) return "Training is required";
+  if (!Number.isInteger(count) || count < 1) return "Question count must be at least 1";
   return null;
 }
 
