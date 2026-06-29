@@ -171,14 +171,21 @@ function EquivalentGroupsPage() {
       <div className="space-y-4 p-4 sm:p-6 lg:p-8">
         {groupsQuery.isLoading || questionsQuery.isLoading ? (
           <LoadingState label="Loading equivalent groups…" />
-        ) : groupsQuery.isError ? (
+        ) : groupsQuery.isError || questionsQuery.isError ? (
           <ErrorState
             message={
-              groupsQuery.error instanceof Error
-                ? groupsQuery.error.message
-                : "Failed to load equivalent groups"
+              groupsQuery.isError
+                ? groupsQuery.error instanceof Error
+                  ? groupsQuery.error.message
+                  : "Failed to load equivalent groups"
+                : questionsQuery.error instanceof Error
+                  ? questionsQuery.error.message
+                  : "Failed to load questions"
             }
-            onRetry={() => groupsQuery.refetch()}
+            onRetry={() => {
+              groupsQuery.refetch();
+              questionsQuery.refetch();
+            }}
           />
         ) : groups.length === 0 ? (
           <EmptyState

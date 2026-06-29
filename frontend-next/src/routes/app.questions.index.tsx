@@ -77,7 +77,12 @@ function QuestionBank() {
         description="Cross-training question management. Review AI drafts or create new questions."
         actions={
           <>
-            <Button variant="outline" size="sm">
+            <Button
+              variant="outline"
+              size="sm"
+              disabled
+              title="Available once the AI review queue is wired"
+            >
               Review AI drafts
             </Button>
             <Button asChild variant="outline" size="sm">
@@ -114,7 +119,12 @@ function QuestionBank() {
               className="pl-9"
             />
           </div>
-          <Button variant="outline" size="sm">
+          <Button
+            variant="outline"
+            size="sm"
+            disabled
+            title="Use the status tabs and search above to filter"
+          >
             <Filter className="mr-1.5 h-4 w-4" /> Filters
           </Button>
         </div>
