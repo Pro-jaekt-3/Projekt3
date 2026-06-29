@@ -1,16 +1,16 @@
-import { createFileRoute, useNavigate, notFound } from "@tanstack/react-router";
-import { useEffect, useMemo, useState } from "react";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { useEffect, useState } from "react";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import {
   Clock,
-  Save,
   Flag,
   ChevronLeft,
   ChevronRight,
   ListChecks,
   Send,
-  X,
   Check,
 } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
@@ -24,84 +24,247 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { QUESTIONS, MY_ASSESSMENTS } from "@/lib/mock-data";
+import { LoadingState, ErrorState } from "@/components/common/Spinner";
+import { StatusBadge } from "@/components/common/StatusBadge";
+import { getAttemptId, rememberAttemptId } from "@/lib/attempt-storage";
+import { qk } from "@/lib/query-keys";
+import { sanitizeQuestionForSolving, type SolvingQuestion } from "@/lib/sanitize";
 import { cn } from "@/lib/utils";
+import {
+  assessmentAttemptsService,
+  type SubmitAssessmentAttemptAnswerInput,
+} from "@/services/assessmentAttempts";
+import type { AssessmentAttempt } from "@/types";
 
 export const Route = createFileRoute("/assessment/$id/solve")({
-  loader: ({ params }) => {
-    const a = MY_ASSESSMENTS.find((m) => m.id === params.id);
-    if (!a) throw notFound();
-    return { assessment: a };
-  },
   component: SolvePage,
 });
 
+type AnswerValue = string | number | number[] | null;
+
+type SolvingItem = {
+  id: number;
+  questionId: number;
+  orderIndex: number;
+  points: number;
+  question: SolvingQuestion;
+};
+
 function SolvePage() {
-  const { assessment } = Route.useLoaderData();
+  const { id } = Route.useParams();
   const navigate = useNavigate();
-  const questions = useMemo(() => QUESTIONS.slice(0, 5), []);
+  const rememberedAttemptId = getAttemptId(id);
+
   const [idx, setIdx] = useState(0);
-  const [answers, setAnswers] = useState<Record<string, string | string[] | boolean>>({});
+  const [answers, setAnswers] = useState<Record<number, AnswerValue>>({});
   const [marked, setMarked] = useState<Set<number>>(new Set());
-  const [savedAt, setSavedAt] = useState<Date | null>(null);
   const [navOpen, setNavOpen] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
-  const [seconds, setSeconds] = useState(assessment.timeLimit * 60);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
-  // Timer
+  const attemptQuery = useQuery({
+    queryKey: qk.assessmentAttempts.detail(rememberedAttemptId ?? `missing-${id}`),
+    queryFn: () => assessmentAttemptsService.get(rememberedAttemptId!),
+    enabled: rememberedAttemptId !== null,
+    retry: false,
+  });
+
   useEffect(() => {
-    const id = setInterval(() => setSeconds((s) => Math.max(0, s - 1)), 1000);
-    return () => clearInterval(id);
-  }, []);
+    const attempt = attemptQuery.data;
+    if (!attempt?.answers || attempt.answers.length === 0) return;
+    setAnswers(buildInitialAnswers(attempt));
+  }, [attemptQuery.data?.id]);
 
-  // Autosave indicator
-  useEffect(() => {
-    const t = setTimeout(() => setSavedAt(new Date()), 300);
-    return () => clearTimeout(t);
-  }, [answers, marked]);
+  const submitMutation = useMutation({
+    mutationFn: (attemptId: number) =>
+      assessmentAttemptsService.submit(attemptId, {
+        answers: buildSubmitAnswers(solvingItems(attemptQuery.data), answers),
+      }),
+    onSuccess: (attempt) => {
+      rememberAttemptId(id, attempt.id);
+      setSubmitError(null);
+      toast.success("Assessment submitted");
+      navigate({
+        to: "/assessment/$id/result",
+        params: { id: String(id) },
+      });
+    },
+    onError: (error) => {
+      const message = errText(error);
+      setSubmitError(message);
+      if (/already been submitted/i.test(message)) {
+        toast.error("This attempt was already submitted.");
+        navigate({
+          to: "/assessment/$id/result",
+          params: { id: String(id) },
+        });
+        return;
+      }
+      toast.error(message);
+    },
+  });
 
-  const q = questions[idx];
-  const answered = (i: number) => questions[i].id in answers;
-  const unansweredCount = questions.filter((_, i) => !answered(i)).length;
+  if (rememberedAttemptId === null) {
+    return (
+      <SolveShell>
+        <Card>
+          <CardContent className="space-y-3 p-8 text-center">
+            <h1 className="text-xl font-semibold">No active attempt found</h1>
+            <p className="text-sm text-muted-foreground">
+              Open the assessment access page first so we can start or resume your attempt safely.
+            </p>
+            <Button asChild variant="outline">
+              <Link to="/assessment/$id/access" params={{ id: String(id) }}>
+                Back to access
+              </Link>
+            </Button>
+          </CardContent>
+        </Card>
+      </SolveShell>
+    );
+  }
 
-  const setAnswer = (val: string | string[] | boolean) => {
-    setAnswers({ ...answers, [q.id]: val });
-  };
-  const toggleMark = () => {
-    const next = new Set(marked);
-    next.has(idx) ? next.delete(idx) : next.add(idx);
-    setMarked(next);
-  };
+  if (attemptQuery.isLoading) {
+    return <LoadingState label="Loading your attempt…" />;
+  }
 
-  const submit = () => {
-    navigate({ to: "/assessment/$id/result", params: { id: assessment.id } });
-  };
+  if (attemptQuery.isError || !attemptQuery.data) {
+    const message = errText(attemptQuery.error);
+    const accessDenied = /forbidden|not available/i.test(message);
+    return (
+      <SolveShell>
+        {accessDenied ? (
+          <Card>
+            <CardContent className="space-y-3 p-8 text-center">
+              <h1 className="text-xl font-semibold">Access denied</h1>
+              <p className="text-sm text-muted-foreground">
+                This attempt is no longer available to open.
+              </p>
+              <Button asChild variant="outline">
+                <Link to="/assessment/$id/access" params={{ id: String(id) }}>
+                  Return to access
+                </Link>
+              </Button>
+            </CardContent>
+          </Card>
+        ) : (
+          <ErrorState message={message} onRetry={() => attemptQuery.refetch()} />
+        )}
+      </SolveShell>
+    );
+  }
 
+  const attempt = attemptQuery.data;
+  if (attempt.status !== "IN_PROGRESS") {
+    return (
+      <SolveShell>
+        <Card>
+          <CardContent className="space-y-4 p-8 text-center">
+            <StatusBadge status="Completed" />
+            <h1 className="text-xl font-semibold">This attempt is already submitted</h1>
+            <p className="text-sm text-muted-foreground">
+              Submitted attempts are read-only. Open your result view instead of editing answers.
+            </p>
+            <Button
+              onClick={() =>
+                navigate({
+                  to: "/assessment/$id/result",
+                  params: { id: String(id) },
+                })
+              }
+            >
+              View result
+            </Button>
+          </CardContent>
+        </Card>
+      </SolveShell>
+    );
+  }
+
+  const items = solvingItems(attempt);
+  if (items.length === 0) {
+    return (
+      <SolveShell>
+        <Card>
+          <CardContent className="space-y-3 p-8 text-center">
+            <h1 className="text-xl font-semibold">No questions available</h1>
+            <p className="text-sm text-muted-foreground">
+              This attempt does not currently have any question content to solve.
+            </p>
+            <Button asChild variant="outline">
+              <Link to="/assessment/$id/access" params={{ id: String(id) }}>
+                Return to access
+              </Link>
+            </Button>
+          </CardContent>
+        </Card>
+      </SolveShell>
+    );
+  }
+  const questionCount = items.length;
+  const current = items[idx];
+  const assessment = attempt.assessment;
+  const secondsElapsed = Math.max(
+    0,
+    Math.floor((Date.now() - new Date(attempt.startedAt).getTime()) / 1000),
+  );
+  const baseSeconds = assessment?.timeLimitMinutes ? assessment.timeLimitMinutes * 60 : 0;
+  const seconds =
+    baseSeconds > 0 ? Math.max(0, baseSeconds - secondsElapsed) : 0;
   const mm = Math.floor(seconds / 60)
     .toString()
     .padStart(2, "0");
   const ss = (seconds % 60).toString().padStart(2, "0");
-  const progress = ((idx + 1) / questions.length) * 100;
+  const answered = (i: number) => {
+    const item = items[i];
+    const value = answers[item.questionId];
+    if (item.question.type === "MULTIPLE_CHOICE") {
+      return typeof value === "number";
+    }
+    return typeof value === "string" && value.trim().length > 0;
+  };
+  const unansweredCount = items.filter((_, index) => !answered(index)).length;
+  const progress = questionCount > 0 ? ((idx + 1) / questionCount) * 100 : 0;
+
+  const setAnswer = (value: AnswerValue) => {
+    setAnswers((currentAnswers) => ({
+      ...currentAnswers,
+      [current.questionId]: value,
+    }));
+  };
+
+  const toggleMark = () => {
+    setMarked((currentMarked) => {
+      const next = new Set(currentMarked);
+      next.has(idx) ? next.delete(idx) : next.add(idx);
+      return next;
+    });
+  };
+
+  const submit = () => {
+    if (submitMutation.isPending) return;
+    setSubmitError(null);
+    submitMutation.mutate(attempt.id);
+  };
 
   return (
     <div className="flex min-h-[100dvh] flex-col bg-surface">
-      {/* Top bar */}
       <header className="sticky top-0 z-20 border-b bg-background">
         <div className="mx-auto flex max-w-5xl items-center gap-3 px-3 py-2.5 sm:px-6">
           <div className="min-w-0 flex-1">
-            <div className="truncate text-xs text-muted-foreground">{assessment.training}</div>
-            <div className="truncate text-sm font-semibold">{assessment.title}</div>
+            <div className="truncate text-xs text-muted-foreground">
+              {assessment?.training?.title ?? "Assessment"}
+            </div>
+            <div className="truncate text-sm font-semibold">{assessment?.title ?? "Assessment"}</div>
           </div>
-          <div className="flex items-center gap-1.5 rounded-md bg-surface px-2.5 py-1 text-sm tabular-nums">
-            <Clock className="h-4 w-4 text-muted-foreground" />
-            <span className={cn("font-semibold", seconds < 60 && "text-rose-600")}>
-              {mm}:{ss}
-            </span>
-          </div>
-          <div className="hidden items-center gap-1 text-xs text-muted-foreground sm:flex">
-            <Save className="h-3.5 w-3.5 text-emerald-600" />
-            {savedAt ? "Saved" : "Saving…"}
-          </div>
+          {baseSeconds > 0 && (
+            <div className="flex items-center gap-1.5 rounded-md bg-surface px-2.5 py-1 text-sm tabular-nums">
+              <Clock className="h-4 w-4 text-muted-foreground" />
+              <span className={cn("font-semibold", seconds < 60 && "text-rose-600")}>
+                {mm}:{ss}
+              </span>
+            </div>
+          )}
         </div>
         <div className="h-1 w-full bg-muted">
           <div className="h-full bg-primary transition-all" style={{ width: `${progress}%` }} />
@@ -109,11 +272,10 @@ function SolvePage() {
       </header>
 
       <div className="mx-auto flex w-full max-w-5xl flex-1 gap-6 px-3 py-4 sm:px-6 sm:py-6 lg:gap-8">
-        {/* Main */}
         <main className="min-w-0 flex-1">
           <div className="mb-2 flex items-center justify-between text-xs text-muted-foreground">
             <span>
-              Question {idx + 1} of {questions.length}
+              Question {idx + 1} of {questionCount}
             </span>
             <button
               onClick={toggleMark}
@@ -121,6 +283,7 @@ function SolvePage() {
                 "inline-flex items-center gap-1 rounded-md border px-2 py-1",
                 marked.has(idx) ? "border-amber-400 bg-amber-50 text-amber-800" : "hover:bg-muted",
               )}
+              disabled={submitMutation.isPending}
             >
               <Flag className="h-3.5 w-3.5" />{" "}
               {marked.has(idx) ? "Marked for review" : "Mark for review"}
@@ -129,99 +292,91 @@ function SolvePage() {
 
           <Card>
             <CardContent className="space-y-4 p-5 sm:p-6">
-              <h2 className="text-base font-semibold sm:text-lg">{q.text}</h2>
+              <h2 className="text-base font-semibold sm:text-lg">{current.question.title}</h2>
+              {current.question.description && (
+                <p className="text-sm text-muted-foreground">{current.question.description}</p>
+              )}
 
-              {(q.type === "single" || q.type === "multiple") && q.options && (
+              {current.question.type === "MULTIPLE_CHOICE" && current.question.answerOptions && (
                 <div className="space-y-2">
-                  {q.options.map((opt) => {
-                    const cur = answers[q.id];
-                    const checked =
-                      q.type === "single"
-                        ? cur === opt.id
-                        : Array.isArray(cur) && cur.includes(opt.id);
+                  {current.question.answerOptions.map((option) => {
+                    const selected = answers[current.questionId] === option.id;
                     return (
                       <label
-                        key={opt.id}
+                        key={option.id}
                         className={cn(
-                          "flex cursor-pointer items-start gap-3 rounded-md border bg-card p-4 transition-colors min-h-[52px]",
-                          checked ? "border-primary bg-primary-soft/60" : "hover:bg-muted/50",
+                          "flex min-h-[52px] cursor-pointer items-start gap-3 rounded-md border bg-card p-4 transition-colors",
+                          selected ? "border-primary bg-primary-soft/60" : "hover:bg-muted/50",
                         )}
                       >
                         <input
-                          type={q.type === "single" ? "radio" : "checkbox"}
-                          checked={checked}
-                          onChange={() => {
-                            if (q.type === "single") setAnswer(opt.id);
-                            else {
-                              const arr = Array.isArray(cur) ? [...cur] : [];
-                              if (arr.includes(opt.id)) setAnswer(arr.filter((x) => x !== opt.id));
-                              else setAnswer([...arr, opt.id]);
-                            }
-                          }}
+                          type="radio"
+                          checked={selected}
+                          onChange={() => setAnswer(option.id)}
                           className="mt-1"
+                          disabled={submitMutation.isPending}
                         />
-                        <span className="flex-1 text-sm">{opt.text}</span>
+                        <span className="flex-1 text-sm">{option.text}</span>
                       </label>
                     );
                   })}
                 </div>
               )}
 
-              {q.type === "true_false" && (
-                <div className="grid gap-2 sm:grid-cols-2">
-                  {["True", "False"].map((label, i) => {
-                    const val = i === 0;
-                    const checked = answers[q.id] === val;
-                    return (
-                      <button
-                        key={label}
-                        onClick={() => setAnswer(val)}
-                        className={cn(
-                          "rounded-md border bg-card px-4 py-4 text-sm font-medium",
-                          checked ? "border-primary bg-primary-soft/60" : "hover:bg-muted/50",
-                        )}
-                      >
-                        {label}
-                      </button>
-                    );
-                  })}
-                </div>
+              {(current.question.type === "OPEN" || current.question.type === "CODE") && (
+                <textarea
+                  className={cn(
+                    "min-h-32 w-full rounded-md border bg-card p-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary",
+                    current.question.type === "CODE" && "font-mono",
+                  )}
+                  placeholder={
+                    current.question.type === "CODE" ? "Write your code answer…" : "Type your answer…"
+                  }
+                  value={(answers[current.questionId] as string) ?? ""}
+                  onChange={(event) => setAnswer(event.target.value)}
+                  disabled={submitMutation.isPending}
+                />
               )}
 
-              {(q.type === "short" || q.type === "open" || q.type === "code") && (
-                <textarea
-                  className="min-h-32 w-full rounded-md border bg-card p-3 font-mono text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                  placeholder="Type your answer…"
-                  value={(answers[q.id] as string) ?? ""}
-                  onChange={(e) => setAnswer(e.target.value)}
-                />
+              {submitError && (
+                <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
+                  {submitError}
+                </div>
               )}
             </CardContent>
           </Card>
 
-          {/* Sticky bottom nav (touch-friendly) */}
           <div className="sticky bottom-0 mt-4 -mx-3 border-t bg-background px-3 py-3 sm:-mx-6 sm:px-6">
             <div className="flex items-center gap-2">
               <Button
                 variant="outline"
-                onClick={() => setIdx((i) => Math.max(0, i - 1))}
-                disabled={idx === 0}
+                onClick={() => setIdx((currentIdx) => Math.max(0, currentIdx - 1))}
+                disabled={idx === 0 || submitMutation.isPending}
               >
                 <ChevronLeft className="h-4 w-4" />
                 <span className="ml-1 hidden sm:inline">Previous</span>
               </Button>
-              <Button variant="outline" className="lg:hidden" onClick={() => setNavOpen(true)}>
+              <Button
+                variant="outline"
+                className="lg:hidden"
+                onClick={() => setNavOpen(true)}
+                disabled={submitMutation.isPending}
+              >
                 <ListChecks className="h-4 w-4" />
                 <span className="ml-1 hidden sm:inline">Navigator</span>
               </Button>
               <div className="flex-1" />
-              {idx === questions.length - 1 ? (
-                <Button onClick={() => setConfirmOpen(true)}>
-                  <Send className="mr-1.5 h-4 w-4" /> Submit
+              {idx === questionCount - 1 ? (
+                <Button onClick={() => setConfirmOpen(true)} disabled={submitMutation.isPending}>
+                  <Send className="mr-1.5 h-4 w-4" />
+                  {submitMutation.isPending ? "Submitting…" : "Submit"}
                 </Button>
               ) : (
-                <Button onClick={() => setIdx((i) => Math.min(questions.length - 1, i + 1))}>
-                  <span className="hidden sm:inline mr-1">Next</span>
+                <Button
+                  onClick={() => setIdx((currentIdx) => Math.min(questionCount - 1, currentIdx + 1))}
+                  disabled={submitMutation.isPending}
+                >
+                  <span className="mr-1 hidden sm:inline">Next</span>
                   <ChevronRight className="h-4 w-4" />
                 </Button>
               )}
@@ -229,24 +384,22 @@ function SolvePage() {
           </div>
         </main>
 
-        {/* Desktop navigator */}
         <aside className="hidden w-56 shrink-0 lg:block">
           <div className="sticky top-20 rounded-md border bg-card p-3">
             <Navigator
-              questions={questions}
+              questions={items}
               idx={idx}
               setIdx={setIdx}
               answers={answers}
               marked={marked}
             />
-            <Button className="mt-3 w-full" onClick={() => setConfirmOpen(true)}>
+            <Button className="mt-3 w-full" onClick={() => setConfirmOpen(true)} disabled={submitMutation.isPending}>
               <Send className="mr-1.5 h-4 w-4" /> Submit
             </Button>
           </div>
         </aside>
       </div>
 
-      {/* Mobile navigator drawer */}
       <Sheet open={navOpen} onOpenChange={setNavOpen}>
         <SheetContent side="bottom" className="h-[70vh]">
           <SheetHeader>
@@ -254,10 +407,10 @@ function SolvePage() {
           </SheetHeader>
           <div className="mt-4">
             <Navigator
-              questions={questions}
+              questions={items}
               idx={idx}
-              setIdx={(i) => {
-                setIdx(i);
+              setIdx={(nextIdx) => {
+                setIdx(nextIdx);
                 setNavOpen(false);
               }}
               answers={answers}
@@ -267,14 +420,13 @@ function SolvePage() {
         </SheetContent>
       </Sheet>
 
-      {/* Submit confirmation */}
       <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Submit assessment?</AlertDialogTitle>
             <AlertDialogDescription>
               <div className="grid grid-cols-3 gap-2 pt-2">
-                <Stat label="Answered" value={questions.length - unansweredCount} />
+                <Stat label="Answered" value={questionCount - unansweredCount} />
                 <Stat
                   label="Unanswered"
                   value={unansweredCount}
@@ -290,13 +442,25 @@ function SolvePage() {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Continue solving</AlertDialogCancel>
-            <AlertDialogAction onClick={submit}>Submit assessment</AlertDialogAction>
+            <AlertDialogCancel disabled={submitMutation.isPending}>Continue solving</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(event) => {
+                event.preventDefault();
+                submit();
+              }}
+              disabled={submitMutation.isPending}
+            >
+              {submitMutation.isPending ? "Submitting…" : "Submit assessment"}
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
     </div>
   );
+}
+
+function SolveShell({ children }: { children: React.ReactNode }) {
+  return <div className="min-h-screen bg-surface p-4 sm:p-6">{children}</div>;
 }
 
 function Stat({
@@ -330,10 +494,10 @@ function Navigator({
   answers,
   marked,
 }: {
-  questions: typeof QUESTIONS;
+  questions: SolvingItem[];
   idx: number;
-  setIdx: (i: number) => void;
-  answers: Record<string, any>;
+  setIdx: (index: number) => void;
+  answers: Record<number, AnswerValue>;
   marked: Set<number>;
 }) {
   return (
@@ -342,44 +506,93 @@ function Navigator({
         Questions
       </div>
       <div className="grid grid-cols-6 gap-1.5 lg:grid-cols-5">
-        {questions.map((q, i) => {
-          const isCurrent = i === idx;
-          const isAnswered = q.id in answers;
-          const isMarked = marked.has(i);
+        {questions.map((item, index) => {
+          const current = index === idx;
+          const answered =
+            typeof answers[item.questionId] === "number" ||
+            (typeof answers[item.questionId] === "string" &&
+              String(answers[item.questionId]).trim().length > 0);
+          const isMarked = marked.has(index);
           return (
             <button
-              key={q.id}
-              onClick={() => setIdx(i)}
+              key={item.questionId}
+              onClick={() => setIdx(index)}
               className={cn(
                 "relative flex h-9 items-center justify-center rounded-md border text-xs font-semibold tabular-nums transition-colors",
-                isCurrent && "border-primary bg-primary text-primary-foreground",
-                !isCurrent && isAnswered && "border-emerald-200 bg-emerald-50 text-emerald-800",
-                !isCurrent && !isAnswered && "border-border bg-card hover:bg-muted",
+                current && "border-primary bg-primary text-primary-foreground",
+                !current && answered && "border-emerald-200 bg-emerald-50 text-emerald-800",
+                !current && !answered && "border-border bg-card hover:bg-muted",
               )}
             >
-              {i + 1}
+              {index + 1}
               {isMarked && (
-                <span className="absolute -right-1 -top-1 inline-flex h-3 w-3 items-center justify-center rounded-full bg-amber-500 text-[8px] text-white">
-                  <Flag className="h-2 w-2" />
-                </span>
+                <span className="absolute right-1 top-1 h-1.5 w-1.5 rounded-full bg-amber-500" />
               )}
             </button>
           );
         })}
       </div>
-      <div className="mt-3 space-y-1 text-[11px] text-muted-foreground">
-        <div className="flex items-center gap-1.5">
-          <span className="inline-block h-2.5 w-2.5 rounded bg-emerald-100 ring-1 ring-emerald-200" />{" "}
-          Answered
-        </div>
-        <div className="flex items-center gap-1.5">
-          <span className="inline-block h-2.5 w-2.5 rounded bg-card ring-1 ring-border" />{" "}
-          Unanswered
-        </div>
-        <div className="flex items-center gap-1.5">
-          <span className="inline-block h-2.5 w-2.5 rounded bg-amber-500" /> Marked for review
-        </div>
-      </div>
     </>
   );
+}
+
+function solvingItems(attempt: AssessmentAttempt | undefined): SolvingItem[] {
+  const rawItems = attempt?.assessment?.questions ?? [];
+  return rawItems
+    .map((item) => {
+      if (!item.question) return null;
+      return {
+        id: item.id,
+        questionId: item.questionId,
+        orderIndex: item.orderIndex,
+        points: item.points,
+        question: sanitizeQuestionForSolving(item.question),
+      };
+    })
+    .filter((item): item is SolvingItem => Boolean(item))
+    .sort((left, right) => left.orderIndex - right.orderIndex);
+}
+
+function buildInitialAnswers(attempt: AssessmentAttempt) {
+  const initial: Record<number, AnswerValue> = {};
+  for (const answer of attempt.answers ?? []) {
+    if (typeof answer.selectedOptionId === "number") {
+      initial[answer.questionId] = answer.selectedOptionId;
+      continue;
+    }
+    initial[answer.questionId] = answer.textAnswer ?? answer.answerText ?? "";
+  }
+  return initial;
+}
+
+function buildSubmitAnswers(
+  items: SolvingItem[],
+  answers: Record<number, AnswerValue>,
+): SubmitAssessmentAttemptAnswerInput[] {
+  const payload: SubmitAssessmentAttemptAnswerInput[] = [];
+
+  for (const item of items) {
+    const value = answers[item.questionId];
+
+    if (item.question.type === "MULTIPLE_CHOICE") {
+      if (typeof value === "number") {
+        payload.push({
+          questionId: item.questionId,
+          selectedOptionId: value,
+        });
+      }
+      continue;
+    }
+
+    payload.push({
+      questionId: item.questionId,
+      textAnswer: typeof value === "string" ? value : "",
+    });
+  }
+
+  return payload;
+}
+
+function errText(error: unknown) {
+  return error instanceof Error ? error.message : "Request failed";
 }
