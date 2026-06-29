@@ -182,6 +182,9 @@ function TrainingDetail() {
   const trainingQuestions = (questionsQuery.data ?? []).filter((q) =>
     trainingTopicIds.has(q.topicId),
   );
+  // Real readiness counts derived from the question bank (replaces hardcoded fakes).
+  const approvedQuestionCount = trainingQuestions.filter((q) => q.status === "APPROVED").length;
+  const needsReviewQuestionCount = trainingQuestions.filter((q) => q.status === "REVIEW").length;
   const visibleQuestions = trainingQuestions.filter((q) =>
     questionSearch
       ? q.title.toLowerCase().includes(questionSearch.toLowerCase()) ||
@@ -371,8 +374,8 @@ function TrainingDetail() {
           <MetricCard label="Learning objectives" value={totalObjectives} />
           <MetricCard
             label="Approved questions"
-            value={training.approvedQuestions}
-            hint={`${training.questions} total`}
+            value={approvedQuestionCount}
+            hint={`${trainingQuestions.length} total`}
           />
           <MetricCard label="Active assessments" value={training.assessments} />
           <MetricCard label="Average score" value={`${training.avgScore}%`} />
@@ -398,27 +401,15 @@ function TrainingDetail() {
                 <CardContent className="space-y-3">
                   <Readiness
                     label="Approved questions"
-                    value={training.approvedQuestions}
-                    total={training.questions}
+                    value={approvedQuestionCount}
+                    total={trainingQuestions.length}
                     tone="success"
                   />
                   <Readiness
-                    label="Missing equivalent variants"
-                    value={6}
-                    total={training.approvedQuestions}
-                    tone="warning"
-                  />
-                  <Readiness
                     label="Questions needing review"
-                    value={3}
-                    total={training.questions}
+                    value={needsReviewQuestionCount}
+                    total={trainingQuestions.length}
                     tone="warning"
-                  />
-                  <Readiness
-                    label="AI drafts pending"
-                    value={2}
-                    total={training.questions}
-                    tone="info"
                   />
                 </CardContent>
               </Card>
@@ -428,19 +419,14 @@ function TrainingDetail() {
                 </CardHeader>
                 <CardContent className="space-y-2">
                   <Recommend
-                    title="Create post-test from pre-test"
-                    body="SQL Joins shows weak performance (49%)."
-                    to="/app/assessments/a1/post-test"
-                  />
-                  <Recommend
-                    title="Review 3 questions"
-                    body="Awaiting approval before publish."
+                    title="Review pending questions"
+                    body="Approve or reject questions before they can be used in assessments."
                     to="/app/questions"
                   />
                   <Recommend
-                    title="Generate equivalent variants"
-                    body="6 approved questions missing variants."
-                    to="/app/questions"
+                    title="Manage equivalent groups"
+                    body="Group interchangeable question variants for post-tests."
+                    to="/app/questions/equivalent-groups"
                   />
                 </CardContent>
               </Card>
@@ -453,19 +439,19 @@ function TrainingDetail() {
               <CardContent>
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-stretch">
                   <TimelineStep
-                    status="done"
+                    status="pending"
                     title="Pre-test"
-                    detail="26 / 28 submitted · Avg 64%"
+                    detail="Awaiting assessment data"
                   />
                   <TimelineStep
-                    status="active"
+                    status="pending"
                     title="Learning period"
                     detail="Practice & feedback"
                   />
                   <TimelineStep
                     status="pending"
                     title="Post-test"
-                    detail="Draft — review questions"
+                    detail="Awaiting assessment data"
                   />
                 </div>
               </CardContent>
@@ -814,8 +800,13 @@ function TrainingDetail() {
                 Manage assessments for this training.
               </div>
               <div className="flex gap-2">
-                <Button asChild variant="outline" size="sm">
-                  <Link to="/app/assessments/a1/post-test">Create post-test</Link>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled
+                  title="Available once assessments are wired"
+                >
+                  Create post-test
                 </Button>
                 <Button asChild size="sm">
                   <Link to="/app/assessments/new" search={{ trainingId: training.id } as never}>
