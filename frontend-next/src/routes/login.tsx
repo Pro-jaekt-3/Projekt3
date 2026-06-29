@@ -42,8 +42,10 @@ function LoginPage() {
   const [isLoading, setIsLoading] = useState(false);
 
   const goToApp = () => {
-    if (redirect) {
-      if (typeof window !== "undefined") window.location.assign(redirect);
+    const next = sanitizeRedirect(redirect);
+
+    if (next) {
+      if (typeof window !== "undefined") window.location.assign(next);
     } else {
       navigate({ to: "/app/dashboard" });
     }
@@ -241,4 +243,16 @@ function LoginPage() {
       </div>
     </div>
   );
+}
+
+function sanitizeRedirect(value?: string) {
+  if (!value || !value.startsWith("/")) return null;
+  if (value.startsWith("//")) return null;
+
+  const assessmentMatch = value.match(/^\/assessment\/([^/?#]+)\/(access|solve|result)(?:[?#].*)?$/);
+  if (assessmentMatch && !/^\d+$/.test(assessmentMatch[1])) {
+    return "/app/my-assessments";
+  }
+
+  return value;
 }
