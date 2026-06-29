@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { BarChart3, Users, Trophy, TrendingUp } from "lucide-react";
+import { BarChart3, Users, Trophy, TrendingUp, HelpCircle } from "lucide-react";
 import { PageHeader } from "@/components/common/PageHeader";
 import { Button } from "@/components/ui/button";
 import { MetricCard } from "@/components/common/MetricCard";
@@ -98,6 +98,12 @@ function AnalyticsDashboard() {
               <Link to="/app/trends" search={search}>
                 <TrendingUp className="mr-1.5 h-4 w-4" />
                 Trends
+              </Link>
+            </Button>
+            <Button asChild variant="outline" size="sm">
+              <Link to="/app/question-analysis" search={search}>
+                <HelpCircle className="mr-1.5 h-4 w-4" />
+                Questions
               </Link>
             </Button>
           </>

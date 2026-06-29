@@ -17,6 +17,7 @@ import { Route as AppUsersRouteImport } from './routes/app.users'
 import { Route as AppTrendsRouteImport } from './routes/app.trends'
 import { Route as AppSystemAnalyticsRouteImport } from './routes/app.system-analytics'
 import { Route as AppResultsRouteImport } from './routes/app.results'
+import { Route as AppQuestionAnalysisRouteImport } from './routes/app.question-analysis'
 import { Route as AppMyResultsRouteImport } from './routes/app.my-results'
 import { Route as AppMyAssessmentsRouteImport } from './routes/app.my-assessments'
 import { Route as AppLeaderboardRouteImport } from './routes/app.leaderboard'
@@ -79,6 +80,11 @@ const AppSystemAnalyticsRoute = AppSystemAnalyticsRouteImport.update({
 const AppResultsRoute = AppResultsRouteImport.update({
   id: '/results',
   path: '/results',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppQuestionAnalysisRoute = AppQuestionAnalysisRouteImport.update({
+  id: '/question-analysis',
+  path: '/question-analysis',
   getParentRoute: () => AppRoute,
 } as any)
 const AppMyResultsRoute = AppMyResultsRouteImport.update({
@@ -211,6 +217,7 @@ export interface FileRoutesByFullPath {
   '/app/leaderboard': typeof AppLeaderboardRoute
   '/app/my-assessments': typeof AppMyAssessmentsRoute
   '/app/my-results': typeof AppMyResultsRoute
+  '/app/question-analysis': typeof AppQuestionAnalysisRoute
   '/app/results': typeof AppResultsRoute
   '/app/system-analytics': typeof AppSystemAnalyticsRoute
   '/app/trends': typeof AppTrendsRoute
@@ -243,6 +250,7 @@ export interface FileRoutesByTo {
   '/app/leaderboard': typeof AppLeaderboardRoute
   '/app/my-assessments': typeof AppMyAssessmentsRoute
   '/app/my-results': typeof AppMyResultsRoute
+  '/app/question-analysis': typeof AppQuestionAnalysisRoute
   '/app/results': typeof AppResultsRoute
   '/app/system-analytics': typeof AppSystemAnalyticsRoute
   '/app/trends': typeof AppTrendsRoute
@@ -277,6 +285,7 @@ export interface FileRoutesById {
   '/app/leaderboard': typeof AppLeaderboardRoute
   '/app/my-assessments': typeof AppMyAssessmentsRoute
   '/app/my-results': typeof AppMyResultsRoute
+  '/app/question-analysis': typeof AppQuestionAnalysisRoute
   '/app/results': typeof AppResultsRoute
   '/app/system-analytics': typeof AppSystemAnalyticsRoute
   '/app/trends': typeof AppTrendsRoute
@@ -312,6 +321,7 @@ export interface FileRouteTypes {
     | '/app/leaderboard'
     | '/app/my-assessments'
     | '/app/my-results'
+    | '/app/question-analysis'
     | '/app/results'
     | '/app/system-analytics'
     | '/app/trends'
@@ -344,6 +354,7 @@ export interface FileRouteTypes {
     | '/app/leaderboard'
     | '/app/my-assessments'
     | '/app/my-results'
+    | '/app/question-analysis'
     | '/app/results'
     | '/app/system-analytics'
     | '/app/trends'
@@ -377,6 +388,7 @@ export interface FileRouteTypes {
     | '/app/leaderboard'
     | '/app/my-assessments'
     | '/app/my-results'
+    | '/app/question-analysis'
     | '/app/results'
     | '/app/system-analytics'
     | '/app/trends'
@@ -464,6 +476,13 @@ declare module '@tanstack/react-router' {
       path: '/results'
       fullPath: '/app/results'
       preLoaderRoute: typeof AppResultsRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/app/question-analysis': {
+      id: '/app/question-analysis'
+      path: '/question-analysis'
+      fullPath: '/app/question-analysis'
+      preLoaderRoute: typeof AppQuestionAnalysisRouteImport
       parentRoute: typeof AppRoute
     }
     '/app/my-results': {
@@ -652,6 +671,7 @@ interface AppRouteChildren {
   AppLeaderboardRoute: typeof AppLeaderboardRoute
   AppMyAssessmentsRoute: typeof AppMyAssessmentsRoute
   AppMyResultsRoute: typeof AppMyResultsRoute
+  AppQuestionAnalysisRoute: typeof AppQuestionAnalysisRoute
   AppResultsRoute: typeof AppResultsRoute
   AppSystemAnalyticsRoute: typeof AppSystemAnalyticsRoute
   AppTrendsRoute: typeof AppTrendsRoute
@@ -678,6 +698,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppLeaderboardRoute: AppLeaderboardRoute,
   AppMyAssessmentsRoute: AppMyAssessmentsRoute,
   AppMyResultsRoute: AppMyResultsRoute,
+  AppQuestionAnalysisRoute: AppQuestionAnalysisRoute,
   AppResultsRoute: AppResultsRoute,
   AppSystemAnalyticsRoute: AppSystemAnalyticsRoute,
   AppTrendsRoute: AppTrendsRoute,
