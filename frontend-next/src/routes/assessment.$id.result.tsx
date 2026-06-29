@@ -150,7 +150,13 @@ function ParticipantResult() {
           <SummaryRow
             icon={<Clock className="h-4 w-4" />}
             label="Scoring"
-            value={percentage !== null ? "Auto-graded result available" : "Waiting for manual grading"}
+            value={
+              pendingReview > 0
+                ? "Multiple-choice answers are graded now; open/code answers are still under manual review"
+                : percentage !== null
+                  ? "Automatically graded result available"
+                  : "Waiting for manual grading"
+            }
           />
           <SummaryRow
             icon={<Check className="h-4 w-4" />}
