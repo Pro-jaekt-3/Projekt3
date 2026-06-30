@@ -1,5 +1,6 @@
 import { createFileRoute, Link, useNavigate, useSearch } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { z } from "zod";
 import { Check, ChevronLeft, ChevronRight, AlertTriangle, Sparkles, X, Save } from "lucide-react";
 import { toast } from "sonner";
@@ -19,9 +20,17 @@ import {
 import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
 import { StatusBadge } from "@/components/common/StatusBadge";
-import { TRAININGS, QUESTIONS, PARTICIPANTS, TOPICS, getTraining } from "@/lib/mock-data";
+import { EmptyState } from "@/components/common/EmptyState";
+import { LoadingState, ErrorState } from "@/components/common/Spinner";
+import { PARTICIPANTS } from "@/lib/mock-data";
+import { qk } from "@/lib/query-keys";
+import { assessmentsService } from "@/services/assessments";
+import { trainingsService } from "@/services/trainings";
+import { topicsService } from "@/services/topics";
+import { learningObjectivesService } from "@/services/learningObjectives";
+import { questionsService } from "@/services/questions";
 import { cn } from "@/lib/utils";
-
+import type { AssessmentType, LearningObjective, Question, Topic, Training } from "@/types";
 import { ensureRole } from "@/lib/route-guards";
 
 export const Route = createFileRoute("/app/assessments/new")({
@@ -36,28 +45,49 @@ const STEPS = [
   { id: 2, title: "Scope" },
   { id: 3, title: "Questions" },
   { id: 4, title: "Assign" },
-  { id: 5, title: "Preview & Publish" },
+  { id: 5, title: "Preview & Draft" },
 ];
 
 function CreateAssessmentWizard() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const { trainingId } = useSearch({ from: "/app/assessments/new" });
   const [step, setStep] = useState(1);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
-  const [form, setForm] = useState({
+  const trainingsQuery = useQuery({
+    queryKey: qk.trainings.list(),
+    queryFn: trainingsService.list,
+  });
+  const topicsQuery = useQuery({
+    queryKey: qk.topics.list(),
+    queryFn: topicsService.list,
+  });
+  const objectivesQuery = useQuery({
+    queryKey: qk.learningObjectives.list(),
+    queryFn: () => learningObjectivesService.list(),
+  });
+  const questionsQuery = useQuery({
+    queryKey: qk.questions.list(),
+    queryFn: questionsService.list,
+  });
+
+  const [form, setForm] = useState<AssessmentFormState>({
     title: "Databases — Pre-test (new)",
     description:
       "Diagnostic pre-test to map prior knowledge of SQL basics, joins and normalization.",
     type: "Pre-test",
-    trainingId: trainingId ?? "tr-db",
+    trainingId: trainingId ?? "",
     timeLimit: 30,
     availability: "1 week",
     randomizeQuestions: true,
     randomizeAnswers: false,
-    topicIds: ["t-sql", "t-joins", "t-norm"] as string[],
+    topicIds: [] as string[],
+    learningObjectiveId: "all",
+    generationDifficulty: "any" as "any" | "easy" | "medium" | "hard",
     difficulty: { easy: 40, medium: 40, hard: 20 },
     questionCount: 8,
-    selectedQuestionIds: ["q1", "q2", "q3", "q4", "q5"] as string[],
+    selectedQuestionIds: [] as string[],
     assignTo: "training" as "training" | "selected",
     selectedParticipantIds: PARTICIPANTS.map((p) => p.id),
     accessMode: "assigned" as "assigned" | "link",
@@ -65,30 +95,320 @@ function CreateAssessmentWizard() {
     attemptLimit: 1,
   });
 
-  const training = getTraining(form.trainingId);
-  const trainingQuestions = QUESTIONS.filter((q) => q.training === training?.title);
-  const selectedQuestions = trainingQuestions.filter((q) =>
-    form.selectedQuestionIds.includes(q.id),
+  const trainings = trainingsQuery.data ?? [];
+  const topics = topicsQuery.data ?? [];
+  const objectives = objectivesQuery.data ?? [];
+  const questions = questionsQuery.data ?? [];
+  const selectedTrainingId = Number(form.trainingId);
+
+  const training = trainings.find((item) => item.id === selectedTrainingId) ?? null;
+  const trainingTopics = useMemo(
+    () => topics.filter((topic) => topic.trainingId === selectedTrainingId),
+    [topics, selectedTrainingId],
   );
+  const trainingTopicIds = useMemo(
+    () => new Set(trainingTopics.map((topic) => topic.id)),
+    [trainingTopics],
+  );
+  const visibleTopicIds = new Set(form.topicIds.map((id) => Number(id)));
+  const trainingQuestions = useMemo(
+    () =>
+      questions.filter((question) => {
+        if (question.status !== "APPROVED") return false;
+        if (!trainingTopicIds.has(question.topicId)) return false;
+        if (visibleTopicIds.size > 0 && !visibleTopicIds.has(question.topicId)) return false;
+        return true;
+      }),
+    [questions, trainingTopicIds, visibleTopicIds],
+  );
+  const selectedQuestions = useMemo(
+    () =>
+      trainingQuestions.filter((question) =>
+        form.selectedQuestionIds.includes(String(question.id)),
+      ),
+    [trainingQuestions, form.selectedQuestionIds],
+  );
+  const visibleObjectives = useMemo(() => {
+    if (form.topicIds.length === 0) return [];
+    const selectedTopicIds = new Set(form.topicIds.map((id) => Number(id)));
+    return objectives.filter((objective) => selectedTopicIds.has(objective.topicId));
+  }, [objectives, form.topicIds]);
+  const topicQuestionCounts = useMemo(() => {
+    const counts = new Map<number, number>();
+    for (const question of questions) {
+      if (question.status !== "APPROVED") continue;
+      counts.set(question.topicId, (counts.get(question.topicId) ?? 0) + 1);
+    }
+    return counts;
+  }, [questions]);
+
+  useEffect(() => {
+    if (trainings.length === 0) return;
+    if (trainings.some((item) => String(item.id) === form.trainingId)) return;
+    setForm((current) => ({
+      ...current,
+      trainingId: String(trainings[0].id),
+    }));
+  }, [form.trainingId, trainings]);
+
+  useEffect(() => {
+    if (trainingTopics.length === 0) {
+      if (
+        form.topicIds.length === 0 &&
+        form.selectedQuestionIds.length === 0 &&
+        form.learningObjectiveId === "all"
+      ) {
+        return;
+      }
+      setForm((current) => ({
+        ...current,
+        topicIds: [],
+        learningObjectiveId: "all",
+        selectedQuestionIds: [],
+      }));
+      return;
+    }
+
+    const validTopicIds = new Set(trainingTopics.map((topic) => String(topic.id)));
+    const nextTopicIds = form.topicIds.filter((id) => validTopicIds.has(id));
+    const resolvedTopicIds = nextTopicIds.length > 0 ? nextTopicIds : trainingTopics.map((topic) => String(topic.id));
+    const resolvedTopicIdSet = new Set(resolvedTopicIds.map((id) => Number(id)));
+    const validQuestionIds = new Set(
+      questions
+        .filter(
+          (question) =>
+            question.status === "APPROVED" && resolvedTopicIdSet.has(question.topicId),
+        )
+        .map((question) => String(question.id)),
+    );
+    const nextSelectedQuestionIds = form.selectedQuestionIds.filter((id) => validQuestionIds.has(id));
+    const validObjectiveIds = new Set(
+      objectives
+        .filter((objective) => resolvedTopicIdSet.has(objective.topicId))
+        .map((objective) => String(objective.id)),
+    );
+    const nextLearningObjectiveId =
+      form.learningObjectiveId === "all" || validObjectiveIds.has(form.learningObjectiveId)
+        ? form.learningObjectiveId
+        : "all";
+
+    if (
+      arraysEqual(resolvedTopicIds, form.topicIds) &&
+      arraysEqual(nextSelectedQuestionIds, form.selectedQuestionIds) &&
+      nextLearningObjectiveId === form.learningObjectiveId
+    ) {
+      return;
+    }
+
+    setForm((current) => ({
+      ...current,
+      topicIds: resolvedTopicIds,
+      learningObjectiveId: nextLearningObjectiveId,
+      selectedQuestionIds: nextSelectedQuestionIds,
+    }));
+  }, [
+    trainingTopics,
+    questions,
+    objectives,
+    form.topicIds,
+    form.selectedQuestionIds,
+    form.learningObjectiveId,
+  ]);
+
+  const createMutation = useMutation({
+    mutationFn: () =>
+      assessmentsService.create({
+        title: form.title.trim(),
+        description: form.description.trim() || null,
+        trainingId: selectedTrainingId,
+        type: mapAssessmentType(form.type),
+        questions: Array.from(new Set(form.selectedQuestionIds)).map((id) => Number(id)),
+      }),
+    onSuccess: (created) => {
+      queryClient.invalidateQueries({ queryKey: qk.assessments.all });
+      setSubmitError(null);
+      toast.success(`Assessment “${created.title}” created as draft`, {
+        description: "Publish it later from the assessment detail page.",
+      });
+      navigate({
+        to: "/app/assessments/$id",
+        params: { id: String(created.id) },
+      });
+    },
+    onError: (error) => {
+      const message = error instanceof Error ? error.message : "Failed to create assessment";
+      setSubmitError(message);
+      toast.error(message);
+    },
+  });
+  const generateMutation = useMutation({
+    mutationFn: async () => {
+      const singleTopicId =
+        form.topicIds.length === 1 ? Number(form.topicIds[0]) : undefined;
+      const learningObjectiveId =
+        form.learningObjectiveId !== "all" ? Number(form.learningObjectiveId) : undefined;
+
+      return assessmentsService.generate({
+        title: form.title.trim(),
+        description: form.description.trim() || null,
+        trainingId: selectedTrainingId,
+        topicId: singleTopicId,
+        learningObjectiveId,
+        difficulty:
+          form.generationDifficulty === "any" ? undefined : form.generationDifficulty,
+        count: form.questionCount,
+      });
+    },
+    onSuccess: (created) => {
+      queryClient.invalidateQueries({ queryKey: qk.assessments.all });
+      setSubmitError(null);
+      toast.success(`Generated “${created.title}” as a draft`, {
+        description: "Review the generated draft before deciding whether to publish it.",
+      });
+      navigate({
+        to: "/app/assessments/$id",
+        params: { id: String(created.id) },
+      });
+    },
+    onError: (error) => {
+      const message = error instanceof Error ? error.message : "Failed to generate assessment";
+      setSubmitError(message);
+      toast.error(message);
+    },
+  });
 
   const back = () => setStep((s) => Math.max(1, s - 1));
   const next = () => setStep((s) => Math.min(5, s + 1));
 
-  const publish = () => {
-    toast.success("Assessment published", {
-      description: "Open the access panel to share the QR code or link.",
+  const createDraft = () => {
+    const uniqueQuestionIds = Array.from(new Set(form.selectedQuestionIds));
+    const validationError = validateDraft({
+      title: form.title,
+      trainingId: form.trainingId,
+      selectedQuestionIds: uniqueQuestionIds,
     });
-    navigate({
-      to: "/app/assessments/$id",
-      params: { id: "a4" },
-      search: { published: 1 } as never,
+    if (validationError) {
+      setSubmitError(validationError);
+      toast.error(validationError);
+      return;
+    }
+    if (uniqueQuestionIds.length !== form.selectedQuestionIds.length) {
+      setForm((current) => ({
+        ...current,
+        selectedQuestionIds: uniqueQuestionIds,
+      }));
+    }
+    setSubmitError(null);
+    createMutation.mutate();
+  };
+  const generateDraft = () => {
+    const validationError = validateGeneratedDraft({
+      title: form.title,
+      trainingId: form.trainingId,
+      count: form.questionCount,
     });
+    if (validationError) {
+      setSubmitError(validationError);
+      toast.error(validationError);
+      return;
+    }
+    setSubmitError(null);
+    generateMutation.mutate();
   };
 
-  const saveDraft = () => {
-    toast("Saved as draft");
-    navigate({ to: "/app/assessments" });
-  };
+  const loading =
+    trainingsQuery.isLoading ||
+    topicsQuery.isLoading ||
+    objectivesQuery.isLoading ||
+    questionsQuery.isLoading;
+  const dataError =
+    trainingsQuery.error ??
+    topicsQuery.error ??
+    objectivesQuery.error ??
+    questionsQuery.error ??
+    null;
+
+  if (loading) {
+    return (
+      <>
+        <PageHeader
+          breadcrumbs={
+            <>
+              <Link to="/app/assessments" className="hover:underline">
+                Assessments
+              </Link>
+              <span className="mx-1">/</span>
+              <span>New assessment</span>
+            </>
+          }
+          title="Create assessment"
+          description="Define basics, blueprint, questions, assignment and review before publishing."
+        />
+        <LoadingState label="Loading assessment builder…" />
+      </>
+    );
+  }
+
+  if (dataError) {
+    return (
+      <>
+        <PageHeader
+          breadcrumbs={
+            <>
+              <Link to="/app/assessments" className="hover:underline">
+                Assessments
+              </Link>
+              <span className="mx-1">/</span>
+              <span>New assessment</span>
+            </>
+          }
+          title="Create assessment"
+          description="Define basics, blueprint, questions, assignment and review before publishing."
+        />
+        <ErrorState
+          message={dataError instanceof Error ? dataError.message : "Failed to load assessment data"}
+          onRetry={() => {
+            trainingsQuery.refetch();
+            topicsQuery.refetch();
+            objectivesQuery.refetch();
+            questionsQuery.refetch();
+          }}
+        />
+      </>
+    );
+  }
+
+  if (trainings.length === 0) {
+    return (
+      <>
+        <PageHeader
+          breadcrumbs={
+            <>
+              <Link to="/app/assessments" className="hover:underline">
+                Assessments
+              </Link>
+              <span className="mx-1">/</span>
+              <span>New assessment</span>
+            </>
+          }
+          title="Create assessment"
+          description="Define basics, blueprint, questions, assignment and review before publishing."
+        />
+        <div className="p-4 sm:p-6 lg:p-8">
+          <EmptyState
+            icon={<Save className="h-5 w-5" />}
+            title="No trainings available"
+            description="Create a training first before building an assessment."
+            action={
+              <Button asChild size="sm">
+                <Link to="/app/trainings">Open trainings</Link>
+              </Button>
+            }
+          />
+        </div>
+      </>
+    );
+  }
 
   return (
     <>
@@ -109,7 +429,7 @@ function CreateAssessmentWizard() {
             <Button variant="ghost" size="sm" onClick={() => navigate({ to: "/app/assessments" })}>
               <X className="mr-1.5 h-4 w-4" /> Cancel
             </Button>
-            <Button variant="outline" size="sm" onClick={saveDraft}>
+            <Button variant="outline" size="sm" onClick={createDraft} disabled={createMutation.isPending}>
               <Save className="mr-1.5 h-4 w-4" /> Save as draft
             </Button>
           </>
@@ -121,19 +441,34 @@ function CreateAssessmentWizard() {
 
         <div className="mt-6 grid gap-6 lg:grid-cols-[1fr_300px]">
           <div className="min-w-0">
-            {step === 1 && <Step1 form={form} setForm={setForm} />}
-            {step === 2 && <Step2 form={form} setForm={setForm} />}
+            {step === 1 && <Step1 form={form} setForm={setForm} trainings={trainings} />}
+            {step === 2 && (
+              <Step2
+                form={form}
+                setForm={setForm}
+                topics={trainingTopics}
+                objectives={visibleObjectives}
+                topicQuestionCounts={topicQuestionCounts}
+              />
+            )}
             {step === 3 && (
               <Step3
                 form={form}
                 setForm={setForm}
                 questions={trainingQuestions}
                 selected={selectedQuestions}
+                onGenerate={generateDraft}
+                generatePending={generateMutation.isPending}
               />
             )}
             {step === 4 && <Step4 form={form} setForm={setForm} />}
             {step === 5 && (
-              <Step5 form={form} training={training?.title} selected={selectedQuestions} />
+              <Step5
+                form={form}
+                training={training?.title}
+                selected={selectedQuestions}
+                submitError={submitError}
+              />
             )}
 
             <div className="mt-6 flex flex-col-reverse items-stretch justify-between gap-2 sm:flex-row sm:items-center">
@@ -145,7 +480,9 @@ function CreateAssessmentWizard() {
                   Continue <ChevronRight className="ml-1.5 h-4 w-4" />
                 </Button>
               ) : (
-                <Button onClick={publish}>Publish assessment</Button>
+                <Button onClick={createDraft} disabled={createMutation.isPending}>
+                  {createMutation.isPending ? "Creating draft…" : "Create draft assessment"}
+                </Button>
               )}
             </div>
           </div>
@@ -222,9 +559,37 @@ function SumRow({ label, value }: { label: string; value: React.ReactNode }) {
   );
 }
 
-type Form = ReturnType<typeof useState<any>>[0] extends infer _ ? any : never; // simplification
+type AssessmentFormState = {
+  title: string;
+  description: string;
+  type: "Pre-test" | "Regular test" | "Practice";
+  trainingId: string;
+  timeLimit: number;
+  availability: string;
+  randomizeQuestions: boolean;
+  randomizeAnswers: boolean;
+  topicIds: string[];
+  learningObjectiveId: string;
+  generationDifficulty: "any" | "easy" | "medium" | "hard";
+  difficulty: { easy: number; medium: number; hard: number };
+  questionCount: number;
+  selectedQuestionIds: string[];
+  assignTo: "training" | "selected";
+  selectedParticipantIds: string[];
+  accessMode: "assigned" | "link";
+  dueDate: string;
+  attemptLimit: number;
+};
 
-function Step1({ form, setForm }: { form: any; setForm: any }) {
+function Step1({
+  form,
+  setForm,
+  trainings,
+}: {
+  form: AssessmentFormState;
+  setForm: React.Dispatch<React.SetStateAction<AssessmentFormState>>;
+  trainings: Training[];
+}) {
   return (
     <Card>
       <CardHeader>
@@ -243,7 +608,12 @@ function Step1({ form, setForm }: { form: any; setForm: any }) {
         </Field>
         <div className="grid gap-4 sm:grid-cols-2">
           <Field label="Assessment type">
-            <Select value={form.type} onValueChange={(v) => setForm({ ...form, type: v })}>
+            <Select
+              value={form.type}
+              onValueChange={(value) =>
+                setForm({ ...form, type: value as AssessmentFormState["type"] })
+              }
+            >
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
@@ -263,8 +633,8 @@ function Step1({ form, setForm }: { form: any; setForm: any }) {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {TRAININGS.map((t) => (
-                  <SelectItem key={t.id} value={t.id}>
+                {trainings.map((t) => (
+                  <SelectItem key={t.id} value={String(t.id)}>
                     {t.title}
                   </SelectItem>
                 ))}
@@ -304,14 +674,26 @@ function Step1({ form, setForm }: { form: any; setForm: any }) {
   );
 }
 
-function Step2({ form, setForm }: { form: any; setForm: any }) {
+function Step2({
+  form,
+  setForm,
+  topics,
+  objectives,
+  topicQuestionCounts,
+}: {
+  form: AssessmentFormState;
+  setForm: React.Dispatch<React.SetStateAction<AssessmentFormState>>;
+  topics: Topic[];
+  objectives: LearningObjective[];
+  topicQuestionCounts: Map<number, number>;
+}) {
   const toggleTopic = (id: string) => {
-    setForm({
-      ...form,
-      topicIds: form.topicIds.includes(id)
-        ? form.topicIds.filter((t: string) => t !== id)
-        : [...form.topicIds, id],
-    });
+    setForm((current) => ({
+      ...current,
+      topicIds: current.topicIds.includes(id)
+        ? current.topicIds.filter((topicId) => topicId !== id)
+        : Array.from(new Set([...current.topicIds, id])),
+    }));
   };
   return (
     <Card>
@@ -322,13 +704,14 @@ function Step2({ form, setForm }: { form: any; setForm: any }) {
         <div>
           <Label className="text-sm">Topics</Label>
           <div className="mt-2 grid gap-2 sm:grid-cols-2">
-            {TOPICS.map((t) => {
-              const active = form.topicIds.includes(t.id);
+            {topics.map((t) => {
+              const id = String(t.id);
+              const active = form.topicIds.includes(id);
               return (
                 <button
                   key={t.id}
                   type="button"
-                  onClick={() => toggleTopic(t.id)}
+                  onClick={() => toggleTopic(id)}
                   className={cn(
                     "flex items-start gap-2 rounded-md border bg-card p-3 text-left transition-colors",
                     active ? "border-primary bg-primary-soft" : "hover:bg-muted/40",
@@ -336,15 +719,20 @@ function Step2({ form, setForm }: { form: any; setForm: any }) {
                 >
                   <Checkbox checked={active} className="mt-0.5 pointer-events-none" />
                   <div>
-                    <div className="text-sm font-medium">{t.title}</div>
+                    <div className="text-sm font-medium">{t.name}</div>
                     <div className="text-xs text-muted-foreground">
-                      {t.objectives.length} objectives
+                      {topicQuestionCounts.get(t.id) ?? 0} approved questions
                     </div>
                   </div>
                 </button>
               );
             })}
           </div>
+          {topics.length === 0 && (
+            <div className="mt-2 rounded-md border bg-surface p-3 text-sm text-muted-foreground">
+              This training has no topics yet. Add topics and approved questions before creating an assessment.
+            </div>
+          )}
         </div>
 
         <div>
@@ -376,6 +764,48 @@ function Step2({ form, setForm }: { form: any; setForm: any }) {
             onChange={(e) => setForm({ ...form, questionCount: +e.target.value })}
           />
         </Field>
+
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field label="Learning objective filter">
+            <Select
+              value={form.learningObjectiveId}
+              onValueChange={(value) => setForm({ ...form, learningObjectiveId: value })}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All learning objectives</SelectItem>
+                {objectives.map((objective) => (
+                  <SelectItem key={objective.id} value={String(objective.id)}>
+                    {objective.title}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </Field>
+          <Field label="AI generation difficulty">
+            <Select
+              value={form.generationDifficulty}
+              onValueChange={(value) =>
+                setForm({
+                  ...form,
+                  generationDifficulty: value as AssessmentFormState["generationDifficulty"],
+                })
+              }
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="any">Any difficulty</SelectItem>
+                <SelectItem value="easy">Easy</SelectItem>
+                <SelectItem value="medium">Medium</SelectItem>
+                <SelectItem value="hard">Hard</SelectItem>
+              </SelectContent>
+            </Select>
+          </Field>
+        </div>
 
         <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm dark:border-amber-900 dark:bg-amber-950/30">
           <div className="flex items-start gap-2 text-amber-800 dark:text-amber-200">
@@ -424,19 +854,23 @@ function Step3({
   setForm,
   questions,
   selected,
+  onGenerate,
+  generatePending,
 }: {
-  form: any;
-  setForm: any;
-  questions: any[];
-  selected: any[];
+  form: AssessmentFormState;
+  setForm: React.Dispatch<React.SetStateAction<AssessmentFormState>>;
+  questions: Question[];
+  selected: Question[];
+  onGenerate: () => void;
+  generatePending: boolean;
 }) {
   const toggle = (id: string) => {
-    setForm({
-      ...form,
-      selectedQuestionIds: form.selectedQuestionIds.includes(id)
-        ? form.selectedQuestionIds.filter((q: string) => q !== id)
-        : [...form.selectedQuestionIds, id],
-    });
+    setForm((current) => ({
+      ...current,
+      selectedQuestionIds: current.selectedQuestionIds.includes(id)
+        ? current.selectedQuestionIds.filter((questionId) => questionId !== id)
+        : Array.from(new Set([...current.selectedQuestionIds, id])),
+    }));
   };
 
   return (
@@ -445,49 +879,60 @@ function Step3({
         <CardHeader>
           <div className="flex flex-wrap items-center justify-between gap-2">
             <CardTitle className="text-base">Questions</CardTitle>
-            <Button variant="outline" size="sm">
-              <Sparkles className="mr-1.5 h-4 w-4" /> Ask AI to suggest missing drafts
+            <Button variant="outline" size="sm" onClick={onGenerate} disabled={generatePending}>
+              <Sparkles className="mr-1.5 h-4 w-4" />{" "}
+              {generatePending ? "Generating draft…" : "Generate draft assessment"}
             </Button>
           </div>
           <p className="text-xs text-muted-foreground">
-            Only approved questions can be published. AI suggestions become drafts that you review.
+            Only approved questions can be published. Generation creates a draft assessment that
+            you review before any separate publish step.
           </p>
         </CardHeader>
         <CardContent className="space-y-2">
-          {questions.map((q) => {
-            const active = form.selectedQuestionIds.includes(q.id);
-            return (
-              <label
-                key={q.id}
-                className={cn(
-                  "flex cursor-pointer items-start gap-3 rounded-md border bg-card p-3 transition-colors",
-                  active ? "border-primary bg-primary-soft/50" : "hover:bg-muted/40",
-                )}
-              >
-                <Checkbox
-                  checked={active}
-                  onCheckedChange={() => toggle(q.id)}
-                  className="mt-0.5"
-                />
-                <div className="min-w-0 flex-1">
-                  <div className="text-sm font-medium">{q.text}</div>
-                  <div className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
-                    <span>{q.topic}</span>
-                    <span>·</span>
-                    <span>{q.objective}</span>
-                    <span>·</span>
-                    <span className="capitalize">{q.difficulty}</span>
-                  </div>
-                </div>
-                <div className="flex shrink-0 flex-col items-end gap-1">
-                  <StatusBadge status={q.status} />
-                  {q.variants > 0 && (
-                    <span className="text-[10px] text-muted-foreground">{q.variants} variants</span>
+          {questions.length === 0 ? (
+            <div className="rounded-md border bg-surface p-4 text-sm text-muted-foreground">
+              No approved questions match the selected training and topic scope.
+            </div>
+          ) : (
+            questions.map((q) => {
+              const id = String(q.id);
+              const active = form.selectedQuestionIds.includes(id);
+              return (
+                <label
+                  key={q.id}
+                  className={cn(
+                    "flex cursor-pointer items-start gap-3 rounded-md border bg-card p-3 transition-colors",
+                    active ? "border-primary bg-primary-soft/50" : "hover:bg-muted/40",
                   )}
-                </div>
-              </label>
-            );
-          })}
+                >
+                  <Checkbox
+                    checked={active}
+                    onCheckedChange={() => toggle(id)}
+                    className="mt-0.5"
+                  />
+                  <div className="min-w-0 flex-1">
+                    <div className="text-sm font-medium">{q.title}</div>
+                    <div className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
+                      <span>{q.topic?.name ?? "—"}</span>
+                      <span>·</span>
+                      <span>{q.learningObjective?.title ?? "No objective"}</span>
+                      <span>·</span>
+                      <span>{difficultyLabel(q.difficulty)}</span>
+                    </div>
+                  </div>
+                  <div className="flex shrink-0 flex-col items-end gap-1">
+                    <StatusBadge status="Approved" />
+                    {q.equivalentGroup && (
+                      <span className="text-[10px] text-muted-foreground">
+                        Group: {q.equivalentGroup.name}
+                      </span>
+                    )}
+                  </div>
+                </label>
+              );
+            })
+          )}
         </CardContent>
       </Card>
       <div className="rounded-md border bg-surface p-3 text-sm text-muted-foreground">
@@ -498,7 +943,13 @@ function Step3({
   );
 }
 
-function Step4({ form, setForm }: { form: any; setForm: any }) {
+function Step4({
+  form,
+  setForm,
+}: {
+  form: AssessmentFormState;
+  setForm: React.Dispatch<React.SetStateAction<AssessmentFormState>>;
+}) {
   return (
     <Card>
       <CardHeader>
@@ -566,9 +1017,19 @@ function Step4({ form, setForm }: { form: any; setForm: any }) {
   );
 }
 
-function Step5({ form, training, selected }: { form: any; training?: string; selected: any[] }) {
+function Step5({
+  form,
+  training,
+  selected,
+  submitError,
+}: {
+  form: AssessmentFormState;
+  training?: string;
+  selected: Question[];
+  submitError: string | null;
+}) {
   const checks = [
-    { ok: selected.every((q: any) => q.status === "Approved"), label: "All questions approved" },
+    { ok: selected.length > 0 && selected.every((q) => q.status === "APPROVED"), label: "All questions approved" },
     { ok: form.assignTo, label: "Participants assigned" },
     { ok: !!form.dueDate, label: "Availability set" },
     { ok: !!form.description, label: "Instructions added" },
@@ -578,7 +1039,7 @@ function Step5({ form, training, selected }: { form: any; training?: string; sel
     <div className="space-y-4">
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Preview & publish</CardTitle>
+          <CardTitle className="text-base">Preview & create draft</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid gap-2 text-sm">
@@ -608,6 +1069,11 @@ function Step5({ form, training, selected }: { form: any; training?: string; sel
               ))}
             </ul>
           </div>
+          {submitError && (
+            <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
+              {submitError}
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -630,6 +1096,51 @@ function Step5({ form, training, selected }: { form: any; training?: string; sel
       </Card>
     </div>
   );
+}
+
+function difficultyLabel(value: number) {
+  return value === 1 ? "Easy" : value === 2 ? "Medium" : value === 3 ? "Hard" : String(value);
+}
+
+function mapAssessmentType(value: AssessmentFormState["type"]): AssessmentType {
+  if (value === "Pre-test") return "PRE_TEST";
+  if (value === "Regular test") return "POST_TEST";
+  return "QUIZ";
+}
+
+function arraysEqual(left: string[], right: string[]) {
+  if (left.length !== right.length) return false;
+  return left.every((value, index) => value === right[index]);
+}
+
+function validateDraft({
+  title,
+  trainingId,
+  selectedQuestionIds,
+}: {
+  title: string;
+  trainingId: string;
+  selectedQuestionIds: string[];
+}) {
+  if (!title.trim()) return "Title is required";
+  if (!trainingId) return "Training is required";
+  if (selectedQuestionIds.length === 0) return "Select at least one approved question";
+  return null;
+}
+
+function validateGeneratedDraft({
+  title,
+  trainingId,
+  count,
+}: {
+  title: string;
+  trainingId: string;
+  count: number;
+}) {
+  if (!title.trim()) return "Title is required";
+  if (!trainingId) return "Training is required";
+  if (!Number.isInteger(count) || count < 1) return "Question count must be at least 1";
+  return null;
 }
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {

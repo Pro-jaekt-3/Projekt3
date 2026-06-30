@@ -1,40 +1,230 @@
-import { createFileRoute, Link, notFound } from "@tanstack/react-router";
-import { Check, ArrowLeft, BookOpen, TrendingUp } from "lucide-react";
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { useQuery } from "@tanstack/react-query";
+import { Check, ArrowLeft, BookOpen, Clock, ClipboardList } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { MetricCard } from "@/components/common/MetricCard";
 import { StatusBadge } from "@/components/common/StatusBadge";
-import {
-  MY_ASSESSMENTS,
-  TOPIC_PERFORMANCE,
-  DIFFICULTY_PERFORMANCE,
-  PRE_POST_COMPARISON,
-} from "@/lib/mock-data";
-import {
-  ResponsiveContainer,
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  Tooltip,
-  CartesianGrid,
-  Legend,
-} from "recharts";
+import { LoadingState, ErrorState } from "@/components/common/Spinner";
+import { getAttemptId } from "@/lib/attempt-storage";
+import { qk } from "@/lib/query-keys";
+import { assessmentAttemptsService } from "@/services/assessmentAttempts";
 
 export const Route = createFileRoute("/assessment/$id/result")({
-  loader: ({ params }) => {
-    const a = MY_ASSESSMENTS.find((m) => m.id === params.id);
-    if (!a) throw notFound();
-    return { assessment: a };
-  },
   component: ParticipantResult,
 });
 
 function ParticipantResult() {
-  const { assessment } = Route.useLoaderData();
-  const score = assessment.score ?? 76;
-  const isPost = assessment.type === "Post-test";
+  const { id } = Route.useParams();
+  const rememberedAttemptId = getAttemptId(id);
 
+  const attemptQuery = useQuery({
+    queryKey: qk.assessmentAttempts.detail(rememberedAttemptId ?? `missing-${id}`),
+    queryFn: () => assessmentAttemptsService.get(rememberedAttemptId!),
+    enabled: rememberedAttemptId !== null,
+    retry: false,
+  });
+
+  if (rememberedAttemptId === null) {
+    return (
+      <ResultShell>
+        <EmptyResultState
+          title="No result found"
+          description="Open or submit the assessment first so we can load your latest attempt result."
+        />
+      </ResultShell>
+    );
+  }
+
+  if (attemptQuery.isLoading) {
+    return <LoadingState label="Loading result…" />;
+  }
+
+  if (attemptQuery.isError || !attemptQuery.data) {
+    return (
+      <ResultShell>
+        <ErrorState
+          message={attemptQuery.error instanceof Error ? attemptQuery.error.message : "Failed to load result"}
+          onRetry={() => attemptQuery.refetch()}
+        />
+      </ResultShell>
+    );
+  }
+
+  const attempt = attemptQuery.data;
+  const assessment = attempt.assessment;
+  const submittedAt = attempt.submittedAt ? new Date(attempt.submittedAt) : null;
+  const startedAt = new Date(attempt.startedAt);
+  const score = typeof attempt.score === "number" ? attempt.score : null;
+  const maxScore = typeof attempt.maxScore === "number" ? attempt.maxScore : null;
+  const percentage =
+    typeof score === "number" && typeof maxScore === "number" && maxScore > 0
+      ? Math.round((score / maxScore) * 100)
+      : null;
+  const minutesSpent =
+    submittedAt && !Number.isNaN(startedAt.getTime()) && !Number.isNaN(submittedAt.getTime())
+      ? Math.max(0, Math.round((submittedAt.getTime() - startedAt.getTime()) / 60000))
+      : null;
+
+  const answers = attempt.answers ?? [];
+  const autoCorrect = answers.filter((answer) => answer.isCorrect === true).length;
+  const pendingReview = answers.filter((answer) => answer.needsManualReview).length;
+  const answeredCount = answers.length;
+  const totalQuestions = assessment?.questions?.length ?? answeredCount;
+
+  const questionSummaries = (assessment?.questions ?? []).map((item) => {
+    const answer = answers.find((entry) => entry.questionId === item.questionId);
+    const awarded = typeof answer?.pointsAwarded === "number" ? answer.pointsAwarded : null;
+    const possible = Number(item.points ?? 0);
+
+    return {
+      id: item.questionId,
+      title: item.question?.title ?? `Question ${item.orderIndex + 1}`,
+      possible,
+      awarded,
+      status:
+        answer?.needsManualReview
+          ? "Pending manual review"
+          : answer?.isCorrect === true
+            ? "Correct"
+            : answer?.isCorrect === false
+              ? "Incorrect"
+              : "Not answered",
+    };
+  });
+
+  return (
+    <ResultShell>
+      <Card>
+        <CardContent className="space-y-4 p-6">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <div className="text-xs text-muted-foreground">
+                {assessment?.training?.title ?? "Assessment"}
+              </div>
+              <h1 className="mt-0.5 text-xl font-semibold sm:text-2xl">
+                {assessment?.title ?? "Assessment result"}
+              </h1>
+              <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                <StatusBadge status={attempt.status === "GRADED" ? "Graded" : "Submitted"} />
+                <span>·</span>
+                <span>Submitted {submittedAt ? formatDateTime(submittedAt) : "recently"}</span>
+                <span>·</span>
+                <span>
+                  {minutesSpent !== null ? `Time spent ${minutesSpent} min` : "Time spent unavailable"}
+                </span>
+              </div>
+            </div>
+            <div className="text-center">
+              <div className="text-4xl font-semibold tabular-nums text-primary">
+                {percentage !== null ? `${percentage}%` : "Pending"}
+              </div>
+              <div className="text-xs text-muted-foreground">
+                {score !== null && maxScore !== null ? `${score} / ${maxScore} points` : "awaiting review"}
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <MetricCard label="Answered" value={`${answeredCount} / ${totalQuestions}`} />
+        <MetricCard label="Auto-correct" value={autoCorrect} />
+        <MetricCard label="Manual review" value={pendingReview} />
+        <MetricCard
+          label="Time spent"
+          value={minutesSpent !== null ? `${minutesSpent}m` : "—"}
+        />
+      </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Result summary</CardTitle>
+        </CardHeader>
+        <CardContent className="grid gap-3 sm:grid-cols-2">
+          <SummaryRow
+            icon={<ClipboardList className="h-4 w-4" />}
+            label="Assessment type"
+            value={assessmentTypeLabel(assessment?.type)}
+          />
+          <SummaryRow
+            icon={<Clock className="h-4 w-4" />}
+            label="Scoring"
+            value={
+              pendingReview > 0
+                ? "Multiple-choice answers are graded now; open/code answers are still under manual review"
+                : percentage !== null
+                  ? "Automatically graded result available"
+                  : "Waiting for manual grading"
+            }
+          />
+          <SummaryRow
+            icon={<Check className="h-4 w-4" />}
+            label="Question coverage"
+            value={`${answeredCount} answered out of ${totalQuestions}`}
+          />
+          <SummaryRow
+            icon={<BookOpen className="h-4 w-4" />}
+            label="Review state"
+            value={pendingReview > 0 ? `${pendingReview} answer(s) need manual review` : "All answers processed"}
+          />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Per-question status</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {questionSummaries.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No question-level result data is available yet.</p>
+          ) : (
+            questionSummaries.map((question, index) => (
+              <div key={question.id} className="rounded-md border bg-card p-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="text-xs text-muted-foreground">Question {index + 1}</div>
+                    <div className="text-sm font-medium">{question.title}</div>
+                  </div>
+                  <StatusBadge
+                    status={question.status}
+                    tone={
+                      question.status === "Correct"
+                        ? "success"
+                        : question.status === "Incorrect"
+                          ? "danger"
+                          : question.status === "Pending manual review"
+                            ? "warning"
+                            : "muted"
+                    }
+                  />
+                </div>
+                <div className="mt-2 text-xs text-muted-foreground">
+                  {question.awarded !== null
+                    ? `Points awarded: ${question.awarded} / ${question.possible}`
+                    : `Possible points: ${question.possible}`}
+                </div>
+              </div>
+            ))
+          )}
+        </CardContent>
+      </Card>
+
+      <div className="flex flex-wrap gap-2">
+        <Button asChild variant="outline">
+          <Link to="/app/my-results">
+            <ArrowLeft className="mr-1.5 h-4 w-4" /> Back to My Results
+          </Link>
+        </Button>
+        <Button asChild variant="outline">
+          <Link to="/app/my-assessments">My assessments</Link>
+        </Button>
+      </div>
+    </ResultShell>
+  );
+}
+
+function ResultShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-screen bg-surface">
       <header className="border-b bg-background px-4 py-3 sm:px-6">
@@ -51,159 +241,58 @@ function ParticipantResult() {
         </div>
       </header>
 
-      <main className="mx-auto max-w-3xl space-y-5 px-4 py-6 sm:px-6 sm:py-10">
-        <Card>
-          <CardContent className="space-y-4 p-6">
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <div className="text-xs text-muted-foreground">{assessment.training}</div>
-                <h1 className="mt-0.5 text-xl font-semibold sm:text-2xl">{assessment.title}</h1>
-                <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                  <StatusBadge status="Completed" />
-                  <span>·</span>
-                  <span>Submitted {assessment.submittedAt ?? "today"}</span>
-                  <span>·</span>
-                  <span>Time spent 22 min</span>
-                </div>
-              </div>
-              <div className="text-center">
-                <div className="text-4xl font-semibold tabular-nums text-primary">{score}%</div>
-                <div className="text-xs text-muted-foreground">your score</div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          <MetricCard label="Correct" value="6 / 8" />
-          <MetricCard label="Time spent" value="22m" />
-          <MetricCard label="Strongest" value="SQL Basics" />
-          <MetricCard label="Weakest" value="Joins" />
-        </div>
-
-        {isPost && (
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base flex items-center gap-2">
-                <TrendingUp className="h-4 w-4 text-emerald-600" /> Improvement since pre-test
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="h-56">
-                <ResponsiveContainer>
-                  <BarChart data={PRE_POST_COMPARISON}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="topic" fontSize={11} />
-                    <YAxis fontSize={11} domain={[0, 100]} />
-                    <Tooltip />
-                    <Legend wrapperStyle={{ fontSize: 12 }} />
-                    <Bar dataKey="pre" fill="var(--chart-2)" radius={4} />
-                    <Bar dataKey="post" fill="var(--primary)" radius={4} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
-        <div className="grid gap-4 lg:grid-cols-2">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Topic breakdown</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="h-56">
-                <ResponsiveContainer>
-                  <BarChart data={TOPIC_PERFORMANCE} layout="vertical">
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis type="number" domain={[0, 100]} fontSize={11} />
-                    <YAxis type="category" dataKey="topic" width={110} fontSize={11} />
-                    <Tooltip />
-                    <Bar dataKey="score" fill="var(--primary)" radius={4} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Difficulty breakdown</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="h-56">
-                <ResponsiveContainer>
-                  <BarChart data={DIFFICULTY_PERFORMANCE}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="difficulty" fontSize={11} />
-                    <YAxis fontSize={11} domain={[0, 100]} />
-                    <Tooltip />
-                    <Bar dataKey="score" fill="var(--chart-2)" radius={4} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Feedback</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3 text-sm">
-            <Section
-              title="Strong areas"
-              tone="success"
-              items={["SQL Basics — WHERE / SELECT", "Difficulty: Easy"]}
-            />
-            <Section
-              title="Areas to improve"
-              tone="warning"
-              items={["SQL Joins — distinguishing LEFT vs RIGHT", "Normalization to 3NF"]}
-            />
-          </CardContent>
-        </Card>
-
-        <div className="flex flex-wrap gap-2">
-          <Button asChild variant="outline">
-            <Link to="/app/my-results">
-              <ArrowLeft className="mr-1.5 h-4 w-4" /> Back to My Results
-            </Link>
-          </Button>
-          <Button>
-            <BookOpen className="mr-1.5 h-4 w-4" /> Review learning areas
-          </Button>
-        </div>
-      </main>
+      <main className="mx-auto max-w-3xl space-y-5 px-4 py-6 sm:px-6 sm:py-10">{children}</main>
     </div>
   );
 }
 
-function Section({
+function EmptyResultState({
   title,
-  items,
-  tone,
+  description,
 }: {
   title: string;
-  items: string[];
-  tone: "success" | "warning";
+  description: string;
 }) {
   return (
-    <div>
-      <div
-        className={`text-xs font-semibold uppercase tracking-wide ${tone === "success" ? "text-emerald-700" : "text-amber-700"}`}
-      >
-        {title}
+    <Card>
+      <CardContent className="space-y-3 p-8 text-center">
+        <h1 className="text-xl font-semibold">{title}</h1>
+        <p className="text-sm text-muted-foreground">{description}</p>
+        <Button asChild variant="outline">
+          <Link to="/app/my-assessments">Back to My assessments</Link>
+        </Button>
+      </CardContent>
+    </Card>
+  );
+}
+
+function SummaryRow({
+  icon,
+  label,
+  value,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: string;
+}) {
+  return (
+    <div className="rounded-md border bg-card p-3">
+      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+        {icon}
+        <span>{label}</span>
       </div>
-      <ul className="mt-1.5 space-y-1.5">
-        {items.map((it) => (
-          <li key={it} className="flex items-start gap-2">
-            <Check
-              className={`mt-0.5 h-4 w-4 ${tone === "success" ? "text-emerald-600" : "text-amber-600"}`}
-            />
-            <span>{it}</span>
-          </li>
-        ))}
-      </ul>
+      <div className="mt-1 text-sm font-medium">{value}</div>
     </div>
   );
+}
+
+function assessmentTypeLabel(type?: string) {
+  if (type === "PRE_TEST") return "Pre-test";
+  if (type === "POST_TEST") return "Post-test";
+  if (type === "QUIZ") return "Quiz";
+  return "Assessment";
+}
+
+function formatDateTime(value: Date) {
+  return value.toLocaleString();
 }

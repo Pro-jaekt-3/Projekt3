@@ -337,9 +337,7 @@ function ParticipantDashboard() {
         actions={
           next ? (
             <Button asChild size="sm">
-              <Link to="/assessment/$id/access" params={{ id: next.id }}>
-                {next.status === "In progress" ? "Continue" : "Start next assessment"}
-              </Link>
+              <Link to="/app/my-assessments">Open my assessments</Link>
             </Button>
           ) : (
             <Button asChild variant="outline" size="sm">
@@ -406,8 +404,7 @@ function ParticipantDashboard() {
               {MY_ASSESSMENTS.filter((a) => a.status !== "Completed").map((a) => (
                 <Link
                   key={a.id}
-                  to="/assessment/$id/access"
-                  params={{ id: a.id }}
+                  to="/app/my-assessments"
                   className="block rounded-md border bg-card p-3 hover:bg-muted/50"
                 >
                   <div className="flex items-start justify-between gap-2">

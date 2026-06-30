@@ -94,10 +94,14 @@ const getAvailableAssessments = async (req, res) => {
 
 const getAssessment = async (req, res) => {
   try {
-    const { id } = req.params;
+    const assessmentId = parseId(req.params.id);
+
+    if (!assessmentId) {
+      return res.status(400).json({ error: "Assessment id must be a positive integer" });
+    }
 
     const assessment = await prisma.assessment.findUnique({
-      where: { id: Number(id) },
+      where: { id: assessmentId },
       include: assessmentDetailInclude,
     });
 
