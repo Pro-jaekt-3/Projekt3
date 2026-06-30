@@ -112,7 +112,7 @@ function InstructorDashboard() {
                 </CardDescription>
               </div>
               <Button asChild size="sm">
-                <Link to="/app/assessments/a1/post-test">Create post-test</Link>
+                <Link to="/app/assessments">Create post-test</Link>
               </Button>
             </CardHeader>
             <CardContent>
@@ -126,7 +126,7 @@ function InstructorDashboard() {
                   </div>
                   <div className="flex items-center gap-2">
                     <Button asChild variant="outline" size="sm">
-                      <Link to="/app/assessments/a1/results">View results</Link>
+                      <Link to="/app/assessments">View results</Link>
                     </Button>
                   </div>
                 </div>
