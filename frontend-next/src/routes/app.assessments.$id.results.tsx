@@ -1,10 +1,13 @@
-import { createFileRoute, Link, notFound } from "@tanstack/react-router";
-import { Download, QrCode, Sparkles, AlertTriangle } from "lucide-react";
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { useQuery } from "@tanstack/react-query";
+import { Sparkles } from "lucide-react";
 import { PageHeader } from "@/components/common/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { MetricCard } from "@/components/common/MetricCard";
 import { StatusBadge } from "@/components/common/StatusBadge";
+import { EmptyState } from "@/components/common/EmptyState";
+import { LoadingState, ErrorState } from "@/components/common/Spinner";
 import {
   Table,
   TableBody,
@@ -13,155 +16,131 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import {
-  ASSESSMENTS,
-  PARTICIPANTS,
-  QUESTIONS,
-  SCORE_DISTRIBUTION,
-  TOPIC_PERFORMANCE,
-  DIFFICULTY_PERFORMANCE,
-  getAssessment,
-} from "@/lib/mock-data";
-import type { Assessment } from "@/lib/mock-data";
-import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid } from "recharts";
-
+import { qk } from "@/lib/query-keys";
+import { assessmentsService } from "@/services/assessments";
 import { ensureRole } from "@/lib/route-guards";
+import type { AssessmentResults, AssessmentStatus, AssessmentType, AttemptStatus } from "@/types";
+import {
+  ResponsiveContainer,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  Tooltip,
+  CartesianGrid,
+} from "recharts";
 
 export const Route = createFileRoute("/app/assessments/$id/results")({
   beforeLoad: ({ context, location }) =>
     ensureRole({ auth: context.auth, href: location.href }, ["admin", "instructor"]),
-  loader: ({ params }): { assessment: Assessment } => {
-    const a = getAssessment(params.id) ?? ASSESSMENTS[0];
-    if (!a) throw notFound();
-    return { assessment: a };
-  },
-  component: AssessmentResults,
+  component: AssessmentResultsPage,
 });
 
-function AssessmentResults() {
-  const { assessment } = Route.useLoaderData() as { assessment: Assessment };
-  const questions = QUESTIONS.filter((q) => assessment.questionIds.includes(q.id));
+function AssessmentResultsPage() {
+  const { id } = Route.useParams();
+
+  // Per-assessment results are a bespoke analytics payload (AssessmentResults),
+  // not a plain Assessment. ADMIN/INSTRUCTOR only (enforced by ensureRole + backend).
+  // Distinct cache key (assessment detail key + "results") so it never collides with
+  // the plain assessment-detail query.
+  const resultsQuery = useQuery({
+    queryKey: [...qk.assessments.detail(id), "results"] as const,
+    queryFn: () => assessmentsService.getResults(id),
+  });
+
+  if (resultsQuery.isLoading) {
+    return <LoadingState label="Loading results…" />;
+  }
+
+  if (resultsQuery.isError || !resultsQuery.data) {
+    const message =
+      resultsQuery.error instanceof Error ? resultsQuery.error.message : "Failed to load results";
+    if (/not found/i.test(message)) {
+      return (
+        <div className="p-8">
+          <EmptyState
+            title="Assessment not found"
+            description="The assessment you are looking for does not exist or has been removed."
+          />
+        </div>
+      );
+    }
+    return <ErrorState message={message} onRetry={() => resultsQuery.refetch()} />;
+  }
+
+  const results = resultsQuery.data;
+  const { assessment, summary, attempts, questionStats } = results;
+
+  // Analytics are computed over SUBMITTED attempts (docs/FRONTEND-NOTES.md). Until
+  // anyone submits, everything is empty/zero — show a clear empty state.
+  if (attempts.length === 0) {
+    return (
+      <>
+        <ResultsHeader id={id} assessment={assessment} />
+        <div className="p-4 sm:p-6 lg:p-8">
+          <EmptyState
+            title="No attempts yet"
+            description="Results appear once participants start and submit this assessment."
+          />
+        </div>
+      </>
+    );
+  }
+
+  const scoreDistribution = buildScoreDistribution(attempts);
+  const hasSubmissions = summary.submittedAttempts > 0;
 
   return (
     <>
-      <PageHeader
-        breadcrumbs={
-          <>
-            <Link to="/app/assessments" className="hover:underline">
-              Assessments
-            </Link>
-            <span className="mx-1">/</span>
-            <Link
-              to="/app/assessments/$id"
-              params={{ id: assessment.id }}
-              className="hover:underline"
-            >
-              {assessment.title}
-            </Link>
-          </>
-        }
-        title="Results"
-        meta={
-          <>
-            <StatusBadge status={assessment.status} />
-            <span>·</span>
-            <span>{assessment.training}</span>
-            <span>·</span>
-            <span>{assessment.type}</span>
-          </>
-        }
-        actions={
-          <>
-            <Button variant="outline" size="sm">
-              <QrCode className="mr-1.5 h-4 w-4" /> Access
-            </Button>
-            <Button variant="outline" size="sm">
-              <Download className="mr-1.5 h-4 w-4" /> Export
-            </Button>
-            <Button asChild size="sm">
-              <Link to="/app/assessments/$id/post-test" params={{ id: assessment.id }}>
-                <Sparkles className="mr-1.5 h-4 w-4" /> Create post-test
-              </Link>
-            </Button>
-          </>
-        }
-      />
+      <ResultsHeader id={id} assessment={assessment} />
       <div className="space-y-6 p-4 sm:p-6 lg:p-8">
-        <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-5">
-          <MetricCard label="Assigned" value={assessment.assigned} />
-          <MetricCard label="Submitted" value={assessment.submitted} />
-          <MetricCard label="Avg score" value={`${assessment.avgScore ?? 0}%`} />
-          <MetricCard label="Completion" value={`${assessment.completionRate}%`} />
-          <MetricCard label="Avg time" value="22 min" />
+        <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
+          <MetricCard
+            label="Submitted"
+            value={summary.submittedAttempts}
+            hint={`${attempts.length} total attempt${attempts.length !== 1 ? "s" : ""}`}
+          />
+          <MetricCard
+            label="Avg score"
+            value={
+              summary.averagePercentage !== null ? `${Math.round(summary.averagePercentage)}%` : "—"
+            }
+            hint={
+              summary.averageScore !== null ? `${roundTo1(summary.averageScore)} avg points` : "awaiting submissions"
+            }
+          />
+          <MetricCard label="Questions" value={questionStats.length} />
+          <MetricCard
+            label="Assigned"
+            value={summary.assignedParticipants ?? "—"}
+            hint={summary.assignedParticipants === null ? "not tracked yet" : undefined}
+          />
         </div>
 
-        <div className="grid gap-4 lg:grid-cols-2">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Score distribution</CardTitle>
-            </CardHeader>
-            <CardContent>
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Score distribution</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {scoreDistribution.some((bucket) => bucket.count > 0) ? (
               <div className="h-60">
                 <ResponsiveContainer>
-                  <BarChart data={SCORE_DISTRIBUTION}>
+                  <BarChart data={scoreDistribution}>
                     <CartesianGrid strokeDasharray="3 3" />
                     <XAxis dataKey="bucket" fontSize={11} />
-                    <YAxis fontSize={11} />
+                    <YAxis fontSize={11} allowDecimals={false} />
                     <Tooltip />
                     <Bar dataKey="count" fill="var(--primary)" radius={4} />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Topic performance</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="h-60">
-                <ResponsiveContainer>
-                  <BarChart data={TOPIC_PERFORMANCE} layout="vertical">
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis type="number" domain={[0, 100]} fontSize={11} />
-                    <YAxis type="category" dataKey="topic" width={110} fontSize={11} />
-                    <Tooltip />
-                    <Bar dataKey="score" fill="var(--primary)" radius={4} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Difficulty performance</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="h-60">
-                <ResponsiveContainer>
-                  <BarChart data={DIFFICULTY_PERFORMANCE}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="difficulty" fontSize={11} />
-                    <YAxis fontSize={11} domain={[0, 100]} />
-                    <Tooltip />
-                    <Bar dataKey="score" fill="var(--chart-2)" radius={4} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Weakest learning objectives</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2 text-sm">
-              <WeakRow title="Resolve ambiguous columns" topic="Joins" score={49} />
-              <WeakRow title="Distinguish LEFT and RIGHT JOIN" topic="Joins" score={52} />
-              <WeakRow title="Use INNER JOIN correctly" topic="Joins" score={58} />
-              <WeakRow title="Normalize a table to 3NF" topic="Normalization" score={64} />
-            </CardContent>
-          </Card>
-        </div>
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                Score distribution appears once at least one submitted attempt has a numeric score.
+              </p>
+            )}
+          </CardContent>
+        </Card>
 
         <Card>
           <CardHeader>
@@ -172,42 +151,39 @@ function AssessmentResults() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Question</TableHead>
-                  <TableHead className="hidden md:table-cell">Topic</TableHead>
+                  <TableHead className="text-right">Attempts</TableHead>
                   <TableHead className="text-right">Correct %</TableHead>
-                  <TableHead className="hidden sm:table-cell text-right">Avg time</TableHead>
-                  <TableHead className="text-right">Quality</TableHead>
+                  <TableHead className="hidden sm:table-cell text-right">Avg points</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {questions.map((q, i) => {
-                  const correct = [82, 76, 49, 58, 71][i % 5];
-                  const flag = correct < 55;
-                  return (
-                    <TableRow key={q.id}>
+                {questionStats.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={4} className="py-8">
+                      <EmptyState
+                        title="No question data"
+                        description="This assessment does not have any questions to report on."
+                      />
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  questionStats.map((stat, index) => (
+                    <TableRow key={stat.questionId}>
                       <TableCell className="max-w-md">
-                        <span className="line-clamp-2 font-medium">{q.text}</span>
-                        {flag && (
-                          <div className="mt-1 flex items-center gap-1 text-xs text-amber-700">
-                            <AlertTriangle className="h-3.5 w-3.5" /> Many participants answered
-                            incorrectly
-                          </div>
-                        )}
+                        <span className="line-clamp-2 font-medium">
+                          {stat.title ?? `Question ${index + 1}`}
+                        </span>
                       </TableCell>
-                      <TableCell className="hidden md:table-cell text-xs text-muted-foreground">
-                        {q.topic}
-                      </TableCell>
+                      <TableCell className="text-right tabular-nums">{stat.attemptsCount}</TableCell>
                       <TableCell className="text-right tabular-nums font-medium">
-                        {correct}%
+                        {stat.correctRate !== null ? `${Math.round(stat.correctRate)}%` : "—"}
                       </TableCell>
-                      <TableCell className="hidden sm:table-cell text-right text-xs tabular-nums">
-                        {40 + (i % 4) * 15}s
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <StatusBadge status={flag ? "Needs Review" : "Approved"} />
+                      <TableCell className="hidden sm:table-cell text-right tabular-nums">
+                        {stat.averagePoints !== null ? roundTo1(stat.averagePoints) : "—"}
                       </TableCell>
                     </TableRow>
-                  );
-                })}
+                  ))
+                )}
               </TableBody>
             </Table>
           </div>
@@ -224,50 +200,149 @@ function AssessmentResults() {
                   <TableHead>Participant</TableHead>
                   <TableHead className="hidden sm:table-cell">Status</TableHead>
                   <TableHead className="text-right">Score</TableHead>
-                  <TableHead className="hidden md:table-cell text-right">Time</TableHead>
-                  <TableHead className="text-right">Action</TableHead>
+                  <TableHead className="hidden md:table-cell">Submitted</TableHead>
+                  <TableHead className="hidden md:table-cell text-right">Answers</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {PARTICIPANTS.slice(0, 7).map((p, i) => (
-                  <TableRow key={p.id}>
-                    <TableCell>
-                      <div className="font-medium">{p.name}</div>
-                      <div className="text-xs text-muted-foreground">{p.email}</div>
-                    </TableCell>
-                    <TableCell className="hidden sm:table-cell">
-                      <StatusBadge status="Completed" />
-                    </TableCell>
-                    <TableCell className="text-right tabular-nums font-medium">
-                      {[88, 76, 64, 54, 91, 70, 82][i]}%
-                    </TableCell>
-                    <TableCell className="hidden md:table-cell text-right text-xs tabular-nums">
-                      {18 + i} min
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <Button size="sm" variant="outline">
-                        View attempt
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
+                {attempts.map((attempt) => {
+                  const status = attemptStatusMeta(attempt.status);
+                  return (
+                    <TableRow key={attempt.id}>
+                      <TableCell>
+                        <div className="font-medium">{attempt.user?.name ?? "Unknown participant"}</div>
+                        <div className="text-xs text-muted-foreground">
+                          {attempt.user?.email ?? "—"}
+                        </div>
+                      </TableCell>
+                      <TableCell className="hidden sm:table-cell">
+                        <StatusBadge status={status.label} tone={status.tone} />
+                      </TableCell>
+                      <TableCell className="text-right tabular-nums font-medium">
+                        {scorePercentage(attempt.score, attempt.maxScore) ?? "Pending"}
+                      </TableCell>
+                      <TableCell className="hidden md:table-cell text-xs text-muted-foreground">
+                        {attempt.submittedAt ? formatDateTime(attempt.submittedAt) : "—"}
+                      </TableCell>
+                      <TableCell className="hidden md:table-cell text-right tabular-nums">
+                        {attempt.answersCount}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
               </TableBody>
             </Table>
           </div>
         </Card>
+
+        {!hasSubmissions && (
+          <p className="text-sm text-muted-foreground">
+            No submitted attempts yet — aggregate metrics will populate once participants submit.
+          </p>
+        )}
       </div>
     </>
   );
 }
 
-function WeakRow({ title, topic, score }: { title: string; topic: string; score: number }) {
+function ResultsHeader({
+  id,
+  assessment,
+}: {
+  id: string;
+  assessment: AssessmentResults["assessment"];
+}) {
   return (
-    <div className="flex items-center justify-between rounded-md border bg-card px-3 py-2">
-      <div className="min-w-0">
-        <div className="truncate text-sm font-medium">{title}</div>
-        <div className="text-xs text-muted-foreground">{topic}</div>
-      </div>
-      <span className="text-sm font-semibold tabular-nums text-amber-700">{score}%</span>
-    </div>
+    <PageHeader
+      breadcrumbs={
+        <>
+          <Link to="/app/assessments" className="hover:underline">
+            Assessments
+          </Link>
+          <span className="mx-1">/</span>
+          <Link to="/app/assessments/$id" params={{ id }} className="hover:underline">
+            {assessment.title}
+          </Link>
+        </>
+      }
+      title="Results"
+      meta={
+        <>
+          <StatusBadge status={assessmentStatusLabel(assessment.status)} tone="info" />
+          <span>·</span>
+          <span>{assessment.training?.title ?? "No training"}</span>
+          <span>·</span>
+          <span>{assessmentTypeLabel(assessment.type)}</span>
+        </>
+      }
+      actions={
+        <Button asChild size="sm">
+          <Link to="/app/assessments/$id/post-test" params={{ id }}>
+            <Sparkles className="mr-1.5 h-4 w-4" /> Create post-test
+          </Link>
+        </Button>
+      }
+    />
   );
+}
+
+const SCORE_BUCKETS = [
+  { bucket: "0–20", min: 0, max: 20 },
+  { bucket: "21–40", min: 21, max: 40 },
+  { bucket: "41–60", min: 41, max: 60 },
+  { bucket: "61–80", min: 61, max: 80 },
+  { bucket: "81–100", min: 81, max: 100 },
+];
+
+function buildScoreDistribution(attempts: AssessmentResults["attempts"]) {
+  const buckets = SCORE_BUCKETS.map((bucket) => ({ bucket: bucket.bucket, count: 0 }));
+  for (const attempt of attempts) {
+    if (
+      typeof attempt.score !== "number" ||
+      typeof attempt.maxScore !== "number" ||
+      attempt.maxScore <= 0
+    ) {
+      continue;
+    }
+    const pct = (attempt.score / attempt.maxScore) * 100;
+    const index = SCORE_BUCKETS.findIndex((bucket) => pct >= bucket.min && pct <= bucket.max);
+    if (index >= 0) buckets[index].count += 1;
+  }
+  return buckets;
+}
+
+function scorePercentage(score: number | null, maxScore: number | null) {
+  if (typeof score !== "number" || typeof maxScore !== "number" || maxScore <= 0) return null;
+  return `${Math.round((score / maxScore) * 100)}%`;
+}
+
+function attemptStatusMeta(status: AttemptStatus): {
+  label: string;
+  tone: "success" | "info" | "muted";
+} {
+  if (status === "GRADED") return { label: "Graded", tone: "success" };
+  if (status === "SUBMITTED") return { label: "Submitted", tone: "info" };
+  return { label: "In progress", tone: "muted" };
+}
+
+function assessmentTypeLabel(type: AssessmentType) {
+  if (type === "PRE_TEST") return "Pre-test";
+  if (type === "POST_TEST") return "Post-test";
+  return "Quiz";
+}
+
+function assessmentStatusLabel(status: AssessmentStatus) {
+  if (status === "DRAFT") return "Draft";
+  if (status === "PUBLISHED") return "Published";
+  return "Archived";
+}
+
+function roundTo1(value: number) {
+  return Math.round(value * 10) / 10;
+}
+
+function formatDateTime(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "—";
+  return date.toLocaleString();
 }

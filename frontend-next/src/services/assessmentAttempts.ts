@@ -1,5 +1,6 @@
 import { apiJsonFetch } from "./apiClient";
-import type { AssessmentAttempt } from "@/types";
+import { sanitizeQuestionForSolving } from "@/lib/sanitize";
+import type { AssessmentAttempt, Question } from "@/types";
 
 // Assessment attempts domain service. Thin wrapper over apiClient — every call
 // goes through the Bearer-token fetch.
@@ -33,6 +34,27 @@ export interface SubmitAssessmentAttemptInput {
 
 const jsonHeaders = { "Content-Type": "application/json" };
 
+// Defense-in-depth (SERVICES.md §5 / docs/FRONTEND-NOTES.md): GET /assessment-attempts/:id
+// returns the nested assessment questions WITH answerOptions.isCorrect, even mid-solve.
+// We strip it here at the service seam so the correct answers never enter the react-query
+// cache for ANY solving view. No consumer needs answerOptions.isCorrect — post-submit
+// correctness lives on attempt.answers (ParticipantAnswer), which is left untouched.
+function sanitizeAttempt(attempt: AssessmentAttempt): AssessmentAttempt {
+  const questions = attempt.assessment?.questions;
+  if (!questions) return attempt;
+  return {
+    ...attempt,
+    assessment: {
+      ...attempt.assessment!,
+      questions: questions.map((item) =>
+        item.question
+          ? { ...item, question: sanitizeQuestionForSolving(item.question) as Question }
+          : item,
+      ),
+    },
+  };
+}
+
 export const assessmentAttemptsService = {
   start: (assessmentId: number | StartAssessmentAttemptInput) =>
     apiJsonFetch<AssessmentAttempt>("/assessment-attempts/start", {
@@ -50,6 +72,6 @@ export const assessmentAttemptsService = {
       body: JSON.stringify(input),
     }),
 
-  get: (id: number | string) =>
-    apiJsonFetch<AssessmentAttempt>(`/assessment-attempts/${id}`),
+  get: async (id: number | string) =>
+    sanitizeAttempt(await apiJsonFetch<AssessmentAttempt>(`/assessment-attempts/${id}`)),
 };
