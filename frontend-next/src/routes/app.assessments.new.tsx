@@ -562,7 +562,7 @@ function SumRow({ label, value }: { label: string; value: React.ReactNode }) {
 type AssessmentFormState = {
   title: string;
   description: string;
-  type: "Pre-test" | "Regular test" | "Practice";
+  type: "Pre-test" | "Post-test" | "Regular test" | "Practice";
   trainingId: string;
   timeLimit: number;
   availability: string;
@@ -619,6 +619,7 @@ function Step1({
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="Pre-test">Pre-test</SelectItem>
+                <SelectItem value="Post-test">Post-test</SelectItem>
                 <SelectItem value="Regular test">Regular test</SelectItem>
                 <SelectItem value="Practice">Practice</SelectItem>
               </SelectContent>
@@ -1104,7 +1105,7 @@ function difficultyLabel(value: number) {
 
 function mapAssessmentType(value: AssessmentFormState["type"]): AssessmentType {
   if (value === "Pre-test") return "PRE_TEST";
-  if (value === "Regular test") return "POST_TEST";
+  if (value === "Post-test") return "POST_TEST";
   return "QUIZ";
 }
 
