@@ -63,7 +63,6 @@ import {
 } from "@/components/ui/select";
 import {
   assessmentsForTraining,
-  PARTICIPANTS,
   PRE_POST_COMPARISON,
   TOPIC_PERFORMANCE,
   RECENT_ACTIVITY,
@@ -84,6 +83,7 @@ import { trainingsService } from "@/services/trainings";
 import { topicsService } from "@/services/topics";
 import { learningObjectivesService } from "@/services/learningObjectives";
 import { questionsService } from "@/services/questions";
+import { usersService } from "@/services/users";
 import { trainingToView } from "@/lib/training-view";
 import { ensureRole } from "@/lib/route-guards";
 import type { Topic, LearningObjective, Question } from "@/types";
@@ -177,6 +177,24 @@ function TrainingDetail() {
     queryFn: questionsService.list,
   });
   const [questionSearch, setQuestionSearch] = useState("");
+  const [participantSearch, setParticipantSearch] = useState("");
+  const [addParticipantOpen, setAddParticipantOpen] = useState(false);
+  const [pendingAddUserId, setPendingAddUserId] = useState("");
+
+  const participantsQuery = useQuery({
+    queryKey: qk.users.list(),
+    queryFn: usersService.list,
+    // GET /users is ADMIN-only — instructors would receive 403
+    enabled: isAdmin,
+  });
+  const allParticipants = (participantsQuery.data ?? []).filter((u) => u.role === "PARTICIPANT");
+  const visibleParticipants = allParticipants.filter((p) => {
+    if (!participantSearch) return true;
+    const q = participantSearch.toLowerCase();
+    return (p.name ?? "").toLowerCase().includes(q) || p.email.toLowerCase().includes(q);
+  });
+  const nonParticipants = (participantsQuery.data ?? []).filter((u) => u.role !== "PARTICIPANT");
+
   const topicsById = new Map(trainingTopics.map((t) => [t.id, t]));
   const objectivesById = new Map((objectivesQuery.data ?? []).map((o) => [o.id, o]));
   const trainingQuestions = (questionsQuery.data ?? []).filter((q) =>
@@ -292,6 +310,18 @@ function TrainingDetail() {
       toast.error(err instanceof Error ? err.message : "Failed to delete learning objective"),
   });
 
+  const addParticipantMutation = useMutation({
+    mutationFn: (userId: number) => usersService.updateRole(userId, "PARTICIPANT"),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: qk.users.all });
+      toast.success("User added as participant");
+      setAddParticipantOpen(false);
+      setPendingAddUserId("");
+    },
+    onError: (err) =>
+      toast.error(err instanceof Error ? err.message : "Failed to update user role"),
+  });
+
   if (trainingQuery.isLoading) {
     return <LoadingState label="Loading training…" />;
   }
@@ -356,9 +386,11 @@ function TrainingDetail() {
                 </Button>
               </>
             )}
-            <Button variant="outline" size="sm">
-              <UserPlus className="mr-1.5 h-4 w-4" /> Add participant
-            </Button>
+            {isAdmin && (
+              <Button variant="outline" size="sm" onClick={() => setAddParticipantOpen(true)}>
+                <UserPlus className="mr-1.5 h-4 w-4" /> Add participant
+              </Button>
+            )}
             <Button asChild size="sm">
               <Link to="/app/assessments/new" search={{ trainingId: training.id } as never}>
                 <Plus className="mr-1.5 h-4 w-4" /> Create assessment
@@ -481,59 +513,86 @@ function TrainingDetail() {
           <TabsContent value="participants" className="mt-4 space-y-4">
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex flex-1 items-center gap-2">
-                <Input placeholder="Search by name or email" className="max-w-sm" />
-                <Button variant="outline" size="sm" className="shrink-0">
+                <Input
+                  placeholder="Search by name or email"
+                  className="max-w-sm"
+                  value={participantSearch}
+                  onChange={(e) => setParticipantSearch(e.target.value)}
+                  disabled={!isAdmin}
+                />
+                <Button variant="outline" size="sm" className="shrink-0" disabled>
                   <Filter className="mr-1.5 h-4 w-4" /> Filters
                 </Button>
               </div>
-              <div className="flex gap-2">
-                <Button variant="outline" size="sm">
-                  Import
+              {isAdmin && (
+                <Button size="sm" onClick={() => setAddParticipantOpen(true)}>
+                  <UserPlus className="mr-1.5 h-4 w-4" /> Add participant
                 </Button>
-                <Button size="sm">
-                  <UserPlus className="mr-1.5 h-4 w-4" /> Add participants
-                </Button>
-              </div>
+              )}
             </div>
 
-            <Card>
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Participant</TableHead>
-                      <TableHead className="hidden sm:table-cell">Status</TableHead>
-                      <TableHead className="hidden md:table-cell">Assigned</TableHead>
-                      <TableHead className="hidden md:table-cell">Completion</TableHead>
-                      <TableHead className="text-right">Latest score</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {PARTICIPANTS.map((p) => (
-                      <TableRow key={p.id}>
-                        <TableCell>
-                          <div className="font-medium">{p.name}</div>
-                          <div className="text-xs text-muted-foreground">{p.email}</div>
-                        </TableCell>
-                        <TableCell className="hidden sm:table-cell">
-                          <StatusBadge status={p.status} />
-                        </TableCell>
-                        <TableCell className="hidden md:table-cell tabular-nums">
-                          {p.assignedAssessments}
-                        </TableCell>
-                        <TableCell className="hidden md:table-cell tabular-nums">
-                          {p.completionRate}%
-                        </TableCell>
-                        <TableCell className="text-right tabular-nums">
-                          {p.latestScore ?? "—"}
-                          {p.latestScore && "%"}
-                        </TableCell>
+            {!isAdmin ? (
+              <Card>
+                <CardContent className="py-8 text-center text-sm text-muted-foreground">
+                  Participant management requires admin access. Contact your administrator to manage
+                  user roles.
+                </CardContent>
+              </Card>
+            ) : participantsQuery.isLoading ? (
+              <LoadingState label="Loading participants…" />
+            ) : participantsQuery.isError ? (
+              <ErrorState
+                message={
+                  participantsQuery.error instanceof Error
+                    ? participantsQuery.error.message
+                    : "Failed to load participants"
+                }
+                onRetry={() => participantsQuery.refetch()}
+              />
+            ) : allParticipants.length === 0 ? (
+              <EmptyState
+                icon={<Users className="h-5 w-5" />}
+                title="No participants yet"
+                description="Add users as participants so they can take assessments."
+                action={
+                  <Button size="sm" onClick={() => setAddParticipantOpen(true)}>
+                    <UserPlus className="mr-1.5 h-4 w-4" /> Add participant
+                  </Button>
+                }
+              />
+            ) : visibleParticipants.length === 0 ? (
+              <EmptyState
+                icon={<Users className="h-5 w-5" />}
+                title="No participants match your search"
+                description="Try a different name or email."
+              />
+            ) : (
+              <Card>
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Participant</TableHead>
+                        <TableHead className="hidden sm:table-cell">Email</TableHead>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-            </Card>
+                    </TableHeader>
+                    <TableBody>
+                      {visibleParticipants.map((p) => (
+                        <TableRow key={p.id}>
+                          <TableCell>
+                            <div className="font-medium">{p.name ?? "—"}</div>
+                            <div className="text-xs text-muted-foreground sm:hidden">{p.email}</div>
+                          </TableCell>
+                          <TableCell className="hidden sm:table-cell text-xs text-muted-foreground">
+                            {p.email}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              </Card>
+            )}
           </TabsContent>
 
           {/* CURRICULUM */}
@@ -1160,6 +1219,63 @@ function TrainingDetail() {
                 : editingObjective
                   ? "Save changes"
                   : "Add objective"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Add participant dialog (admin-only — GET /users is ADMIN-restricted) */}
+      <Dialog open={addParticipantOpen} onOpenChange={setAddParticipantOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Add participant</DialogTitle>
+            <DialogDescription>
+              Assign the Participant role to an existing user so they can access published
+              assessments.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            {nonParticipants.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                All users are already participants, or there are no other users in the system.
+              </p>
+            ) : (
+              <div className="space-y-1.5">
+                <Label htmlFor="add-participant-select">User</Label>
+                <Select value={pendingAddUserId} onValueChange={setPendingAddUserId}>
+                  <SelectTrigger id="add-participant-select">
+                    <SelectValue placeholder="Select a user…" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {nonParticipants.map((u) => (
+                      <SelectItem key={u.id} value={String(u.id)}>
+                        {u.name ?? u.email} ({u.role.toLowerCase()})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setAddParticipantOpen(false)}
+              disabled={addParticipantMutation.isPending}
+            >
+              Cancel
+            </Button>
+            <Button
+              disabled={
+                !pendingAddUserId ||
+                addParticipantMutation.isPending ||
+                nonParticipants.length === 0
+              }
+              onClick={() => {
+                if (pendingAddUserId) addParticipantMutation.mutate(Number(pendingAddUserId));
+              }}
+            >
+              {addParticipantMutation.isPending ? "Adding…" : "Add as participant"}
             </Button>
           </DialogFooter>
         </DialogContent>
