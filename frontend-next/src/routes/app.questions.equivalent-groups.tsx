@@ -130,9 +130,10 @@ function EquivalentGroupsPage() {
   const removeQuestionMutation = useMutation({
     mutationFn: ({ groupId, questionId }: { groupId: number; questionId: number }) =>
       equivalentGroupsService.removeQuestion(groupId, questionId),
-    onSuccess: () => {
+    onSuccess: (_result, variables) => {
       queryClient.invalidateQueries({ queryKey: equivalentGroupsKeys.all });
       queryClient.invalidateQueries({ queryKey: qk.questions.all });
+      setPendingQuestion((p) => ({ ...p, [variables.groupId]: "" }));
       toast.success("Question removed from group");
     },
     onError: (err) => toast.error(err instanceof Error ? err.message : "Failed to remove question"),
