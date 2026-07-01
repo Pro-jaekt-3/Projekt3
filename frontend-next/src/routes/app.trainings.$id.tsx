@@ -14,6 +14,7 @@ import {
   Sparkles,
   Filter,
   Pencil,
+  Search,
   Trash2,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -242,6 +243,7 @@ function TrainingDetail() {
         : topicsService.create({ name: topicName.trim(), trainingId: Number(id) }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: qk.topics.all });
+      queryClient.invalidateQueries({ queryKey: qk.questions.all });
       toast.success(editingTopic ? "Topic updated" : "Topic created");
       setTopicDialogOpen(false);
     },
@@ -376,16 +378,12 @@ function TrainingDetail() {
         }
         actions={
           <>
-            {!isAdmin && (
-              <>
-                <Button variant="outline" size="sm" onClick={openEdit}>
-                  <Pencil className="mr-1.5 h-4 w-4" /> Edit
-                </Button>
-                <Button variant="outline" size="sm" onClick={() => setDeleteOpen(true)}>
-                  <Trash2 className="mr-1.5 h-4 w-4" /> Delete
-                </Button>
-              </>
-            )}
+            <Button variant="outline" size="sm" onClick={openEdit}>
+              <Pencil className="mr-1.5 h-4 w-4" /> Edit
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => setDeleteOpen(true)}>
+              <Trash2 className="mr-1.5 h-4 w-4" /> Delete
+            </Button>
             {isAdmin && (
               <Button variant="outline" size="sm" onClick={() => setAddParticipantOpen(true)}>
                 <UserPlus className="mr-1.5 h-4 w-4" /> Add participant
@@ -601,20 +599,18 @@ function TrainingDetail() {
               <div className="text-sm text-muted-foreground">
                 Topics and learning objectives live here — not as separate pages.
               </div>
-              {!isAdmin && (
-                <div className="flex gap-2">
-                  <Button variant="outline" size="sm" onClick={openCreateTopic}>
-                    Add topic
-                  </Button>
-                  <Button
-                    size="sm"
-                    onClick={() => openCreateObjective()}
-                    disabled={trainingTopics.length === 0}
-                  >
-                    <Plus className="mr-1.5 h-4 w-4" /> Add objective
-                  </Button>
-                </div>
-              )}
+              <div className="flex gap-2">
+                <Button variant="outline" size="sm" onClick={openCreateTopic}>
+                  Add topic
+                </Button>
+                <Button
+                  size="sm"
+                  onClick={() => openCreateObjective()}
+                  disabled={trainingTopics.length === 0}
+                >
+                  <Plus className="mr-1.5 h-4 w-4" /> Add objective
+                </Button>
+              </div>
             </div>
 
             {topicsQuery.isLoading || objectivesQuery.isLoading ? (
@@ -639,11 +635,9 @@ function TrainingDetail() {
                 title="Define topics and learning objectives"
                 description="Define topics and learning objectives before creating assessment blueprints."
                 action={
-                  !isAdmin && (
-                    <Button size="sm" onClick={openCreateTopic}>
-                      <Plus className="mr-1.5 h-4 w-4" /> Add topic
-                    </Button>
-                  )
+                  <Button size="sm" onClick={openCreateTopic}>
+                    <Plus className="mr-1.5 h-4 w-4" /> Add topic
+                  </Button>
                 }
               />
             ) : (
@@ -659,20 +653,18 @@ function TrainingDetail() {
                             {objectives.length} objective{objectives.length === 1 ? "" : "s"}
                           </div>
                         </div>
-                        {!isAdmin && (
-                          <div className="flex items-center gap-1">
-                            <Button variant="ghost" size="sm" onClick={() => openEditTopic(topic)}>
-                              <Pencil className="mr-1.5 h-3.5 w-3.5" /> Edit
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => setTopicDeleteTarget(topic)}
-                            >
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </Button>
-                          </div>
-                        )}
+                        <div className="flex items-center gap-1">
+                          <Button variant="ghost" size="sm" onClick={() => openEditTopic(topic)}>
+                            <Pencil className="mr-1.5 h-3.5 w-3.5" /> Edit
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setTopicDeleteTarget(topic)}
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
                       </CardHeader>
                       <CardContent className="pt-0 space-y-2">
                         {objectives.length === 0 ? (
@@ -694,37 +686,33 @@ function TrainingDetail() {
                                     </div>
                                   )}
                                 </div>
-                                {!isAdmin && (
-                                  <div className="flex items-center gap-1">
-                                    <Button
-                                      variant="ghost"
-                                      size="sm"
-                                      onClick={() => openEditObjective(o)}
-                                    >
-                                      <Pencil className="h-3.5 w-3.5" />
-                                    </Button>
-                                    <Button
-                                      variant="ghost"
-                                      size="sm"
-                                      onClick={() => setObjectiveDeleteTarget(o)}
-                                    >
-                                      <Trash2 className="h-3.5 w-3.5" />
-                                    </Button>
-                                  </div>
-                                )}
+                                <div className="flex items-center gap-1">
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => openEditObjective(o)}
+                                  >
+                                    <Pencil className="h-3.5 w-3.5" />
+                                  </Button>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => setObjectiveDeleteTarget(o)}
+                                  >
+                                    <Trash2 className="h-3.5 w-3.5" />
+                                  </Button>
+                                </div>
                               </li>
                             ))}
                           </ul>
                         )}
-                        {!isAdmin && (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => openCreateObjective(topic.id)}
-                          >
-                            <Plus className="mr-1.5 h-3.5 w-3.5" /> Add objective
-                          </Button>
-                        )}
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => openCreateObjective(topic.id)}
+                        >
+                          <Plus className="mr-1.5 h-3.5 w-3.5" /> Add objective
+                        </Button>
                       </CardContent>
                     </Card>
                   );
@@ -763,9 +751,6 @@ function TrainingDetail() {
                 onChange={(e) => setQuestionSearch(e.target.value)}
               />
               <div className="flex gap-2">
-                <Button variant="outline" size="sm">
-                  Generate draft with AI
-                </Button>
                 <Button asChild size="sm">
                   <Link to="/app/questions/$id" params={{ id: "new" }}>
                     <Plus className="mr-1.5 h-4 w-4" /> Create question
@@ -797,6 +782,12 @@ function TrainingDetail() {
                     </Link>
                   </Button>
                 }
+              />
+            ) : visibleQuestions.length === 0 ? (
+              <EmptyState
+                icon={<Search className="h-5 w-5" />}
+                title="No questions match your search"
+                description="Try a different search term."
               />
             ) : (
               <Card>
