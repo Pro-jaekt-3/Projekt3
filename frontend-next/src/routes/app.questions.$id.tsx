@@ -696,6 +696,7 @@ function AIAssistantPanel({
     interactionId: number;
     questionBId: number;
   } | null>(null);
+  const [equivGroupConflictOpen, setEquivGroupConflictOpen] = useState(false);
 
   const ollamaReachable = statusQuery.data?.reachable ?? false;
   const hasLocalModel = localModels.length > 0;
@@ -785,7 +786,22 @@ function AIAssistantPanel({
     onError: (e) => toast.error(aiErrText(e)),
   });
 
+  // Detect when question B is already in a different equivalent group than A.
+  const questionBData = equiv ? otherQuestions.find((q) => q.id === equiv.questionBId) : null;
+  const equivBGroupId = questionBData?.equivalentGroupId ?? null;
+  const hasGroupConflict =
+    existingGroupId !== null && equivBGroupId !== null && equivBGroupId !== existingGroupId;
+
+  const handleEquivAccept = () => {
+    if (hasGroupConflict) {
+      setEquivGroupConflictOpen(true);
+    } else {
+      reviewEquivMutation.mutate("ACCEPTED");
+    }
+  };
+
   return (
+    <>
     <Card className="border-primary/30 bg-primary-soft/30">
       <CardHeader>
         <div className="flex items-start gap-2">
@@ -940,7 +956,7 @@ function AIAssistantPanel({
                     size="sm"
                     variant="outline"
                     disabled={reviewEquivMutation.isPending}
-                    onClick={() => reviewEquivMutation.mutate("ACCEPTED")}
+                    onClick={handleEquivAccept}
                   >
                     <Check className="mr-1 h-3.5 w-3.5" /> Accept
                     {existingGroupId !== null ? " & link" : ""}
@@ -960,5 +976,31 @@ function AIAssistantPanel({
         )}
       </CardContent>
     </Card>
+
+    <AlertDialog open={equivGroupConflictOpen} onOpenChange={setEquivGroupConflictOpen}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Move question to a different group?</AlertDialogTitle>
+          <AlertDialogDescription>
+            The selected question already belongs to another equivalent group. Accepting will move
+            it into this question's group. Its previous group membership will be overwritten.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel disabled={reviewEquivMutation.isPending}>Cancel</AlertDialogCancel>
+          <AlertDialogAction
+            onClick={(e) => {
+              e.preventDefault();
+              setEquivGroupConflictOpen(false);
+              reviewEquivMutation.mutate("ACCEPTED");
+            }}
+            disabled={reviewEquivMutation.isPending}
+          >
+            Move and accept
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+    </>
   );
 }
