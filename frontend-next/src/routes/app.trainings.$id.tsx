@@ -63,7 +63,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
-  assessmentsForTraining,
   PRE_POST_COMPARISON,
   TOPIC_PERFORMANCE,
   RECENT_ACTIVITY,
@@ -85,6 +84,7 @@ import { topicsService } from "@/services/topics";
 import { learningObjectivesService } from "@/services/learningObjectives";
 import { questionsService } from "@/services/questions";
 import { usersService } from "@/services/users";
+import { assessmentsService } from "@/services/assessments";
 import { trainingToView } from "@/lib/training-view";
 import { ensureRole } from "@/lib/route-guards";
 import type { Topic, LearningObjective, Question } from "@/types";
@@ -96,6 +96,21 @@ export const Route = createFileRoute("/app/trainings/$id")({
 });
 
 const QUESTION_DIFFICULTY_LABEL: Record<number, string> = { 1: "Easy", 2: "Medium", 3: "Hard" };
+
+const ASSESSMENT_TYPE_LABEL: Record<string, string> = {
+  PRE_TEST: "Pre-test",
+  POST_TEST: "Post-test",
+  QUIZ: "Quiz",
+};
+
+const ASSESSMENT_STATUS_META: Record<
+  string,
+  { label: string; tone: "muted" | "warning" | "success" | "danger" | "neutral" }
+> = {
+  DRAFT: { label: "Draft", tone: "muted" },
+  PUBLISHED: { label: "Published", tone: "success" },
+  ARCHIVED: { label: "Archived", tone: "neutral" },
+};
 
 const QUESTION_STATUS_META: Record<
   string,
@@ -176,6 +191,10 @@ function TrainingDetail() {
   const questionsQuery = useQuery({
     queryKey: qk.questions.list(),
     queryFn: questionsService.list,
+  });
+  const assessmentsQuery = useQuery({
+    queryKey: qk.assessments.list(),
+    queryFn: assessmentsService.list,
   });
   const [questionSearch, setQuestionSearch] = useState("");
   const [participantSearch, setParticipantSearch] = useState("");
@@ -347,9 +366,9 @@ function TrainingDetail() {
   }
 
   const training = trainingToView(trainingQuery.data);
-  // Related domains are still on mock (keyed by mock ids/titles); real trainings
-  // surface empty states here until topics/assessments/questions are wired.
-  const assessments = assessmentsForTraining(training.id);
+  const trainingAssessments = (assessmentsQuery.data ?? []).filter(
+    (a) => Number(a.trainingId) === Number(id),
+  );
 
   const openEdit = () => {
     setTitle(trainingQuery.data.title);
@@ -849,31 +868,32 @@ function TrainingDetail() {
               <div className="text-sm text-muted-foreground">
                 Manage assessments for this training.
               </div>
-              <div className="flex gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled
-                  title="Available once assessments are wired"
-                >
-                  Create post-test
-                </Button>
-                <Button asChild size="sm">
-                  <Link to="/app/assessments/new" search={{ trainingId: training.id } as never}>
-                    <Plus className="mr-1.5 h-4 w-4" /> Create assessment
-                  </Link>
-                </Button>
-              </div>
+              <Button asChild size="sm">
+                <Link to="/app/assessments/new">
+                  <Plus className="mr-1.5 h-4 w-4" /> Create assessment
+                </Link>
+              </Button>
             </div>
 
-            {assessments.length === 0 ? (
+            {assessmentsQuery.isLoading ? (
+              <LoadingState label="Loading assessments…" />
+            ) : assessmentsQuery.isError ? (
+              <ErrorState
+                message={
+                  assessmentsQuery.error instanceof Error
+                    ? assessmentsQuery.error.message
+                    : "Failed to load assessments"
+                }
+                onRetry={() => assessmentsQuery.refetch()}
+              />
+            ) : trainingAssessments.length === 0 ? (
               <EmptyState
                 icon={<ClipboardList className="h-5 w-5" />}
                 title="No assessments yet"
                 description="Create your first assessment to start collecting results."
                 action={
                   <Button asChild size="sm">
-                    <Link to="/app/assessments/new" search={{ trainingId: training.id } as never}>
+                    <Link to="/app/assessments/new">
                       <Plus className="mr-1.5 h-4 w-4" /> Create assessment
                     </Link>
                   </Button>
@@ -881,44 +901,57 @@ function TrainingDetail() {
               />
             ) : (
               <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-                {assessments.map((a) => (
-                  <Card key={a.id}>
-                    <CardContent className="space-y-3 p-4">
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="min-w-0">
-                          <Link
-                            to="/app/assessments/$id"
-                            params={{ id: a.id }}
-                            className="block truncate text-sm font-semibold hover:underline"
-                          >
-                            {a.title}
-                          </Link>
-                          <div className="text-xs text-muted-foreground">{a.type}</div>
+                {trainingAssessments.map((a) => {
+                  const statusMeta = ASSESSMENT_STATUS_META[a.status];
+                  return (
+                    <Card key={a.id}>
+                      <CardContent className="space-y-3 p-4">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <Link
+                              to="/app/assessments/$id"
+                              params={{ id: String(a.id) }}
+                              className="block truncate text-sm font-semibold hover:underline"
+                            >
+                              {a.title}
+                            </Link>
+                            <div className="text-xs text-muted-foreground">
+                              {ASSESSMENT_TYPE_LABEL[a.type] ?? a.type}
+                            </div>
+                          </div>
+                          <StatusBadge
+                            status={statusMeta?.label ?? a.status}
+                            tone={statusMeta?.tone}
+                          />
                         </div>
-                        <StatusBadge status={a.status} />
-                      </div>
-                      <div className="grid grid-cols-3 gap-2 text-xs">
-                        <KV label="Assigned" value={a.assigned} />
-                        <KV label="Submitted" value={a.submitted} />
-                        <KV label="Avg" value={a.avgScore ? `${a.avgScore}%` : "—"} />
-                      </div>
-                      <div className="flex justify-end gap-2 pt-1">
-                        <Button asChild variant="outline" size="sm">
-                          <Link to="/app/assessments/$id" params={{ id: a.id }}>
-                            Open
-                          </Link>
-                        </Button>
-                        {a.status === "Results Ready" && (
-                          <Button asChild size="sm">
-                            <Link to="/app/assessments/$id/results" params={{ id: a.id }}>
-                              View results
+                        <div className="grid grid-cols-2 gap-2 text-xs">
+                          <KV label="Questions" value={a.questions?.length ?? "—"} />
+                          <KV
+                            label="Time limit"
+                            value={a.timeLimitMinutes ? `${a.timeLimitMinutes} min` : "—"}
+                          />
+                        </div>
+                        <div className="flex justify-end gap-2 pt-1">
+                          <Button asChild variant="outline" size="sm">
+                            <Link to="/app/assessments/$id" params={{ id: String(a.id) }}>
+                              Open
                             </Link>
                           </Button>
-                        )}
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
+                          {a.status !== "DRAFT" && (
+                            <Button asChild size="sm">
+                              <Link
+                                to="/app/assessments/$id/results"
+                                params={{ id: String(a.id) }}
+                              >
+                                View results
+                              </Link>
+                            </Button>
+                          )}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  );
+                })}
               </div>
             )}
           </TabsContent>

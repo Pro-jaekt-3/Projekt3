@@ -23,6 +23,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { useRole } from "@/lib/role-context";
 import { qk } from "@/lib/query-keys";
 import { trainingsService } from "@/services/trainings";
+import { questionsService } from "@/services/questions";
+import { assessmentsService } from "@/services/assessments";
 import { trainingToView } from "@/lib/training-view";
 import { ensureRole } from "@/lib/route-guards";
 
@@ -58,6 +60,30 @@ function TrainingsList() {
     },
     onError: (err) => toast.error(err instanceof Error ? err.message : "Failed to create training"),
   });
+
+  const questionsQuery = useQuery({
+    queryKey: qk.questions.list(),
+    queryFn: questionsService.list,
+  });
+
+  const approvedByTraining = new Map<number, number>();
+  for (const q of questionsQuery.data ?? []) {
+    if (q.status === "APPROVED" && q.topic?.trainingId !== undefined) {
+      const tid = q.topic.trainingId as number;
+      approvedByTraining.set(tid, (approvedByTraining.get(tid) ?? 0) + 1);
+    }
+  }
+
+  const assessmentsQuery = useQuery({
+    queryKey: qk.assessments.list(),
+    queryFn: assessmentsService.list,
+  });
+
+  const assessmentsByTraining = new Map<number, number>();
+  for (const a of assessmentsQuery.data ?? []) {
+    const tid = Number(a.trainingId);
+    assessmentsByTraining.set(tid, (assessmentsByTraining.get(tid) ?? 0) + 1);
+  }
 
   const trainings = trainingsQuery.data?.map(trainingToView) ?? [];
 
@@ -130,12 +156,12 @@ function TrainingsList() {
                   <Stat
                     icon={<ClipboardList className="h-3.5 w-3.5" />}
                     label="Assessments"
-                    value={t.assessments}
+                    value={assessmentsByTraining.get(Number(t.id)) ?? 0}
                   />
                   <Stat
                     icon={<BookOpen className="h-3.5 w-3.5" />}
                     label="Approved Q"
-                    value={t.approvedQuestions}
+                    value={approvedByTraining.get(Number(t.id)) ?? 0}
                   />
                 </dl>
 
