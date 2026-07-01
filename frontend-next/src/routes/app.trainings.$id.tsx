@@ -62,11 +62,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  PRE_POST_COMPARISON,
-  TOPIC_PERFORMANCE,
-  RECENT_ACTIVITY,
-} from "@/lib/mock-data";
+import { RECENT_ACTIVITY } from "@/lib/mock-data";
 import {
   ResponsiveContainer,
   BarChart,
@@ -75,7 +71,6 @@ import {
   YAxis,
   Tooltip,
   CartesianGrid,
-  Legend,
 } from "recharts";
 import { useRole } from "@/lib/role-context";
 import { qk } from "@/lib/query-keys";
@@ -85,6 +80,7 @@ import { learningObjectivesService } from "@/services/learningObjectives";
 import { questionsService } from "@/services/questions";
 import { usersService } from "@/services/users";
 import { assessmentsService } from "@/services/assessments";
+import { analyticsService } from "@/services/analytics";
 import { trainingToView } from "@/lib/training-view";
 import { ensureRole } from "@/lib/route-guards";
 import type { Topic, LearningObjective, Question } from "@/types";
@@ -195,6 +191,18 @@ function TrainingDetail() {
   const assessmentsQuery = useQuery({
     queryKey: qk.assessments.list(),
     queryFn: assessmentsService.list,
+  });
+  const analyticsSummaryQuery = useQuery({
+    queryKey: qk.analytics.list(["summary", { trainingId: Number(id) }]),
+    queryFn: () => analyticsService.summary({ trainingId: Number(id) }),
+  });
+  const analyticsPrePostQuery = useQuery({
+    queryKey: qk.analytics.list(["pre-post-comparison", Number(id)]),
+    queryFn: () => analyticsService.prePostComparison({ trainingId: Number(id) }),
+  });
+  const analyticsByTopicQuery = useQuery({
+    queryKey: qk.analytics.list(["by-topic", { trainingId: Number(id) }]),
+    queryFn: () => analyticsService.byTopic({ trainingId: Number(id) }),
   });
   const [questionSearch, setQuestionSearch] = useState("");
   const [participantSearch, setParticipantSearch] = useState("");
@@ -370,6 +378,14 @@ function TrainingDetail() {
     (a) => Number(a.trainingId) === Number(id),
   );
 
+  const topicData = analyticsByTopicQuery.data ?? [];
+  const topicsSortedAsc = [...topicData].sort((a, b) => a.percentage - b.percentage);
+  const topicsSortedDesc = [...topicData].sort((a, b) => b.percentage - a.percentage);
+  const weakestTopic = topicsSortedAsc[0] ?? null;
+  const strongestTopic = topicsSortedDesc[0] ?? null;
+  const prePostData = analyticsPrePostQuery.data ?? null;
+  const summaryData = analyticsSummaryQuery.data ?? null;
+
   const openEdit = () => {
     setTitle(trainingQuery.data.title);
     setDescription(trainingQuery.data.description ?? "");
@@ -426,8 +442,14 @@ function TrainingDetail() {
             value={approvedQuestionCount}
             hint={`${trainingQuestions.length} total`}
           />
-          <MetricCard label="Active assessments" value={training.assessments} />
-          <MetricCard label="Average score" value={`${training.avgScore}%`} />
+          <MetricCard
+            label="Active assessments"
+            value={trainingAssessments.filter((a) => a.status === "PUBLISHED").length}
+          />
+          <MetricCard
+            label="Average score"
+            value={`${analyticsSummaryQuery.data?.averageScorePercentage ?? 0}%`}
+          />
         </div>
 
         <Tabs value={tab} onValueChange={setTab}>
@@ -958,56 +980,142 @@ function TrainingDetail() {
 
           {/* RESULTS */}
           <TabsContent value="results" className="mt-4 space-y-4">
-            <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-              <MetricCard
-                label="Average score"
-                value="71%"
-                trend={{ value: "+7%", positive: true }}
+            {analyticsSummaryQuery.isLoading ||
+            analyticsPrePostQuery.isLoading ||
+            analyticsByTopicQuery.isLoading ? (
+              <LoadingState label="Loading results…" />
+            ) : analyticsSummaryQuery.isError ||
+              analyticsPrePostQuery.isError ||
+              analyticsByTopicQuery.isError ? (
+              <ErrorState
+                message={
+                  (analyticsSummaryQuery.error instanceof Error
+                    ? analyticsSummaryQuery.error.message
+                    : null) ??
+                  (analyticsPrePostQuery.error instanceof Error
+                    ? analyticsPrePostQuery.error.message
+                    : null) ??
+                  (analyticsByTopicQuery.error instanceof Error
+                    ? analyticsByTopicQuery.error.message
+                    : null) ??
+                  "Failed to load results"
+                }
+                onRetry={() => {
+                  analyticsSummaryQuery.refetch();
+                  analyticsPrePostQuery.refetch();
+                  analyticsByTopicQuery.refetch();
+                }}
               />
-              <MetricCard label="Completion rate" value="93%" />
-              <MetricCard label="Strongest topic" value="SQL Basics" hint="81%" />
-              <MetricCard label="Weakest topic" value="Joins" hint="49%" />
-            </div>
-            <div className="grid gap-4 lg:grid-cols-2">
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-base">Pre-test vs post-test improvement</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="h-60">
-                    <ResponsiveContainer>
-                      <BarChart data={PRE_POST_COMPARISON}>
-                        <CartesianGrid strokeDasharray="3 3" />
-                        <XAxis dataKey="topic" fontSize={11} />
-                        <YAxis domain={[0, 100]} fontSize={11} />
-                        <Tooltip />
-                        <Legend wrapperStyle={{ fontSize: 12 }} />
-                        <Bar dataKey="pre" fill="var(--chart-2)" radius={4} />
-                        <Bar dataKey="post" fill="var(--primary)" radius={4} />
-                      </BarChart>
-                    </ResponsiveContainer>
-                  </div>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-base">Topic breakdown</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="h-60">
-                    <ResponsiveContainer>
-                      <BarChart data={TOPIC_PERFORMANCE} layout="vertical">
-                        <CartesianGrid strokeDasharray="3 3" />
-                        <XAxis type="number" domain={[0, 100]} fontSize={11} />
-                        <YAxis type="category" dataKey="topic" fontSize={11} width={100} />
-                        <Tooltip />
-                        <Bar dataKey="score" fill="var(--primary)" radius={4} />
-                      </BarChart>
-                    </ResponsiveContainer>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
+            ) : (summaryData?.attemptCount ?? 0) === 0 ? (
+              <EmptyState
+                icon={<BarChart3 className="h-5 w-5" />}
+                title="No results yet"
+                description="Results appear here once participants submit their assessments."
+              />
+            ) : (
+              <>
+                <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+                  <MetricCard
+                    label="Average score"
+                    value={`${summaryData?.averageScorePercentage ?? 0}%`}
+                    trend={
+                      (prePostData?.pairedUserCount ?? 0) > 0
+                        ? {
+                            value: `${(prePostData!.improvement ?? 0) >= 0 ? "+" : ""}${prePostData!.improvement ?? 0}%`,
+                            positive: (prePostData!.improvement ?? 0) >= 0,
+                          }
+                        : undefined
+                    }
+                  />
+                  <MetricCard
+                    label="Submitted attempts"
+                    value={summaryData?.attemptCount ?? 0}
+                  />
+                  <MetricCard
+                    label="Strongest topic"
+                    value={strongestTopic?.topicTitle ?? "—"}
+                    hint={strongestTopic ? `${strongestTopic.percentage}%` : undefined}
+                  />
+                  <MetricCard
+                    label="Weakest topic"
+                    value={weakestTopic?.topicTitle ?? "—"}
+                    hint={weakestTopic ? `${weakestTopic.percentage}%` : undefined}
+                  />
+                </div>
+                <div className="grid gap-4 lg:grid-cols-2">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-base">Pre-test vs post-test improvement</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      {(prePostData?.pairedUserCount ?? 0) === 0 ? (
+                        <div className="flex h-60 items-center justify-center text-sm text-muted-foreground">
+                          No paired pre/post data yet.
+                        </div>
+                      ) : (
+                        <div className="h-60">
+                          <ResponsiveContainer>
+                            <BarChart
+                              data={[
+                                {
+                                  label: "Pre-test",
+                                  score: prePostData!.preTest.averagePercentage,
+                                },
+                                {
+                                  label: "Post-test",
+                                  score: prePostData!.postTest.averagePercentage,
+                                },
+                              ]}
+                            >
+                              <CartesianGrid strokeDasharray="3 3" />
+                              <XAxis dataKey="label" fontSize={11} />
+                              <YAxis domain={[0, 100]} fontSize={11} />
+                              <Tooltip />
+                              <Bar dataKey="score" fill="var(--primary)" radius={4} />
+                            </BarChart>
+                          </ResponsiveContainer>
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-base">Topic breakdown</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      {topicData.length === 0 ? (
+                        <div className="flex h-60 items-center justify-center text-sm text-muted-foreground">
+                          No topic data yet.
+                        </div>
+                      ) : (
+                        <div className="h-60">
+                          <ResponsiveContainer>
+                            <BarChart
+                              data={topicData.map((t) => ({
+                                topic: t.topicTitle,
+                                score: t.percentage,
+                              }))}
+                              layout="vertical"
+                            >
+                              <CartesianGrid strokeDasharray="3 3" />
+                              <XAxis type="number" domain={[0, 100]} fontSize={11} />
+                              <YAxis
+                                type="category"
+                                dataKey="topic"
+                                fontSize={11}
+                                width={100}
+                              />
+                              <Tooltip />
+                              <Bar dataKey="score" fill="var(--primary)" radius={4} />
+                            </BarChart>
+                          </ResponsiveContainer>
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                </div>
+              </>
+            )}
           </TabsContent>
         </Tabs>
       </div>
