@@ -7,6 +7,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { StatusBadge } from "@/components/common/StatusBadge";
 import { LoadingState, ErrorState } from "@/components/common/Spinner";
 import { EmptyState } from "@/components/common/EmptyState";
@@ -20,7 +27,7 @@ import {
 } from "@/components/ui/table";
 import { qk } from "@/lib/query-keys";
 import { questionsService } from "@/services/questions";
-import type { QuestionStatus } from "@/types";
+import type { QuestionStatus, QuestionType } from "@/types";
 
 import { ensureRole } from "@/lib/route-guards";
 
@@ -56,6 +63,10 @@ const TABS: { value: "All" | QuestionStatus; label: string }[] = [
 function QuestionBank() {
   const [tab, setTab] = useState<string>("All");
   const [q, setQ] = useState("");
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [topicId, setTopicId] = useState("all");
+  const [difficulty, setDifficulty] = useState<string>("all");
+  const [type, setType] = useState<QuestionType | "all">("all");
 
   const questionsQuery = useQuery({
     queryKey: qk.questions.list(),
@@ -63,12 +74,123 @@ function QuestionBank() {
   });
 
   const all = questionsQuery.data ?? [];
+  const topicOptions = Array.from(
+    new Map(
+      all
+        .filter((question) => question.topic)
+        .map((question) => [question.topic!.id, question.topic!]),
+    ).values(),
+  ).sort((left, right) => left.name.localeCompare(right.name));
+
+  const hasExtraFilters = topicId !== "all" || difficulty !== "all" || type !== "all";
   // GET /questions returns every status for every training — filter client-side.
   const filtered = all.filter((it) => {
     if (tab !== "All" && it.status !== tab) return false;
     if (q && !it.title.toLowerCase().includes(q.toLowerCase())) return false;
+    if (topicId !== "all" && String(it.topicId) !== topicId) return false;
+    if (difficulty !== "all" && String(it.difficulty) !== difficulty) return false;
+    if (type !== "all" && it.type !== type) return false;
     return true;
   });
+
+  const clearFilters = () => {
+    setTopicId("all");
+    setDifficulty("all");
+    setType("all");
+  };
+
+  const controls = (
+    <>
+      <Tabs value={tab} onValueChange={setTab}>
+        <TabsList className="flex w-full flex-wrap sm:w-auto sm:inline-flex">
+          {TABS.map((t) => (
+            <TabsTrigger key={t.value} value={t.value}>
+              {t.label}
+            </TabsTrigger>
+          ))}
+        </TabsList>
+      </Tabs>
+
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+        <div className="relative flex-1">
+          <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder="Search question text"
+            className="pl-9"
+          />
+        </div>
+        <Button
+          variant="outline"
+          size="sm"
+          className="shrink-0"
+          onClick={() => setFiltersOpen((open) => !open)}
+        >
+          <Filter className="mr-1.5 h-4 w-4" />
+          {hasExtraFilters ? "Filters active" : "Filters"}
+        </Button>
+      </div>
+
+      {filtersOpen && (
+        <Card className="p-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end">
+            <FilterField label="Topic">
+              <Select value={topicId} onValueChange={setTopicId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="All topics" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All topics</SelectItem>
+                  {topicOptions.map((topic) => (
+                    <SelectItem key={topic.id} value={String(topic.id)}>
+                      {topic.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </FilterField>
+
+            <FilterField label="Difficulty">
+              <Select value={difficulty} onValueChange={setDifficulty}>
+                <SelectTrigger>
+                  <SelectValue placeholder="All difficulties" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All difficulties</SelectItem>
+                  {Object.entries(DIFFICULTY_LABEL).map(([value, label]) => (
+                    <SelectItem key={value} value={value}>
+                      {label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </FilterField>
+
+            <FilterField label="Type">
+              <Select value={type} onValueChange={(value) => setType(value as QuestionType | "all")}>
+                <SelectTrigger>
+                  <SelectValue placeholder="All types" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All types</SelectItem>
+                  <SelectItem value="MULTIPLE_CHOICE">Multiple choice</SelectItem>
+                  <SelectItem value="OPEN">Open</SelectItem>
+                  <SelectItem value="CODE">Code</SelectItem>
+                </SelectContent>
+              </Select>
+            </FilterField>
+
+            {hasExtraFilters && (
+              <Button variant="ghost" size="sm" onClick={clearFilters}>
+                Clear filters
+              </Button>
+            )}
+          </div>
+        </Card>
+      )}
+    </>
+  );
 
   return (
     <>
@@ -99,35 +221,7 @@ function QuestionBank() {
         }
       />
       <div className="space-y-4 p-4 sm:p-6 lg:p-8">
-        <Tabs value={tab} onValueChange={setTab}>
-          <TabsList className="flex w-full flex-wrap sm:w-auto sm:inline-flex">
-            {TABS.map((t) => (
-              <TabsTrigger key={t.value} value={t.value}>
-                {t.label}
-              </TabsTrigger>
-            ))}
-          </TabsList>
-        </Tabs>
-
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-          <div className="relative flex-1">
-            <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              value={q}
-              onChange={(e) => setQ(e.target.value)}
-              placeholder="Search question text"
-              className="pl-9"
-            />
-          </div>
-          <Button
-            variant="outline"
-            size="sm"
-            disabled
-            title="Use the status tabs and search above to filter"
-          >
-            <Filter className="mr-1.5 h-4 w-4" /> Filters
-          </Button>
-        </div>
+        {controls}
 
         {questionsQuery.isLoading ? (
           <LoadingState label="Loading questions…" />
@@ -143,11 +237,17 @@ function QuestionBank() {
         ) : filtered.length === 0 ? (
           <EmptyState
             icon={<Search className="h-5 w-5" />}
-            title={all.length === 0 ? "No questions yet" : "No questions match your filters"}
+            title={
+              all.length === 0
+                ? "No questions yet"
+                : q || hasExtraFilters || tab !== "All"
+                  ? "No questions match your filters"
+                  : "No questions yet"
+            }
             description={
               all.length === 0
                 ? "Create your first question to start building the bank."
-                : "Try a different tab or search term."
+                : "Try a different tab, search term, or filter."
             }
             action={
               all.length === 0 && (
@@ -204,5 +304,22 @@ function QuestionBank() {
         )}
       </div>
     </>
+  );
+}
+
+function FilterField({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="flex min-w-0 flex-1 flex-col gap-1 sm:min-w-[12rem]">
+      <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+        {label}
+      </span>
+      {children}
+    </div>
   );
 }
