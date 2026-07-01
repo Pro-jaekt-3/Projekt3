@@ -8,12 +8,19 @@ import { LoadingState, ErrorState } from "@/components/common/Spinner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { StatusBadge } from "@/components/common/StatusBadge";
 import { getAttemptId } from "@/lib/attempt-storage";
 import { qk } from "@/lib/query-keys";
 import { assessmentsService } from "@/services/assessments";
 import { assessmentAttemptsService } from "@/services/assessmentAttempts";
-import type { Assessment, AssessmentAttempt } from "@/types";
+import type { Assessment, AssessmentAttempt, AssessmentType } from "@/types";
 
 export const Route = createFileRoute("/app/my-assessments")({
   component: MyAssessments,
@@ -23,8 +30,17 @@ type ParticipantTab = "All" | "To do" | "In progress" | "Completed";
 
 const TABS: ParticipantTab[] = ["All", "To do", "In progress", "Completed"];
 
+const ASSESSMENT_TYPE_LABEL: Record<AssessmentType, string> = {
+  PRE_TEST: "Pre-test",
+  POST_TEST: "Post-test",
+  QUIZ: "Quiz",
+};
+
 function MyAssessments() {
   const [tab, setTab] = useState<ParticipantTab>("All");
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [trainingFilter, setTrainingFilter] = useState("all");
+  const [typeFilter, setTypeFilter] = useState<AssessmentType | "all">("all");
 
   const assessmentsQuery = useQuery({
     queryKey: qk.assessments.list({ scope: "available" }),
@@ -51,10 +67,98 @@ function MyAssessments() {
     attemptLoading: attempts[index]?.isLoading ?? false,
   }));
 
+  const trainingOptions = Array.from(
+    new Map(
+      (assessmentsQuery.data ?? [])
+        .filter((a) => a.training)
+        .map((a) => [a.training!.id, a.training!]),
+    ).values(),
+  ).sort((a, b) => a.title.localeCompare(b.title));
+
+  const activeFilterCount = [trainingFilter !== "all", typeFilter !== "all"].filter(Boolean).length;
+
   const filtered = cards.filter(({ assessment, attempt }) => {
-    if (tab === "All") return true;
-    return participantState(assessment, attempt) === tab;
+    if (tab !== "All" && participantState(assessment, attempt) !== tab) return false;
+    if (trainingFilter !== "all" && String(assessment.trainingId) !== trainingFilter) return false;
+    if (typeFilter !== "all" && assessment.type !== typeFilter) return false;
+    return true;
   });
+
+  const clearFilters = () => {
+    setTrainingFilter("all");
+    setTypeFilter("all");
+  };
+
+  const controls = (
+    <>
+      <div className="flex flex-col items-stretch gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <Tabs value={tab} onValueChange={(value) => setTab(value as ParticipantTab)}>
+          <TabsList>
+            {TABS.map((item) => (
+              <TabsTrigger key={item} value={item}>
+                {item}
+              </TabsTrigger>
+            ))}
+          </TabsList>
+        </Tabs>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => setFiltersOpen((o) => !o)}
+        >
+          <Filter className="mr-1.5 h-4 w-4" />
+          {activeFilterCount > 0 ? `Filters (${activeFilterCount})` : "Filters"}
+        </Button>
+      </div>
+
+      {filtersOpen && (
+        <Card className="p-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end">
+            <FilterField label="Training">
+              <Select value={trainingFilter} onValueChange={setTrainingFilter}>
+                <SelectTrigger>
+                  <SelectValue placeholder="All trainings" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All trainings</SelectItem>
+                  {trainingOptions.map((training) => (
+                    <SelectItem key={training.id} value={String(training.id)}>
+                      {training.title}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </FilterField>
+
+            <FilterField label="Type">
+              <Select
+                value={typeFilter}
+                onValueChange={(v) => setTypeFilter(v as AssessmentType | "all")}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="All types" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All types</SelectItem>
+                  {Object.entries(ASSESSMENT_TYPE_LABEL).map(([value, label]) => (
+                    <SelectItem key={value} value={value}>
+                      {label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </FilterField>
+
+            {activeFilterCount > 0 && (
+              <Button variant="ghost" size="sm" onClick={clearFilters}>
+                Clear filters
+              </Button>
+            )}
+          </div>
+        </Card>
+      )}
+    </>
+  );
 
   return (
     <>
@@ -70,59 +174,49 @@ function MyAssessments() {
           }
           onRetry={() => assessmentsQuery.refetch()}
         />
-      ) : filtered.length === 0 ? (
-        <div className="space-y-4 p-4 sm:p-6 lg:p-8">
-          <div className="flex flex-col items-stretch gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <Tabs value={tab} onValueChange={(value) => setTab(value as ParticipantTab)}>
-              <TabsList>
-                {TABS.map((item) => (
-                  <TabsTrigger key={item} value={item}>
-                    {item}
-                  </TabsTrigger>
-                ))}
-              </TabsList>
-            </Tabs>
-            <Button variant="outline" size="sm">
-              <Filter className="mr-1.5 h-4 w-4" /> Filters
-            </Button>
-          </div>
-
-          <EmptyState
-            icon={<ClipboardList className="h-5 w-5" />}
-            title="No assessments available"
-            description="Published assessments assigned to participants will appear here."
-          />
-        </div>
       ) : (
         <div className="space-y-4 p-4 sm:p-6 lg:p-8">
-          <div className="flex flex-col items-stretch gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <Tabs value={tab} onValueChange={(value) => setTab(value as ParticipantTab)}>
-              <TabsList>
-                {TABS.map((item) => (
-                  <TabsTrigger key={item} value={item}>
-                    {item}
-                  </TabsTrigger>
-                ))}
-              </TabsList>
-            </Tabs>
-            <Button variant="outline" size="sm">
-              <Filter className="mr-1.5 h-4 w-4" /> Filters
-            </Button>
-          </div>
-
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-            {filtered.map(({ assessment, attempt, attemptLoading }) => (
-              <AssessmentCard
-                key={assessment.id}
-                assessment={assessment}
-                attempt={attempt}
-                attemptLoading={attemptLoading}
-              />
-            ))}
-          </div>
+          {controls}
+          {filtered.length === 0 ? (
+            <EmptyState
+              icon={<ClipboardList className="h-5 w-5" />}
+              title={
+                (assessmentsQuery.data ?? []).length === 0
+                  ? "No assessments available"
+                  : "No assessments match your filters"
+              }
+              description={
+                (assessmentsQuery.data ?? []).length === 0
+                  ? "Published assessments assigned to participants will appear here."
+                  : "Try a different tab or filter."
+              }
+            />
+          ) : (
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+              {filtered.map(({ assessment, attempt, attemptLoading }) => (
+                <AssessmentCard
+                  key={assessment.id}
+                  assessment={assessment}
+                  attempt={attempt}
+                  attemptLoading={attemptLoading}
+                />
+              ))}
+            </div>
+          )}
         </div>
       )}
     </>
+  );
+}
+
+function FilterField({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="flex min-w-0 flex-1 flex-col gap-1 sm:min-w-[12rem]">
+      <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+        {label}
+      </span>
+      {children}
+    </div>
   );
 }
 
@@ -137,11 +231,7 @@ function AssessmentCard({
 }) {
   const state = participantState(assessment, attempt);
   const actionLabel =
-    state === "Completed"
-      ? "View result"
-      : state === "In progress"
-        ? "Continue"
-        : "Start";
+    state === "Completed" ? "View result" : state === "In progress" ? "Continue" : "Start";
 
   return (
     <Card>
