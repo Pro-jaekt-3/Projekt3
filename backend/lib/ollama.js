@@ -1,11 +1,25 @@
 // Shared helpers for talking to a local Ollama server.
 // Kept provider-agnostic and small; controllers decide status codes/logging.
 
-const DEFAULT_OLLAMA_TIMEOUT_MS = 15000;
+// Quick reachability checks (models list, status) keep a short timeout so they stay snappy.
+const DEFAULT_OLLAMA_TAGS_TIMEOUT_MS = 15000;
+
+// Real structured generation on slow local models can take well over a minute; default
+// generously and let OLLAMA_TIMEOUT_MS override for even slower hardware/models.
+const DEFAULT_OLLAMA_GENERATE_TIMEOUT_MS = 120000;
+
+function resolveGenerateTimeoutMs(timeoutMs) {
+  if (timeoutMs) {
+    return timeoutMs;
+  }
+
+  const envValue = Number(process.env.OLLAMA_TIMEOUT_MS);
+  return Number.isFinite(envValue) && envValue > 0 ? envValue : DEFAULT_OLLAMA_GENERATE_TIMEOUT_MS;
+}
 
 const normalizeBaseUrl = (baseUrl) => String(baseUrl || "").replace(/\/$/, "");
 
-async function fetchOllamaTags(baseUrl, { timeoutMs = DEFAULT_OLLAMA_TIMEOUT_MS } = {}) {
+async function fetchOllamaTags(baseUrl, { timeoutMs = DEFAULT_OLLAMA_TAGS_TIMEOUT_MS } = {}) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
@@ -27,7 +41,7 @@ async function fetchOllamaTags(baseUrl, { timeoutMs = DEFAULT_OLLAMA_TIMEOUT_MS 
 
 async function generateWithOllama({ baseUrl, modelName, prompt, options, timeoutMs }) {
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), timeoutMs || 60000);
+  const timeout = setTimeout(() => controller.abort(), resolveGenerateTimeoutMs(timeoutMs));
 
   try {
     const response = await fetch(`${normalizeBaseUrl(baseUrl)}/api/generate`, {
