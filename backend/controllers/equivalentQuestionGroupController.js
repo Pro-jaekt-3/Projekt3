@@ -140,6 +140,22 @@ const addQuestionToGroup = async (req, res) => {
       return res.status(404).json({ error: "Question not found" });
     }
 
+    // T4: never silently overwrite an existing membership.
+    // - already in THIS group  -> idempotent no-op (return the question).
+    // - in a DIFFERENT group    -> 409; caller must remove it first.
+    if (question.equivalentGroupId === Number(id)) {
+      return res.json(question);
+    }
+
+    if (
+      question.equivalentGroupId !== null &&
+      question.equivalentGroupId !== Number(id)
+    ) {
+      return res.status(409).json({
+        error: `Question ${question.id} already belongs to a different equivalent group (${question.equivalentGroupId}). Remove it from that group before adding it to group ${Number(id)}.`,
+      });
+    }
+
     const updatedQuestion = await prisma.question.update({
       where: { id: Number(questionId) },
       data: {
