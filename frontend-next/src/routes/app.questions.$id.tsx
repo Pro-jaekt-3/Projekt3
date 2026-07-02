@@ -48,7 +48,7 @@ import { topicsService } from "@/services/topics";
 import { learningObjectivesService } from "@/services/learningObjectives";
 import { equivalentGroupsService, equivalentGroupsKeys } from "@/services/equivalentGroups";
 import { aiAuthoringService, aiAuthoringKeys } from "@/services/aiAuthoring";
-import type { AiModelSummary } from "@/services/aiAuthoring";
+import type { AiModelSummary, DraftedQuestion } from "@/services/aiAuthoring";
 import type { QuestionType, QuestionStatus } from "@/types";
 
 export const Route = createFileRoute("/app/questions/$id")({
@@ -593,7 +593,19 @@ function QuestionEditor() {
                   null)
                 : null
             }
-            onInsertDraft={(text) => setDescription((prev) => (prev ? `${prev}\n\n${text}` : text))}
+            onApplyDraft={(question) => {
+              setTitle(question.title);
+              setDescription(question.description);
+              setType(question.type);
+              setDifficulty(question.difficulty);
+              if (question.type === "MULTIPLE_CHOICE" && question.answerOptions.length > 0) {
+                setOptions(
+                  question.answerOptions.map((o) => ({ text: o.text, isCorrect: o.isCorrect })),
+                );
+              } else {
+                setOptions(emptyOptions());
+              }
+            }}
           />
         </aside>
       </div>
@@ -627,11 +639,10 @@ function QuestionEditor() {
 
 const DIFFICULTY_TEXT: Record<number, string> = { 1: "easy", 2: "medium", 3: "hard" };
 
-// CLIENT-SIDE ONLY hint. The backend stores no per-question-type model mapping and
-// the /ai/question-draft + /ai/equivalence-suggestion endpoints accept NO model
-// parameter — they always run against the configured default local Ollama model.
-// This affinity merely pre-selects which installed local model an instructor may
-// prefer per question type; it does NOT change what the backend uses.
+// CLIENT-SIDE ONLY hint: pre-selects which installed local model an instructor is
+// likely to want per question type. The dropdown's current selection IS sent as
+// `aiModelId` on generate, so this affinity now determines what the backend actually
+// runs (unless the instructor picks a different model explicitly).
 const QUESTION_TYPE_MODEL_AFFINITY: Record<QuestionType, string[]> = {
   OPEN: ["qwen3:8b", "llama3.1:8b"],
   MULTIPLE_CHOICE: ["qwen3:8b", "mistral"],
@@ -658,7 +669,7 @@ interface AIAssistantPanelProps {
   difficulty: number;
   topicName: string | null;
   objectiveTitle: string | null;
-  onInsertDraft: (text: string) => void;
+  onApplyDraft: (question: DraftedQuestion) => void;
 }
 
 function AIAssistantPanel({
@@ -668,7 +679,7 @@ function AIAssistantPanel({
   difficulty,
   topicName,
   objectiveTitle,
-  onInsertDraft,
+  onApplyDraft,
 }: AIAssistantPanelProps) {
   const queryClient = useQueryClient();
 
@@ -684,11 +695,17 @@ function AIAssistantPanel({
   // Generation runs only against an active, installed LOCAL Ollama model (CLAUDE.md).
   const localModels = (modelsQuery.data ?? []).filter((m) => m.isActive && m.isLocal);
   const preferred = pickPreferredModel(localModels, questionType);
-  const [selectedModel, setSelectedModel] = useState("");
-  const effectiveModel = selectedModel || preferred?.modelName || "";
+  const [selectedModelName, setSelectedModelName] = useState("");
+  const effectiveModelName = selectedModelName || preferred?.modelName || "";
+  const effectiveModelId = localModels.find((m) => m.modelName === effectiveModelName)?.id;
 
   const [instructions, setInstructions] = useState("");
-  const [draft, setDraft] = useState<{ suggestion: string; interactionId: number } | null>(null);
+  const [draft, setDraft] = useState<{
+    question: DraftedQuestion;
+    resultText?: string;
+    model: string;
+    interactionId: number;
+  } | null>(null);
 
   const [equivBId, setEquivBId] = useState("");
   const [equiv, setEquiv] = useState<{
@@ -703,6 +720,9 @@ function AIAssistantPanel({
   const canGenerate = ollamaReachable && hasLocalModel && !!topicName && !!objectiveTitle;
 
   // ---- Draft generation (POST /ai/question-draft) ----
+  // Structured drafts on local models can take 30-60s+; apiFetch has no client-side
+  // timeout, so the request simply waits — the mutation's isPending state below is
+  // the only thing gating the UI.
   const generateMutation = useMutation({
     mutationFn: () =>
       aiAuthoringService.generateQuestionDraft({
@@ -711,9 +731,19 @@ function AIAssistantPanel({
         questionType,
         difficulty: DIFFICULTY_TEXT[difficulty] ?? String(difficulty),
         instructions: instructions.trim() || undefined,
+        aiModelId: effectiveModelId,
       }),
-    onSuccess: (res) =>
-      setDraft({ suggestion: res.suggestion, interactionId: res.aiInteractionId }),
+    onSuccess: (res) => {
+      setDraft({
+        question: res.question,
+        resultText: res.resultText,
+        model: res.model,
+        interactionId: res.aiInteractionId,
+      });
+      // Advisory prefill only — nothing is saved until the instructor hits Save.
+      onApplyDraft(res.question);
+      toast.success("AI draft generated — form pre-filled below. Review, then Save.");
+    },
     onError: (e) => toast.error(aiErrText(e)),
   });
 
@@ -721,12 +751,11 @@ function AIAssistantPanel({
     mutationFn: (status: "ACCEPTED" | "REJECTED") =>
       aiAuthoringService.reviewInteraction(draft!.interactionId, status),
     onSuccess: (_res, status) => {
-      if (status === "ACCEPTED" && draft) {
-        onInsertDraft(draft.suggestion);
-        toast.success("AI draft accepted — inserted below. Review, then Save to create a DRAFT.");
-      } else {
-        toast("AI draft rejected");
-      }
+      toast(
+        status === "ACCEPTED"
+          ? "AI draft marked accepted."
+          : "AI draft marked rejected. Pre-filled fields are left as-is — edit or clear them manually.",
+      );
       setDraft(null);
     },
     onError: (e) => toast.error(aiErrText(e)),
@@ -802,205 +831,237 @@ function AIAssistantPanel({
 
   return (
     <>
-    <Card className="border-primary/30 bg-primary-soft/30">
-      <CardHeader>
-        <div className="flex items-start gap-2">
-          <Sparkles className="mt-0.5 h-4 w-4 text-accent-foreground" />
-          <div>
-            <CardTitle className="text-sm">AI assistant</CardTitle>
-            <CardDescription className="text-xs">
-              AI suggestions must be reviewed by an instructor before use. Accepting never
-              auto-publishes — drafts land as DRAFT for review.
-            </CardDescription>
-          </div>
-        </div>
-      </CardHeader>
-      <CardContent className="space-y-3">
-        {/* Local model availability / Ollama reachability */}
-        {statusQuery.isLoading ? (
-          <p className="text-xs text-muted-foreground">Checking local AI status…</p>
-        ) : !ollamaReachable ? (
-          <div className="flex items-start gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 p-2.5 text-xs">
-            <AlertTriangle className="mt-0.5 h-3.5 w-3.5 text-amber-600" />
-            <span>
-              Ollama is not reachable
-              {statusQuery.data?.baseUrl ? ` at ${statusQuery.data.baseUrl}` : ""}. AI generation is
-              disabled until the local model is running.
-            </span>
-          </div>
-        ) : !hasLocalModel ? (
-          <div className="flex items-start gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 p-2.5 text-xs">
-            <AlertTriangle className="mt-0.5 h-3.5 w-3.5 text-amber-600" />
-            <span>
-              No active local AI model. Activate one under AI Models to enable generation.
-            </span>
-          </div>
-        ) : null}
-
-        <div className="space-y-1.5">
-          <Label className="text-xs">Preferred local model</Label>
-          <Select value={effectiveModel} onValueChange={setSelectedModel} disabled={!hasLocalModel}>
-            <SelectTrigger>
-              <SelectValue placeholder="No local model" />
-            </SelectTrigger>
-            <SelectContent>
-              {localModels.map((m) => (
-                <SelectItem key={m.id} value={m.modelName}>
-                  {m.displayName ?? m.modelName}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <div className="flex flex-wrap gap-1 pt-1">
-            <StatusBadge status="Local" tone="success" />
-            {preferred && (
-              <StatusBadge status={`Suggested for ${TYPE_LABEL[questionType]}`} tone="muted" />
-            )}
-          </div>
-          <p className="text-[11px] text-muted-foreground">
-            Informational only — generation always uses the active local Ollama model.
-          </p>
-        </div>
-
-        <div className="space-y-1.5">
-          <Label className="text-xs">Instructions (optional)</Label>
-          <Textarea
-            rows={2}
-            value={instructions}
-            onChange={(e) => setInstructions(e.target.value)}
-            placeholder="Extra guidance for the model…"
-          />
-        </div>
-
-        {/* Generate question draft from the selected topic + objective */}
-        <div className="space-y-1.5">
-          <Button
-            variant="outline"
-            size="sm"
-            className="w-full justify-start"
-            disabled={!canGenerate || generateMutation.isPending}
-            onClick={() => generateMutation.mutate()}
-          >
-            <Wand2 className="mr-1.5 h-4 w-4" />
-            {generateMutation.isPending ? "Generating…" : "Generate question from topic"}
-          </Button>
-          {ollamaReachable && hasLocalModel && (!topicName || !objectiveTitle) && (
-            <p className="text-[11px] text-muted-foreground">
-              Select a topic and learning objective first.
-            </p>
-          )}
-        </div>
-
-        {draft && (
-          <div className="rounded-md border bg-card p-3">
-            <div className="text-[10px] uppercase tracking-wide text-muted-foreground">
-              AI draft suggestion (advisory)
-            </div>
-            <p className="mt-1 whitespace-pre-wrap text-sm">{draft.suggestion}</p>
-            <div className="mt-3 flex flex-wrap gap-1.5">
-              <Button
-                size="sm"
-                variant="outline"
-                disabled={reviewDraftMutation.isPending}
-                onClick={() => reviewDraftMutation.mutate("ACCEPTED")}
-              >
-                <Check className="mr-1 h-3.5 w-3.5" /> Accept &amp; insert
-              </Button>
-              <Button
-                size="sm"
-                variant="ghost"
-                disabled={reviewDraftMutation.isPending}
-                onClick={() => reviewDraftMutation.mutate("REJECTED")}
-              >
-                <X className="mr-1 h-3.5 w-3.5" /> Reject
-              </Button>
+      <Card className="border-primary/30 bg-primary-soft/30">
+        <CardHeader>
+          <div className="flex items-start gap-2">
+            <Sparkles className="mt-0.5 h-4 w-4 text-accent-foreground" />
+            <div>
+              <CardTitle className="text-sm">AI assistant</CardTitle>
+              <CardDescription className="text-xs">
+                AI suggestions must be reviewed by an instructor before use. Accepting never
+                auto-publishes — drafts land as DRAFT for review.
+              </CardDescription>
             </div>
           </div>
-        )}
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {/* Local model availability / Ollama reachability */}
+          {statusQuery.isLoading ? (
+            <p className="text-xs text-muted-foreground">Checking local AI status…</p>
+          ) : !ollamaReachable ? (
+            <div className="flex items-start gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 p-2.5 text-xs">
+              <AlertTriangle className="mt-0.5 h-3.5 w-3.5 text-amber-600" />
+              <span>
+                Ollama is not reachable
+                {statusQuery.data?.baseUrl ? ` at ${statusQuery.data.baseUrl}` : ""}. AI generation
+                is disabled until the local model is running.
+              </span>
+            </div>
+          ) : !hasLocalModel ? (
+            <div className="flex items-start gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 p-2.5 text-xs">
+              <AlertTriangle className="mt-0.5 h-3.5 w-3.5 text-amber-600" />
+              <span>
+                No active local AI model. Activate one under AI Models to enable generation.
+              </span>
+            </div>
+          ) : null}
 
-        {/* Equivalence check between this (saved) question and another existing one */}
-        {questionId !== undefined && (
-          <div className="space-y-1.5 border-t pt-3">
-            <Label className="text-xs">Check equivalence with another question</Label>
-            <Select value={equivBId} onValueChange={setEquivBId} disabled={!ollamaReachable}>
+          <div className="space-y-1.5">
+            <Label className="text-xs">Local model</Label>
+            <Select
+              value={effectiveModelName}
+              onValueChange={setSelectedModelName}
+              disabled={!hasLocalModel}
+            >
               <SelectTrigger>
-                <SelectValue placeholder="Select a question to compare" />
+                <SelectValue placeholder="No local model" />
               </SelectTrigger>
               <SelectContent>
-                {otherQuestions.map((q) => (
-                  <SelectItem key={q.id} value={String(q.id)}>
-                    {q.title}
+                {localModels.map((m) => (
+                  <SelectItem key={m.id} value={m.modelName}>
+                    {m.displayName ?? m.modelName}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
+            <div className="flex flex-wrap gap-1 pt-1">
+              <StatusBadge status="Local" tone="success" />
+              {preferred && (
+                <StatusBadge status={`Suggested for ${TYPE_LABEL[questionType]}`} tone="muted" />
+              )}
+            </div>
+            <p className="text-[11px] text-muted-foreground">
+              This model runs the generation below.
+            </p>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label className="text-xs">Instructions (optional)</Label>
+            <Textarea
+              rows={2}
+              value={instructions}
+              onChange={(e) => setInstructions(e.target.value)}
+              placeholder="Extra guidance for the model…"
+            />
+          </div>
+
+          {/* Generate question draft from the selected topic + objective */}
+          <div className="space-y-1.5">
             <Button
               variant="outline"
               size="sm"
               className="w-full justify-start"
-              disabled={!ollamaReachable || !hasLocalModel || !equivBId || equivMutation.isPending}
-              onClick={() => equivMutation.mutate()}
+              disabled={!canGenerate || generateMutation.isPending}
+              onClick={() => generateMutation.mutate()}
             >
               <Wand2 className="mr-1.5 h-4 w-4" />
-              {equivMutation.isPending ? "Comparing…" : "Suggest equivalence"}
+              {generateMutation.isPending ? "Generating…" : "Generate question from topic"}
             </Button>
-
-            {equiv && (
-              <div className="rounded-md border bg-card p-3">
-                <div className="text-[10px] uppercase tracking-wide text-muted-foreground">
-                  AI equivalence assessment (advisory)
-                </div>
-                <p className="mt-1 whitespace-pre-wrap text-sm">{equiv.suggestion}</p>
-                <div className="mt-3 flex flex-wrap gap-1.5">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    disabled={reviewEquivMutation.isPending}
-                    onClick={handleEquivAccept}
-                  >
-                    <Check className="mr-1 h-3.5 w-3.5" /> Accept
-                    {existingGroupId !== null ? " & link" : ""}
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    disabled={reviewEquivMutation.isPending}
-                    onClick={() => reviewEquivMutation.mutate("REJECTED")}
-                  >
-                    <X className="mr-1 h-3.5 w-3.5" /> Reject
-                  </Button>
-                </div>
-              </div>
+            {generateMutation.isPending ? (
+              <p className="text-[11px] text-muted-foreground">
+                Structured generation can take up to a minute on local models — please wait.
+              </p>
+            ) : (
+              ollamaReachable &&
+              hasLocalModel &&
+              (!topicName || !objectiveTitle) && (
+                <p className="text-[11px] text-muted-foreground">
+                  Select a topic and learning objective first.
+                </p>
+              )
             )}
           </div>
-        )}
-      </CardContent>
-    </Card>
 
-    <AlertDialog open={equivGroupConflictOpen} onOpenChange={setEquivGroupConflictOpen}>
-      <AlertDialogContent>
-        <AlertDialogHeader>
-          <AlertDialogTitle>Move question to a different group?</AlertDialogTitle>
-          <AlertDialogDescription>
-            The selected question already belongs to another equivalent group. Accepting will move
-            it into this question's group. Its previous group membership will be overwritten.
-          </AlertDialogDescription>
-        </AlertDialogHeader>
-        <AlertDialogFooter>
-          <AlertDialogCancel disabled={reviewEquivMutation.isPending}>Cancel</AlertDialogCancel>
-          <AlertDialogAction
-            onClick={(e) => {
-              e.preventDefault();
-              setEquivGroupConflictOpen(false);
-              reviewEquivMutation.mutate("ACCEPTED");
-            }}
-            disabled={reviewEquivMutation.isPending}
-          >
-            Move and accept
-          </AlertDialogAction>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
+          {draft && (
+            <div className="rounded-md border bg-card p-3">
+              <div className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                AI draft applied to the form (advisory)
+              </div>
+              <p className="mt-1 text-sm font-medium">{draft.question.title}</p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                {TYPE_LABEL[draft.question.type]} · {DIFFICULTY_LABEL[draft.question.difficulty]}
+                {draft.question.type === "MULTIPLE_CHOICE"
+                  ? ` · ${draft.question.answerOptions.length} options`
+                  : ""}
+                {` · ${draft.model}`}
+              </p>
+              <p className="mt-1.5 text-[11px] text-muted-foreground">
+                Title, description, type, difficulty
+                {draft.question.type === "MULTIPLE_CHOICE" ? " and options were" : " were"}{" "}
+                pre-filled below. Review and edit, then Save when ready — nothing is saved yet.
+              </p>
+              <div className="mt-3 flex flex-wrap gap-1.5">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={reviewDraftMutation.isPending}
+                  onClick={() => reviewDraftMutation.mutate("ACCEPTED")}
+                >
+                  <Check className="mr-1 h-3.5 w-3.5" /> Accept
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  disabled={reviewDraftMutation.isPending}
+                  onClick={() => reviewDraftMutation.mutate("REJECTED")}
+                >
+                  <X className="mr-1 h-3.5 w-3.5" /> Reject
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {/* TODO(Dev B): "Generate equivalent question" (POST /ai/equivalent-question,
+            aiAuthoringService.generateEquivalentQuestion) generates a NEW question from
+            this one — for the pre-test -> post-test flow. That entry point belongs to
+            Dev B's post-test wizard (app.assessments.$id.post-test.tsx), not this
+            question-bank editor. Not wired here; service function is ready to consume. */}
+
+          {/* Equivalence check between this (saved) question and another existing one */}
+          {questionId !== undefined && (
+            <div className="space-y-1.5 border-t pt-3">
+              <Label className="text-xs">Check equivalence with another question</Label>
+              <Select value={equivBId} onValueChange={setEquivBId} disabled={!ollamaReachable}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select a question to compare" />
+                </SelectTrigger>
+                <SelectContent>
+                  {otherQuestions.map((q) => (
+                    <SelectItem key={q.id} value={String(q.id)}>
+                      {q.title}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-full justify-start"
+                disabled={
+                  !ollamaReachable || !hasLocalModel || !equivBId || equivMutation.isPending
+                }
+                onClick={() => equivMutation.mutate()}
+              >
+                <Wand2 className="mr-1.5 h-4 w-4" />
+                {equivMutation.isPending ? "Comparing…" : "Suggest equivalence"}
+              </Button>
+
+              {equiv && (
+                <div className="rounded-md border bg-card p-3">
+                  <div className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                    AI equivalence assessment (advisory)
+                  </div>
+                  <p className="mt-1 whitespace-pre-wrap text-sm">{equiv.suggestion}</p>
+                  <div className="mt-3 flex flex-wrap gap-1.5">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={reviewEquivMutation.isPending}
+                      onClick={handleEquivAccept}
+                    >
+                      <Check className="mr-1 h-3.5 w-3.5" /> Accept
+                      {existingGroupId !== null ? " & link" : ""}
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      disabled={reviewEquivMutation.isPending}
+                      onClick={() => reviewEquivMutation.mutate("REJECTED")}
+                    >
+                      <X className="mr-1 h-3.5 w-3.5" /> Reject
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <AlertDialog open={equivGroupConflictOpen} onOpenChange={setEquivGroupConflictOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Move question to a different group?</AlertDialogTitle>
+            <AlertDialogDescription>
+              The selected question already belongs to another equivalent group. Accepting will move
+              it into this question's group. Its previous group membership will be overwritten.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={reviewEquivMutation.isPending}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault();
+                setEquivGroupConflictOpen(false);
+                reviewEquivMutation.mutate("ACCEPTED");
+              }}
+              disabled={reviewEquivMutation.isPending}
+            >
+              Move and accept
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 }
