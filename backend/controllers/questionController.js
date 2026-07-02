@@ -153,6 +153,25 @@ const updateQuestion = async (req, res) => {
       }
     }
 
+    // T5: when a question changes MULTIPLE_CHOICE -> OPEN/CODE, its old
+    // answerOptions become orphaned. Delete them even when no `options` are sent.
+    const changedAwayFromMcq =
+      existing.type === "MULTIPLE_CHOICE" && updatedType !== "MULTIPLE_CHOICE";
+
+    let answerOptionsUpdate;
+    if (options) {
+      answerOptionsUpdate = {
+        deleteMany: {},
+        create: options.map((option, index) => ({
+          text: option.text,
+          isCorrect: Boolean(option.isCorrect),
+          orderIndex: index,
+        })),
+      };
+    } else if (changedAwayFromMcq) {
+      answerOptionsUpdate = { deleteMany: {} };
+    }
+
     const question = await prisma.question.update({
       where: { id: Number(id) },
       data: {
@@ -163,18 +182,7 @@ const updateQuestion = async (req, res) => {
         ...(type !== undefined && { type }),
         ...(learningObjectiveId !== undefined && { learningObjectiveId }),
         ...(equivalentGroupId !== undefined && { equivalentGroupId }),
-        ...(options
-          ? {
-              answerOptions: {
-                deleteMany: {},
-                create: options.map((option, index) => ({
-                  text: option.text,
-                  isCorrect: Boolean(option.isCorrect),
-                  orderIndex: index,
-                })),
-              },
-            }
-          : {}),
+        ...(answerOptionsUpdate ? { answerOptions: answerOptionsUpdate } : {}),
       },
       include: questionInclude,
     });
