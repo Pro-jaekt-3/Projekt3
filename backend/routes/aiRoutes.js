@@ -4,6 +4,7 @@ const router = express.Router();
 const {
   generateQuestionDraft,
   suggestQuestionEquivalence,
+  generateEquivalentQuestion,
   reviewAiInteraction,
   listAiInteractions,
   getPrePostInsights,
@@ -30,6 +31,13 @@ router.post(
   firebaseAuthMiddleware,
   requireRole("ADMIN", "INSTRUCTOR"),
   suggestQuestionEquivalence
+);
+// T2: generate a NEW question equivalent to an existing source question.
+router.post(
+  "/equivalent-question",
+  firebaseAuthMiddleware,
+  requireRole("ADMIN", "INSTRUCTOR"),
+  generateEquivalentQuestion
 );
 
 // AI models management (read for ADMIN+INSTRUCTOR, mutations ADMIN only).
