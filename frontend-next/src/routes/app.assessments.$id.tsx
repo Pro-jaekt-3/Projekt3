@@ -1,5 +1,5 @@
 import { createFileRoute, Link, useNavigate, useSearch } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { z } from "zod";
 import {
@@ -17,6 +17,7 @@ import {
   Send,
   Archive,
   RotateCcw,
+  ListChecks,
 } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/common/PageHeader";
@@ -45,6 +46,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
@@ -72,7 +74,10 @@ import {
 } from "@/components/ui/select";
 import { qk } from "@/lib/query-keys";
 import { assessmentsService } from "@/services/assessments";
+import { topicsService } from "@/services/topics";
+import { questionsService } from "@/services/questions";
 import { ensureRole } from "@/lib/route-guards";
+import { cn } from "@/lib/utils";
 import type {
   Assessment,
   AssessmentQuestion,
@@ -119,9 +124,11 @@ function AssessmentDetail() {
 
   const [accessOpen, setAccessOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
+  const [questionsOpen, setQuestionsOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const [editError, setEditError] = useState<string | null>(null);
+  const [questionsError, setQuestionsError] = useState<string | null>(null);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [type, setType] = useState<AssessmentType>("QUIZ");
@@ -166,6 +173,23 @@ function AssessmentDetail() {
     onError: (error) => {
       const message = errText(error);
       setEditError(message);
+      toast.error(message);
+    },
+  });
+
+  const questionsMutation = useMutation({
+    mutationFn: (questionIds: number[]) =>
+      assessmentsService.update(id, { questions: questionIds }),
+    onSuccess: (updated) => {
+      queryClient.invalidateQueries({ queryKey: qk.assessments.detail(id) });
+      queryClient.invalidateQueries({ queryKey: qk.assessments.lists() });
+      setQuestionsError(null);
+      toast.success(`Updated questions for “${updated.title}”`);
+      setQuestionsOpen(false);
+    },
+    onError: (error) => {
+      const message = errText(error);
+      setQuestionsError(message);
       toast.error(message);
     },
   });
@@ -238,6 +262,13 @@ function AssessmentDetail() {
   const questions = assessment.questions ?? [];
   const approvedCount = questions.filter((item) => item.question?.status === "APPROVED").length;
   const canEdit = assessment.status === "DRAFT";
+  // Client-side publish guard (M3): the backend stays the last line of defence, but the
+  // UI blocks the call up-front when it already knows it would be rejected.
+  const canPublish = questions.length > 0 && approvedCount === questions.length;
+  const publishBlockedReason =
+    questions.length === 0
+      ? "Add at least one approved question before publishing"
+      : "All selected questions must be approved before publishing";
   const publishDisabled = statusMutation.isPending || deleteMutation.isPending;
   const editDisabled = !canEdit || editMutation.isPending || statusMutation.isPending;
 
@@ -311,20 +342,24 @@ function AssessmentDetail() {
             >
               <Trash2 className="mr-1.5 h-4 w-4" /> Delete
             </Button>
-            {statusActions.map((action) => (
-              <Button
-                key={action.target}
-                variant={action.variant}
-                size="sm"
-                onClick={() => statusMutation.mutate(action.target)}
-                disabled={publishDisabled}
-              >
-                <action.icon className="mr-1.5 h-4 w-4" />{" "}
-                {statusMutation.isPending && statusMutation.variables === action.target
-                  ? action.pendingLabel
-                  : action.label}
-              </Button>
-            ))}
+            {statusActions.map((action) => {
+              const blockedByValidation = action.target === "PUBLISHED" && !canPublish;
+              return (
+                <Button
+                  key={action.target}
+                  variant={action.variant}
+                  size="sm"
+                  onClick={() => statusMutation.mutate(action.target)}
+                  disabled={publishDisabled || blockedByValidation}
+                  title={blockedByValidation ? publishBlockedReason : undefined}
+                >
+                  <action.icon className="mr-1.5 h-4 w-4" />{" "}
+                  {statusMutation.isPending && statusMutation.variables === action.target
+                    ? action.pendingLabel
+                    : action.label}
+                </Button>
+              );
+            })}
           </>
         }
       />
@@ -395,7 +430,25 @@ function AssessmentDetail() {
             </Card>
           </TabsContent>
 
-          <TabsContent value="questions" className="mt-4">
+          <TabsContent value="questions" className="mt-4 space-y-3">
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-sm text-muted-foreground">
+                {approvedCount} of {questions.length} attached question
+                {questions.length === 1 ? "" : "s"} approved.
+              </p>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setQuestionsError(null);
+                  setQuestionsOpen(true);
+                }}
+                disabled={!canEdit || questionsMutation.isPending}
+                title={!canEdit ? "Only draft assessments can be edited" : undefined}
+              >
+                <ListChecks className="mr-1.5 h-4 w-4" /> Manage questions
+              </Button>
+            </div>
             <Card>
               <div className="overflow-x-auto">
                 <Table>
@@ -494,6 +547,19 @@ function AssessmentDetail() {
           setEditError(null);
           editMutation.mutate();
         }}
+      />
+
+      <ManageQuestionsDialog
+        open={questionsOpen}
+        onOpenChange={(open) => {
+          setQuestionsOpen(open);
+          if (!open) setQuestionsError(null);
+        }}
+        assessment={assessment}
+        canEdit={canEdit}
+        isPending={questionsMutation.isPending}
+        saveError={questionsError}
+        onSave={(questionIds) => questionsMutation.mutate(questionIds)}
       />
 
       <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
@@ -661,6 +727,157 @@ function EditAssessmentDialog({
           >
             {isPending ? "Saving…" : "Save changes"}
           </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function ManageQuestionsDialog({
+  open,
+  onOpenChange,
+  assessment,
+  canEdit,
+  isPending,
+  saveError,
+  onSave,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  assessment: Assessment;
+  canEdit: boolean;
+  isPending: boolean;
+  saveError: string | null;
+  onSave: (questionIds: number[]) => void;
+}) {
+  const topicsQuery = useQuery({
+    queryKey: qk.topics.list(),
+    queryFn: topicsService.list,
+    enabled: open,
+  });
+  const questionsQuery = useQuery({
+    queryKey: qk.questions.list(),
+    queryFn: questionsService.list,
+    enabled: open,
+  });
+
+  const [selected, setSelected] = useState<number[]>([]);
+
+  // Seed the selection from the assessment's current questions each time the dialog opens.
+  useEffect(() => {
+    if (!open) return;
+    const current = (assessment.questions ?? []).map((item) => item.questionId);
+    setSelected(Array.from(new Set(current)));
+  }, [open, assessment.questions]);
+
+  // G4: only APPROVED questions from the same training (via their topic), deduplicated.
+  const trainingTopicIds = useMemo(() => {
+    const topics = topicsQuery.data ?? [];
+    return new Set(
+      topics.filter((topic) => topic.trainingId === assessment.trainingId).map((topic) => topic.id),
+    );
+  }, [topicsQuery.data, assessment.trainingId]);
+  const approvedQuestions = useMemo(() => {
+    const all = questionsQuery.data ?? [];
+    return all.filter(
+      (question) => question.status === "APPROVED" && trainingTopicIds.has(question.topicId),
+    );
+  }, [questionsQuery.data, trainingTopicIds]);
+
+  const toggle = (questionId: number) => {
+    setSelected((current) =>
+      current.includes(questionId)
+        ? current.filter((id) => id !== questionId)
+        : Array.from(new Set([...current, questionId])),
+    );
+  };
+
+  const loading = topicsQuery.isLoading || questionsQuery.isLoading;
+  const loadError = topicsQuery.error ?? questionsQuery.error ?? null;
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-2xl">
+        <DialogHeader>
+          <DialogTitle>Manage questions</DialogTitle>
+          <DialogDescription>
+            Only approved questions from this training can be attached. Questions can only be
+            changed while the assessment is a draft with no submitted attempts.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="max-h-[50vh] space-y-2 overflow-y-auto">
+          {loading ? (
+            <LoadingState label="Loading questions…" />
+          ) : loadError ? (
+            <ErrorState
+              message={loadError instanceof Error ? loadError.message : "Failed to load questions"}
+              onRetry={() => {
+                topicsQuery.refetch();
+                questionsQuery.refetch();
+              }}
+            />
+          ) : approvedQuestions.length === 0 ? (
+            <div className="rounded-md border bg-surface p-4 text-sm text-muted-foreground">
+              No approved questions match this training yet. Approve questions in the question bank
+              before attaching them.
+            </div>
+          ) : (
+            approvedQuestions.map((question) => {
+              const active = selected.includes(question.id);
+              return (
+                <label
+                  key={question.id}
+                  className={cn(
+                    "flex cursor-pointer items-start gap-3 rounded-md border bg-card p-3 transition-colors",
+                    active ? "border-primary bg-primary-soft/50" : "hover:bg-muted/40",
+                  )}
+                >
+                  <Checkbox
+                    checked={active}
+                    onCheckedChange={() => toggle(question.id)}
+                    disabled={!canEdit || isPending}
+                    className="mt-0.5"
+                  />
+                  <div className="min-w-0 flex-1">
+                    <div className="text-sm font-medium">{question.title}</div>
+                    <div className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
+                      <span>{question.topic?.name ?? "—"}</span>
+                      <span>·</span>
+                      <span>{difficultyLabel(question.difficulty)}</span>
+                    </div>
+                  </div>
+                  <StatusBadge status="Approved" />
+                </label>
+              );
+            })
+          )}
+        </div>
+
+        {saveError && (
+          <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
+            {saveError}
+          </div>
+        )}
+
+        <DialogFooter className="sm:items-center sm:justify-between">
+          <span className="text-sm text-muted-foreground">
+            {selected.length} question{selected.length === 1 ? "" : "s"} selected
+          </span>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isPending}>
+              Cancel
+            </Button>
+            <Button
+              onClick={() => onSave(selected)}
+              disabled={!canEdit || isPending || selected.length === 0}
+              title={
+                selected.length === 0 ? "Select at least one approved question" : undefined
+              }
+            >
+              {isPending ? "Saving…" : "Save questions"}
+            </Button>
+          </div>
         </DialogFooter>
       </DialogContent>
     </Dialog>

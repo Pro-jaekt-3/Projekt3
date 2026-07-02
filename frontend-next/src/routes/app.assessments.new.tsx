@@ -18,11 +18,9 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Switch } from "@/components/ui/switch";
 import { StatusBadge } from "@/components/common/StatusBadge";
 import { EmptyState } from "@/components/common/EmptyState";
 import { LoadingState, ErrorState } from "@/components/common/Spinner";
-import { PARTICIPANTS } from "@/lib/mock-data";
 import { qk } from "@/lib/query-keys";
 import { assessmentsService } from "@/services/assessments";
 import { trainingsService } from "@/services/trainings";
@@ -44,8 +42,7 @@ const STEPS = [
   { id: 1, title: "Basic info" },
   { id: 2, title: "Scope" },
   { id: 3, title: "Questions" },
-  { id: 4, title: "Assign" },
-  { id: 5, title: "Preview & Draft" },
+  { id: 4, title: "Preview & Draft" },
 ];
 
 function CreateAssessmentWizard() {
@@ -78,21 +75,12 @@ function CreateAssessmentWizard() {
       "Diagnostic pre-test to map prior knowledge of SQL basics, joins and normalization.",
     type: "Pre-test",
     trainingId: trainingId ?? "",
-    timeLimit: 30,
-    availability: "1 week",
-    randomizeQuestions: true,
-    randomizeAnswers: false,
     topicIds: [] as string[],
     learningObjectiveId: "all",
     generationDifficulty: "any" as "any" | "easy" | "medium" | "hard",
     difficulty: { easy: 40, medium: 40, hard: 20 },
     questionCount: 8,
     selectedQuestionIds: [] as string[],
-    assignTo: "training" as "training" | "selected",
-    selectedParticipantIds: PARTICIPANTS.map((p) => p.id),
-    accessMode: "assigned" as "assigned" | "link",
-    dueDate: "2026-11-08",
-    attemptLimit: 1,
   });
 
   const trainings = trainingsQuery.data ?? [];
@@ -278,7 +266,7 @@ function CreateAssessmentWizard() {
   });
 
   const back = () => setStep((s) => Math.max(1, s - 1));
-  const next = () => setStep((s) => Math.min(5, s + 1));
+  const next = () => setStep((s) => Math.min(4, s + 1));
 
   const createDraft = () => {
     const uniqueQuestionIds = Array.from(new Set(form.selectedQuestionIds));
@@ -461,8 +449,7 @@ function CreateAssessmentWizard() {
                 generatePending={generateMutation.isPending}
               />
             )}
-            {step === 4 && <Step4 form={form} setForm={setForm} />}
-            {step === 5 && (
+            {step === 4 && (
               <Step5
                 form={form}
                 training={training?.title}
@@ -475,7 +462,7 @@ function CreateAssessmentWizard() {
               <Button variant="outline" onClick={back} disabled={step === 1}>
                 <ChevronLeft className="mr-1.5 h-4 w-4" /> Back
               </Button>
-              {step < 5 ? (
+              {step < 4 ? (
                 <Button onClick={next}>
                   Continue <ChevronRight className="ml-1.5 h-4 w-4" />
                 </Button>
@@ -497,15 +484,6 @@ function CreateAssessmentWizard() {
                 <SumRow label="Type" value={form.type} />
                 <SumRow label="Training" value={training?.title ?? "—"} />
                 <SumRow label="Questions" value={`${form.selectedQuestionIds.length}`} />
-                <SumRow label="Time limit" value={`${form.timeLimit} min`} />
-                <SumRow
-                  label="Assigned"
-                  value={
-                    form.assignTo === "training"
-                      ? `Entire training (${PARTICIPANTS.length})`
-                      : `${form.selectedParticipantIds.length} selected`
-                  }
-                />
               </CardContent>
             </Card>
           </aside>
@@ -564,21 +542,12 @@ type AssessmentFormState = {
   description: string;
   type: "Pre-test" | "Regular test" | "Practice";
   trainingId: string;
-  timeLimit: number;
-  availability: string;
-  randomizeQuestions: boolean;
-  randomizeAnswers: boolean;
   topicIds: string[];
   learningObjectiveId: string;
   generationDifficulty: "any" | "easy" | "medium" | "hard";
   difficulty: { easy: number; medium: number; hard: number };
   questionCount: number;
   selectedQuestionIds: string[];
-  assignTo: "training" | "selected";
-  selectedParticipantIds: string[];
-  accessMode: "assigned" | "link";
-  dueDate: string;
-  attemptLimit: number;
 };
 
 function Step1({
@@ -641,33 +610,6 @@ function Step1({
               </SelectContent>
             </Select>
           </Field>
-          <Field label="Time limit (minutes)">
-            <Input
-              type="number"
-              value={form.timeLimit}
-              onChange={(e) => setForm({ ...form, timeLimit: +e.target.value })}
-            />
-          </Field>
-          <Field label="Availability window">
-            <Input
-              value={form.availability}
-              onChange={(e) => setForm({ ...form, availability: e.target.value })}
-            />
-          </Field>
-        </div>
-        <div className="space-y-2 rounded-md border bg-surface p-3">
-          <ToggleRow
-            label="Randomize question order"
-            desc="Each participant sees a different order."
-            value={form.randomizeQuestions}
-            onChange={(v) => setForm({ ...form, randomizeQuestions: v })}
-          />
-          <ToggleRow
-            label="Randomize answer options"
-            desc="Shuffles answer choices for multiple/single choice."
-            value={form.randomizeAnswers}
-            onChange={(v) => setForm({ ...form, randomizeAnswers: v })}
-          />
         </div>
       </CardContent>
     </Card>
@@ -943,80 +885,6 @@ function Step3({
   );
 }
 
-function Step4({
-  form,
-  setForm,
-}: {
-  form: AssessmentFormState;
-  setForm: React.Dispatch<React.SetStateAction<AssessmentFormState>>;
-}) {
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-base">Assign</CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-5">
-        <div>
-          <Label className="text-sm">Who can take this assessment?</Label>
-          <div className="mt-2 grid gap-2">
-            <ChoiceRow
-              active={form.assignTo === "training"}
-              onClick={() => setForm({ ...form, assignTo: "training" })}
-              title={`Entire training (${PARTICIPANTS.length} participants)`}
-              desc="All current and future participants of the training."
-            />
-            <ChoiceRow
-              active={form.assignTo === "selected"}
-              onClick={() => setForm({ ...form, assignTo: "selected" })}
-              title="Selected participants only"
-              desc="Manually pick who can take the assessment."
-            />
-          </div>
-        </div>
-
-        <div>
-          <Label className="text-sm">Access mode</Label>
-          <div className="mt-2 grid gap-2 sm:grid-cols-2">
-            <ChoiceRow
-              active={form.accessMode === "assigned"}
-              onClick={() => setForm({ ...form, accessMode: "assigned" })}
-              title="Assigned users only"
-              desc="Strict assignment. No link sharing."
-            />
-            <ChoiceRow
-              active={form.accessMode === "link"}
-              onClick={() => setForm({ ...form, accessMode: "link" })}
-              title="Access link / QR for assigned users"
-              desc="QR shareable; still respects assignment."
-            />
-          </div>
-        </div>
-
-        <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Due date">
-            <Input
-              type="date"
-              value={form.dueDate}
-              onChange={(e) => setForm({ ...form, dueDate: e.target.value })}
-            />
-          </Field>
-          <Field label="Attempt limit">
-            <Input
-              type="number"
-              value={form.attemptLimit}
-              onChange={(e) => setForm({ ...form, attemptLimit: +e.target.value })}
-            />
-          </Field>
-        </div>
-
-        <div className="rounded-md border bg-surface p-3 text-xs text-muted-foreground">
-          Participants will only see assessments assigned to them.
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-
 function Step5({
   form,
   training,
@@ -1030,8 +898,6 @@ function Step5({
 }) {
   const checks = [
     { ok: selected.length > 0 && selected.every((q) => q.status === "APPROVED"), label: "All questions approved" },
-    { ok: form.assignTo, label: "Participants assigned" },
-    { ok: !!form.dueDate, label: "Availability set" },
     { ok: !!form.description, label: "Instructions added" },
   ];
 
@@ -1047,9 +913,6 @@ function Step5({
             <SumRow label="Training" value={training ?? "—"} />
             <SumRow label="Type" value={form.type} />
             <SumRow label="Questions" value={`${selected.length}`} />
-            <SumRow label="Time limit" value={`${form.timeLimit} min`} />
-            <SumRow label="Availability" value={form.availability} />
-            <SumRow label="Due date" value={form.dueDate} />
           </div>
 
           <div className="rounded-md border bg-surface p-3">
@@ -1085,7 +948,7 @@ function Step5({
           <div className="rounded-md border bg-card p-4">
             <div className="text-sm font-semibold">{form.title}</div>
             <div className="mt-1 text-xs text-muted-foreground">
-              {training} · {form.timeLimit} min · {selected.length} questions
+              {training} · {selected.length} questions
             </div>
             <p className="mt-3 text-sm text-muted-foreground">{form.description}</p>
             <Button className="mt-4" disabled>
@@ -1152,58 +1015,3 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   );
 }
 
-function ToggleRow({
-  label,
-  desc,
-  value,
-  onChange,
-}: {
-  label: string;
-  desc: string;
-  value: boolean;
-  onChange: (v: boolean) => void;
-}) {
-  return (
-    <label className="flex items-start justify-between gap-3">
-      <div>
-        <div className="text-sm font-medium">{label}</div>
-        <div className="text-xs text-muted-foreground">{desc}</div>
-      </div>
-      <Switch checked={value} onCheckedChange={onChange} />
-    </label>
-  );
-}
-
-function ChoiceRow({
-  active,
-  onClick,
-  title,
-  desc,
-}: {
-  active: boolean;
-  onClick: () => void;
-  title: string;
-  desc: string;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={cn(
-        "flex items-start gap-2 rounded-md border bg-card p-3 text-left",
-        active ? "border-primary bg-primary-soft" : "hover:bg-muted/40",
-      )}
-    >
-      <span
-        className={cn(
-          "mt-1 h-3.5 w-3.5 rounded-full border",
-          active ? "border-primary bg-primary" : "border-border",
-        )}
-      />
-      <div>
-        <div className="text-sm font-medium">{title}</div>
-        <div className="text-xs text-muted-foreground">{desc}</div>
-      </div>
-    </button>
-  );
-}
