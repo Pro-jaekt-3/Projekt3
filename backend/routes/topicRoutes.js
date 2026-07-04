@@ -11,15 +11,37 @@ const {
 } = require("../controllers/topicController");
 const { firebaseAuthMiddleware } = require("../middleware/firebaseAuthMiddleware");
 const { requireRole } = require("../middleware/roleMiddleware");
+const { requireOwnership } = require("../middleware/scopeMiddleware");
 
-router.get("/", firebaseAuthMiddleware, requireRole("ADMIN", "INSTRUCTOR"), getTopics);
+// Matrika vlog: vsebina traininga (Topic CRUD) je samo za INSTRUCTOR-lastnika
+// (ADMIN ni content-collaborator). requireOwnership -> 404 za tuje topice.
 
-router.post("/", firebaseAuthMiddleware, requireRole("ADMIN", "INSTRUCTOR"), createTopic);
+router.get("/", firebaseAuthMiddleware, requireRole("INSTRUCTOR"), getTopics);
 
-router.get("/:id", firebaseAuthMiddleware, requireRole("ADMIN", "INSTRUCTOR"), getTopic);
+router.post("/", firebaseAuthMiddleware, requireRole("INSTRUCTOR"), createTopic);
 
-router.put("/:id", firebaseAuthMiddleware, requireRole("ADMIN", "INSTRUCTOR"), updateTopic);
+router.get(
+  "/:id",
+  firebaseAuthMiddleware,
+  requireRole("INSTRUCTOR"),
+  requireOwnership("topic"),
+  getTopic,
+);
 
-router.delete("/:id", firebaseAuthMiddleware, requireRole("ADMIN", "INSTRUCTOR"), deleteTopic);
+router.put(
+  "/:id",
+  firebaseAuthMiddleware,
+  requireRole("INSTRUCTOR"),
+  requireOwnership("topic"),
+  updateTopic,
+);
+
+router.delete(
+  "/:id",
+  firebaseAuthMiddleware,
+  requireRole("INSTRUCTOR"),
+  requireOwnership("topic"),
+  deleteTopic,
+);
 
 module.exports = router;

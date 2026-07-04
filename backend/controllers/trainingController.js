@@ -1,8 +1,22 @@
 const prisma = require("../prisma/client");
+const {
+  USER_ROLES,
+  TRAINING_ROLES,
+  RESOURCE_TYPES,
+  scopedListWhere,
+} = require("../middleware/scopeMiddleware");
+const { generateEnrollmentToken } = require("./userTrainingController");
 
 const getTrainings = async (req, res) => {
   try {
-    const trainings = await prisma.training.findMany();
+    // Matrika vlog: ADMIN vidi vse (upravljanje članstev), INSTRUCTOR samo svoje.
+    const where = scopedListWhere(req.user, RESOURCE_TYPES.TRAINING);
+
+    if (where === null) {
+      return res.status(403).json({ error: "Forbidden" });
+    }
+
+    const trainings = await prisma.training.findMany({ where });
     res.json(trainings);
   } catch (error) {
     res.status(500).json({
@@ -37,7 +51,7 @@ const getTrainingById = async (req, res) => {
 
 const createTraining = async (req, res) => {
   try {
-    const { title, description } = req.body;
+    const { title, description, ownerUserId } = req.body;
 
     // Validation
     if (!title || title.trim() === "") {
@@ -46,11 +60,44 @@ const createTraining = async (req, res) => {
       });
     }
 
-    const training = await prisma.training.create({
-      data: {
-        title: title.trim(),
-        description: description ? description.trim() : null,
-      },
+    // Lastništvo ob kreaciji (dvojni model, brief-dev1 §Nove datoteke):
+    //   INSTRUCTOR ustvari -> sam postane lastnik (ownerUserId se ignorira);
+    //   ADMIN ustvari -> opcijsko takoj podeli lastništvo izbranemu userju
+    //   (brez ownerUserId je training dovoljeno vmesno stanje brez lastnika).
+    let ownerId = null;
+
+    if (req.user.role === USER_ROLES.INSTRUCTOR) {
+      ownerId = req.user.id;
+    } else if (ownerUserId !== undefined && ownerUserId !== null) {
+      const owner = await prisma.user.findUnique({ where: { id: Number(ownerUserId) } });
+
+      if (!owner) {
+        return res.status(404).json({ error: "Owner user not found" });
+      }
+
+      ownerId = owner.id;
+    }
+
+    const training = await prisma.$transaction(async (tx) => {
+      const created = await tx.training.create({
+        data: {
+          title: title.trim(),
+          description: description ? description.trim() : null,
+          enrollmentToken: generateEnrollmentToken(),
+        },
+      });
+
+      if (ownerId !== null) {
+        await tx.userTraining.create({
+          data: {
+            userId: ownerId,
+            trainingId: created.id,
+            role: TRAINING_ROLES.INSTRUCTOR,
+          },
+        });
+      }
+
+      return created;
     });
 
     res.status(201).json(training);
