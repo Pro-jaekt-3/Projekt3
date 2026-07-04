@@ -1,3 +1,13 @@
+// =============================================================================
+// PROJEKT3 — schema.prisma
+// -----------------------------------------------------------------------------
+// FAZA 0 (additive-only) different od schema-v2.prisma:
+//   - NOVO se doda OB starem (nič DROP, nič NOT NULL, nič destruktivnih unique).
+//   - Stari stolpci/tabele/relacije (LearningObjective, AssessmentBlueprint,
+//     EquivalentQuestionGroup, reviewedById, equivalentGroupId) OSTANEJO za cutover.
+//   - Destruktivni cutover (glej migration_docs/schema-v2.prisma) pride kasneje.
+// =============================================================================
+
 generator client {
   provider = "prisma-client-js"
 }
@@ -23,6 +33,12 @@ model User {
   assessmentAttempts      AssessmentAttempt[]
   requestedAiInteractions AiInteraction[]     @relation("AiInteractionRequestedBy")
   reviewedAiInteractions  AiInteraction[]     @relation("AiInteractionReviewedBy")
+
+  // [NEW][ADD] additive
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @updatedAt
+  gradedAnswers       ParticipantAnswer[] @relation("AnswerGradedBy")
+  trainingMemberships UserTraining[]
 }
 
 model Topic {
@@ -32,6 +48,10 @@ model Topic {
   training           Training            @relation(fields: [trainingId], references: [id])
   learningObjectives LearningObjective[]
   questions          Question[]
+
+  // [NEW][ADD] additive
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model Training {
@@ -43,12 +63,31 @@ model Training {
   topics               Topic[]
   assessments          Assessment[]
   assessmentBlueprints AssessmentBlueprint[]
+
+  // [NEW][ADD] additive
+  enrollmentToken   String?            @unique
+  members           UserTraining[]
+  equivalenceGroups EquivalenceGroup[]
+}
+
+// [NEW] vezna tabela User <-> Training (role INSTRUCTOR=lastništvo, PARTICIPANT=enrollment)
+model UserTraining {
+  id         Int          @id @default(autoincrement())
+  userId     Int
+  user       User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  trainingId Int
+  training   Training     @relation(fields: [trainingId], references: [id], onDelete: Cascade)
+  role       TrainingRole
+  enrolledAt DateTime     @default(now())
+
+  @@unique([userId, trainingId])
+  @@index([trainingId, role])
 }
 
 model Question {
   id          Int    @id @default(autoincrement())
   title       String
-  description String
+  description String @db.Text // [CHANGED][ADD] VARCHAR(191) -> TEXT (širitev)
   difficulty  Int
 
   type   QuestionType   @default(OPEN)
@@ -73,12 +112,37 @@ model Question {
   equivalentGroupId Int?
   equivalentGroup   EquivalentQuestionGroup? @relation(fields: [equivalentGroupId], references: [id], onDelete: SetNull)
 
+  // [NEW][ADD] nov stolpec OB starem equivalentGroupId; kaže na novo EquivalenceGroup
+  equivalenceGroupId Int?
+  equivalenceGroup   EquivalenceGroup? @relation(fields: [equivalenceGroupId], references: [id], onDelete: SetNull)
+
   assessmentQuestions     AssessmentQuestion[]
   participantAnswers      ParticipantAnswer[]
   sourceAiInteractions    AiInteraction[]      @relation("AiInteractionSourceQuestion")
   generatedAiInteractions AiInteraction[]      @relation("AiInteractionGeneratedQuestion")
 
+  // [NEW][ADD] additive
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   @@index([equivalentGroupId])
+  @@index([equivalenceGroupId])
+  @@index([status, topicId])
+}
+
+// [NEW] čista različica stare EquivalentQuestionGroup, scope-ana na training
+model EquivalenceGroup {
+  id          Int      @id @default(autoincrement())
+  trainingId  Int
+  training    Training @relation(fields: [trainingId], references: [id])
+  title       String?
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  questions Question[]
+
+  @@index([trainingId])
 }
 
 model AiModel {
@@ -139,6 +203,14 @@ model Assessment {
   updatedAt        DateTime             @updatedAt
   questions        AssessmentQuestion[]
   attempts         AssessmentAttempt[]
+
+  // [NEW][ADD] pre/post pairing (self 1:1). @unique je nujen za 1:1 relacijo v Prisma;
+  // varen v FAZI 0, ker je stolpec nov in povsod NULL (dovoljeni večkratni NULL).
+  pairedAssessmentId Int?        @unique
+  pairedAssessment   Assessment? @relation("AssessmentPairing", fields: [pairedAssessmentId], references: [id], onDelete: SetNull)
+  pairedBy           Assessment? @relation("AssessmentPairing")
+
+  @@index([status, trainingId])
 }
 
 model AssessmentBlueprint {
@@ -185,6 +257,7 @@ model AssessmentAttempt {
   @@index([assessmentId])
   @@index([userId])
   @@index([status])
+  // NOTE: @@unique([assessmentId, userId]) NAMENOMA IZPUŠČEN v FAZI 0 (zahteva dedup — cutover)
 }
 
 model ParticipantAnswer {
@@ -195,16 +268,22 @@ model ParticipantAnswer {
   question          Question          @relation(fields: [questionId], references: [id])
   selectedOptionId  Int?
   selectedOption    AnswerOption?     @relation(fields: [selectedOptionId], references: [id])
-  answerText        String?
+  answerText        String?           @db.Text // [CHANGED][ADD] VARCHAR(191) -> TEXT
   isCorrect         Boolean?
   pointsAwarded     Float?
   needsManualReview Boolean           @default(false)
   createdAt         DateTime          @default(now())
   updatedAt         DateTime          @updatedAt
 
+  // [NEW][ADD] ročno ocenjevanje OPEN/CODE
+  gradedById Int?
+  gradedBy   User?     @relation("AnswerGradedBy", fields: [gradedById], references: [id], onDelete: SetNull)
+  gradedAt   DateTime?
+
   @@unique([attemptId, questionId])
   @@index([questionId])
   @@index([selectedOptionId])
+  @@index([gradedById])
 }
 
 model AnswerOption {
@@ -298,6 +377,12 @@ enum AttemptStatus {
 
 enum UserRole {
   ADMIN
+  INSTRUCTOR
+  PARTICIPANT
+}
+
+// [NEW] per-training vloga v UserTraining (ADMIN je izključno globalen, zato ni tu)
+enum TrainingRole {
   INSTRUCTOR
   PARTICIPANT
 }
