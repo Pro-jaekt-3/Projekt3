@@ -135,7 +135,6 @@ export interface OllamaStatus {
 export interface ReviewInteractionResult {
   aiInteractionId: number;
   reviewStatus: Exclude<AiReviewStatus, "PENDING">;
-  reviewedById: number;
   reviewedAt: string;
   message: string;
 }

@@ -114,7 +114,6 @@ export interface ListInteractionsParams {
 export interface ReviewInteractionResult {
   aiInteractionId: number;
   reviewStatus: AiReviewStatus;
-  reviewedById: number;
   reviewedAt: string;
   message: string;
 }
