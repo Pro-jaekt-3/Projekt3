@@ -31,7 +31,6 @@ async function main() {
     status,
     topicId,
     createdById,
-    reviewedById,
     reviewedAt,
     equivalenceGroupId,
   }) => {
@@ -48,7 +47,6 @@ async function main() {
       status,
       topicId,
       createdById,
-      reviewedById,
       reviewedAt,
       equivalenceGroupId,
     };
@@ -234,7 +232,6 @@ async function main() {
     sourceQuestionId,
     generatedQuestionId,
     reviewStatus,
-    reviewedById,
     reviewedAt,
   }) => {
     const existingInteraction = await prisma.aiInteraction.findFirst({
@@ -256,7 +253,6 @@ async function main() {
       sourceQuestionId,
       generatedQuestionId,
       reviewStatus,
-      reviewedById,
       reviewedAt,
     };
 
@@ -369,7 +365,6 @@ async function main() {
     status: "APPROVED",
     topicId: uml.id,
     createdById: instructor.id,
-    reviewedById: admin.id,
     reviewedAt,
   });
 
@@ -381,7 +376,6 @@ async function main() {
     status: "APPROVED",
     topicId: uml.id,
     createdById: instructor.id,
-    reviewedById: admin.id,
     reviewedAt,
   });
 
@@ -393,7 +387,6 @@ async function main() {
     status: "APPROVED",
     topicId: sql.id,
     createdById: instructor.id,
-    reviewedById: admin.id,
     reviewedAt,
     equivalenceGroupId: sqlSelectGroup.id,
   });
@@ -406,7 +399,6 @@ async function main() {
     status: "APPROVED",
     topicId: sql.id,
     createdById: instructor.id,
-    reviewedById: admin.id,
     reviewedAt,
   });
 
@@ -418,7 +410,6 @@ async function main() {
     status: "APPROVED",
     topicId: networking.id,
     createdById: instructor.id,
-    reviewedById: admin.id,
     reviewedAt,
   });
 
@@ -430,7 +421,6 @@ async function main() {
     status: "APPROVED",
     topicId: sql.id,
     createdById: instructor.id,
-    reviewedById: admin.id,
     reviewedAt,
     equivalenceGroupId: sqlSelectGroup.id,
   });
@@ -466,7 +456,6 @@ async function main() {
     status: "APPROVED",
     topicId: sql.id,
     createdById: instructor.id,
-    reviewedById: admin.id,
     reviewedAt,
     equivalenceGroupId: sqlSelectGroup.id,
   });
@@ -481,7 +470,6 @@ async function main() {
     status: "APPROVED",
     topicId: uml.id,
     createdById: instructor.id,
-    reviewedById: admin.id,
     reviewedAt,
   });
 
@@ -555,7 +543,6 @@ async function main() {
     sourceQuestionId: null,
     generatedQuestionId: null,
     reviewStatus: "PENDING",
-    reviewedById: null,
     reviewedAt: null,
   });
 
@@ -576,7 +563,6 @@ async function main() {
     sourceQuestionId: sqlSelectQuestion.id,
     generatedQuestionId: null,
     reviewStatus: "ACCEPTED",
-    reviewedById: admin.id,
     reviewedAt: new Date("2026-05-30T10:00:00.000Z"),
   });
 
@@ -600,7 +586,6 @@ async function main() {
     sourceQuestionId: sqlSelectQuestion.id,
     generatedQuestionId: null,
     reviewStatus: "PENDING",
-    reviewedById: null,
     reviewedAt: null,
   });
 
