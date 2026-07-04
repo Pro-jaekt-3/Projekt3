@@ -21,6 +21,7 @@ import { Route as AppQuestionAnalysisRouteImport } from './routes/app.question-a
 import { Route as AppMyResultsRouteImport } from './routes/app.my-results'
 import { Route as AppMyAssessmentsRouteImport } from './routes/app.my-assessments'
 import { Route as AppLeaderboardRouteImport } from './routes/app.leaderboard'
+import { Route as AppJoinRouteImport } from './routes/app.join'
 import { Route as AppDashboardRouteImport } from './routes/app.dashboard'
 import { Route as AppAnalyticsRouteImport } from './routes/app.analytics'
 import { Route as AppAiReviewRouteImport } from './routes/app.ai-review'
@@ -100,6 +101,11 @@ const AppMyAssessmentsRoute = AppMyAssessmentsRouteImport.update({
 const AppLeaderboardRoute = AppLeaderboardRouteImport.update({
   id: '/leaderboard',
   path: '/leaderboard',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppJoinRoute = AppJoinRouteImport.update({
+  id: '/join',
+  path: '/join',
   getParentRoute: () => AppRoute,
 } as any)
 const AppDashboardRoute = AppDashboardRouteImport.update({
@@ -214,6 +220,7 @@ export interface FileRoutesByFullPath {
   '/app/ai-review': typeof AppAiReviewRoute
   '/app/analytics': typeof AppAnalyticsRoute
   '/app/dashboard': typeof AppDashboardRoute
+  '/app/join': typeof AppJoinRoute
   '/app/leaderboard': typeof AppLeaderboardRoute
   '/app/my-assessments': typeof AppMyAssessmentsRoute
   '/app/my-results': typeof AppMyResultsRoute
@@ -247,6 +254,7 @@ export interface FileRoutesByTo {
   '/app/ai-review': typeof AppAiReviewRoute
   '/app/analytics': typeof AppAnalyticsRoute
   '/app/dashboard': typeof AppDashboardRoute
+  '/app/join': typeof AppJoinRoute
   '/app/leaderboard': typeof AppLeaderboardRoute
   '/app/my-assessments': typeof AppMyAssessmentsRoute
   '/app/my-results': typeof AppMyResultsRoute
@@ -282,6 +290,7 @@ export interface FileRoutesById {
   '/app/ai-review': typeof AppAiReviewRoute
   '/app/analytics': typeof AppAnalyticsRoute
   '/app/dashboard': typeof AppDashboardRoute
+  '/app/join': typeof AppJoinRoute
   '/app/leaderboard': typeof AppLeaderboardRoute
   '/app/my-assessments': typeof AppMyAssessmentsRoute
   '/app/my-results': typeof AppMyResultsRoute
@@ -318,6 +327,7 @@ export interface FileRouteTypes {
     | '/app/ai-review'
     | '/app/analytics'
     | '/app/dashboard'
+    | '/app/join'
     | '/app/leaderboard'
     | '/app/my-assessments'
     | '/app/my-results'
@@ -351,6 +361,7 @@ export interface FileRouteTypes {
     | '/app/ai-review'
     | '/app/analytics'
     | '/app/dashboard'
+    | '/app/join'
     | '/app/leaderboard'
     | '/app/my-assessments'
     | '/app/my-results'
@@ -385,6 +396,7 @@ export interface FileRouteTypes {
     | '/app/ai-review'
     | '/app/analytics'
     | '/app/dashboard'
+    | '/app/join'
     | '/app/leaderboard'
     | '/app/my-assessments'
     | '/app/my-results'
@@ -504,6 +516,13 @@ declare module '@tanstack/react-router' {
       path: '/leaderboard'
       fullPath: '/app/leaderboard'
       preLoaderRoute: typeof AppLeaderboardRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/app/join': {
+      id: '/app/join'
+      path: '/join'
+      fullPath: '/app/join'
+      preLoaderRoute: typeof AppJoinRouteImport
       parentRoute: typeof AppRoute
     }
     '/app/dashboard': {
@@ -668,6 +687,7 @@ interface AppRouteChildren {
   AppAiReviewRoute: typeof AppAiReviewRoute
   AppAnalyticsRoute: typeof AppAnalyticsRoute
   AppDashboardRoute: typeof AppDashboardRoute
+  AppJoinRoute: typeof AppJoinRoute
   AppLeaderboardRoute: typeof AppLeaderboardRoute
   AppMyAssessmentsRoute: typeof AppMyAssessmentsRoute
   AppMyResultsRoute: typeof AppMyResultsRoute
@@ -695,6 +715,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppAiReviewRoute: AppAiReviewRoute,
   AppAnalyticsRoute: AppAnalyticsRoute,
   AppDashboardRoute: AppDashboardRoute,
+  AppJoinRoute: AppJoinRoute,
   AppLeaderboardRoute: AppLeaderboardRoute,
   AppMyAssessmentsRoute: AppMyAssessmentsRoute,
   AppMyResultsRoute: AppMyResultsRoute,

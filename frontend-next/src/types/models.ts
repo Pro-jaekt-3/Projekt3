@@ -20,6 +20,7 @@ import type {
   AttemptStatus,
   QuestionStatus,
   QuestionType,
+  TrainingRole,
   UserRole,
 } from "./enums";
 
@@ -39,11 +40,30 @@ export interface Training {
   id: Id;
   title: string;
   description: string | null;
+  /**
+   * QR self-enrollment token (schema-v2). Returned to ADMIN/owner via
+   * GET /trainings/:id — never render it to participants.
+   */
+  enrollmentToken?: string | null;
   createdAt: ISODateString;
   updatedAt: ISODateString;
   // Relations are NOT included by GET /trainings or GET /trainings/:id.
   topics?: Topic[];
   assessments?: Assessment[];
+}
+
+/**
+ * UserTraining membership row (schema-v2): role INSTRUCTOR = ownership,
+ * role PARTICIPANT = enrollment. `user` is a safe projection (no firebaseUid).
+ */
+export interface UserTraining {
+  id: Id;
+  userId: Id;
+  trainingId: Id;
+  role: TrainingRole;
+  enrolledAt: ISODateString;
+  user?: Pick<User, "id" | "email" | "name" | "role">;
+  training?: Training;
 }
 
 export interface Topic {
