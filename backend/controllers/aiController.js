@@ -851,7 +851,6 @@ const reviewAiInteraction = async (req, res) => {
           where: { id: aiInteractionId },
           data: {
             reviewStatus,
-            reviewedById: reviewerId,
             reviewedAt: new Date(),
             generatedQuestionId: createdQuestion.id,
           },
@@ -863,7 +862,6 @@ const reviewAiInteraction = async (req, res) => {
       return res.json({
         aiInteractionId: updatedInteraction.id,
         reviewStatus: updatedInteraction.reviewStatus,
-        reviewedById: updatedInteraction.reviewedById,
         reviewedAt: updatedInteraction.reviewedAt,
         generatedQuestionId: created.id,
         equivalenceGroupId: created.equivalenceGroupId,
@@ -875,7 +873,6 @@ const reviewAiInteraction = async (req, res) => {
       where: { id: aiInteractionId },
       data: {
         reviewStatus,
-        reviewedById: reviewerId,
         reviewedAt: new Date(),
       },
     });
@@ -883,7 +880,6 @@ const reviewAiInteraction = async (req, res) => {
     res.json({
       aiInteractionId: updatedAiInteraction.id,
       reviewStatus: updatedAiInteraction.reviewStatus,
-      reviewedById: updatedAiInteraction.reviewedById,
       reviewedAt: updatedAiInteraction.reviewedAt,
       generatedQuestionId: updatedAiInteraction.generatedQuestionId,
       message: `AI suggestion ${reviewStatus.toLowerCase()}`,
