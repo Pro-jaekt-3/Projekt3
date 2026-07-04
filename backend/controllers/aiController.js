@@ -15,7 +15,7 @@ const AI_ACTIONS = [
 const AI_REVIEW_STATUSES = ["PENDING", "ACCEPTED", "REJECTED"];
 
 function missingRequiredFields(body) {
-  return ["topic", "learningObjective", "questionType", "difficulty"].filter((field) => {
+  return ["topic", "questionType", "difficulty"].filter((field) => {
     const value = body[field];
     return value === undefined || value === null || String(value).trim() === "";
   });
@@ -60,7 +60,6 @@ function normalizeQuestionType(value) {
 // T3: instruct the model to return STRICT JSON matching the persisted schema.
 function buildQuestionDraftPrompt({
   topic,
-  learningObjective,
   questionType,
   difficulty,
   instructions,
@@ -72,7 +71,6 @@ function buildQuestionDraftPrompt({
     "",
     "Context:",
     `- Topic: ${topic}`,
-    `- Learning objective: ${learningObjective}`,
     `- Requested question type: ${normalizedType}`,
     `- Requested difficulty: ${difficulty}`,
     instructions ? `- Additional instructions: ${instructions}` : null,
@@ -356,13 +354,9 @@ function formatQuestionForPrompt(label, question) {
     `Question type: ${question.type}`,
     `Difficulty: ${question.difficulty}`,
     `Topic: ${question.topic?.name || "None"}`,
-    `Learning objective: ${question.learningObjective?.title || "None"}`,
-    question.learningObjective?.description
-      ? `Learning objective description: ${question.learningObjective.description}`
-      : null,
-    question.equivalentGroup
-      ? `Existing equivalent group: ${question.equivalentGroup.name} (id ${question.equivalentGroup.id})`
-      : "Existing equivalent group: None",
+    question.equivalenceGroup
+      ? `Existing equivalence group: ${question.equivalenceGroup.title ?? "(untitled)"} (id ${question.equivalenceGroup.id})`
+      : "Existing equivalence group: None",
     "Answer options:",
     answerOptions,
   ]
@@ -524,8 +518,7 @@ const suggestQuestionEquivalence = async (req, res) => {
 
     const questionInclude = {
       topic: true,
-      learningObjective: true,
-      equivalentGroup: true,
+      equivalenceGroup: true,
       answerOptions: {
         orderBy: {
           orderIndex: "asc",
@@ -637,8 +630,7 @@ const generateEquivalentQuestion = async (req, res) => {
       where: { id: sourceQuestionId },
       include: {
         topic: true,
-        learningObjective: true,
-        equivalentGroup: true,
+        equivalenceGroup: true,
         answerOptions: { orderBy: { orderIndex: "asc" } },
       },
     });
@@ -692,7 +684,6 @@ const generateEquivalentQuestion = async (req, res) => {
     const draft = {
       ...built.value,
       topicId: sourceQuestion.topicId,
-      learningObjectiveId: sourceQuestion.learningObjectiveId ?? null,
     };
 
     const aiInteraction = await prisma.aiInteraction.create({
@@ -802,6 +793,7 @@ const reviewAiInteraction = async (req, res) => {
       const source = aiInteraction.sourceQuestionId
         ? await prisma.question.findUnique({
             where: { id: aiInteraction.sourceQuestionId },
+            include: { topic: true },
           })
         : null;
 
@@ -815,16 +807,19 @@ const reviewAiInteraction = async (req, res) => {
         // - source already grouped  -> reuse that group.
         // - source ungrouped/deleted -> create a fresh group and (if source
         //   still exists) link the source into it too, so the pair is linked.
-        let groupId = source?.equivalentGroupId ?? null;
+        let groupId = source?.equivalenceGroupId ?? null;
 
         if (!groupId && source) {
-          const group = await tx.equivalentQuestionGroup.create({
-            data: { name: `Equivalent: ${source.title}`.slice(0, 191) },
+          const group = await tx.equivalenceGroup.create({
+            data: {
+              title: `Equivalent: ${source.title}`.slice(0, 191),
+              trainingId: source.topic.trainingId,
+            },
           });
           groupId = group.id;
           await tx.question.update({
             where: { id: source.id },
-            data: { equivalentGroupId: groupId },
+            data: { equivalenceGroupId: groupId },
           });
         }
 
@@ -835,10 +830,9 @@ const reviewAiInteraction = async (req, res) => {
             difficulty: draft.difficulty,
             type: draft.type,
             topicId: draft.topicId,
-            learningObjectiveId: draft.learningObjectiveId ?? null,
             createdById: reviewerId,
             status: "DRAFT",
-            ...(groupId ? { equivalentGroupId: groupId } : {}),
+            ...(groupId ? { equivalenceGroupId: groupId } : {}),
             ...(optionsData.length
               ? {
                   answerOptions: {
@@ -872,7 +866,7 @@ const reviewAiInteraction = async (req, res) => {
         reviewedById: updatedInteraction.reviewedById,
         reviewedAt: updatedInteraction.reviewedAt,
         generatedQuestionId: created.id,
-        equivalentGroupId: created.equivalentGroupId,
+        equivalenceGroupId: created.equivalenceGroupId,
         message: `AI suggestion accepted; equivalent question ${created.id} created as DRAFT`,
       });
     }

@@ -1,3 +1,12 @@
+// SCOPE NOTE (Dev 2 / feat/db-v2-dev2): LearningObjective references removed from this
+// file during Task 2 (LO removal) — this was out of Dev 2 scope. Removed:
+//   - learningObjectiveId filter in buildSubmittedAnswerWhere
+//   - LO include in getSubmittedAnswersWithPoints
+//   - getAnalyticsByLearningObjective handler (+ its export)
+//   - learningObjectivePerformance / strongAreas.learningObjectives /
+//     weakAreas.learningObjectives from getParticipantProfile
+//   - LO include in getQuestionOptionDistribution
+// Dev 3: implement by-topic replacement for getAnalyticsByLearningObjective here.
 const prisma = require("../prisma/client");
 
 const roundToTwo = (value) => Math.round((value + Number.EPSILON) * 100) / 100;
@@ -49,7 +58,6 @@ const parseDifficulty = (value) => {
 const parseAnalyticsFilters = (query = {}) => ({
   trainingId: parsePositiveInt(query.trainingId),
   topicId: parsePositiveInt(query.topicId),
-  learningObjectiveId: parsePositiveInt(query.learningObjectiveId),
   difficulty: parseDifficulty(query.difficulty),
   questionId: parsePositiveInt(query.questionId),
   participantId: parsePositiveInt(query.participantId ?? query.userId),
@@ -81,9 +89,6 @@ const buildSubmittedAnswerWhere = (filters = {}) => {
   const question = {};
   if (filters.topicId) {
     question.topicId = filters.topicId;
-  }
-  if (filters.learningObjectiveId) {
-    question.learningObjectiveId = filters.learningObjectiveId;
   }
   if (filters.difficulty) {
     question.difficulty = filters.difficulty;
@@ -133,12 +138,6 @@ const getSubmittedAnswersWithPoints = async (filters = {}) => {
             select: {
               id: true,
               name: true,
-            },
-          },
-          learningObjective: {
-            select: {
-              id: true,
-              title: true,
             },
           },
         },
@@ -257,25 +256,6 @@ const getAnalyticsByTopic = async (req, res) => {
         topicTitle: answer.question.topic.name,
       })
     ).sort((a, b) => a.topicTitle.localeCompare(b.topicTitle));
-
-    res.json(result);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-};
-
-const getAnalyticsByLearningObjective = async (req, res) => {
-  try {
-    const answers = await getSubmittedAnswersWithPoints(parseAnalyticsFilters(req.query));
-
-    const result = buildGroupedAnalytics(
-      answers,
-      (answer) => answer.question.learningObjective?.id,
-      (answer) => ({
-        learningObjectiveId: answer.question.learningObjective.id,
-        learningObjectiveTitle: answer.question.learningObjective.title,
-      })
-    ).sort((a, b) => a.learningObjectiveTitle.localeCompare(b.learningObjectiveTitle));
 
     res.json(result);
   } catch (error) {
@@ -685,19 +665,6 @@ const getParticipantProfile = async (req, res) => {
       (a, b) => b.correctPercentage - a.correctPercentage || a.topicTitle.localeCompare(b.topicTitle)
     );
 
-    const learningObjectivePerformance = buildMcCorrectnessBreakdown(
-      mcAnswers,
-      (answer) => answer.question.learningObjective?.id,
-      (answer) => ({
-        learningObjectiveId: answer.question.learningObjective.id,
-        learningObjectiveTitle: answer.question.learningObjective.title,
-      })
-    ).sort(
-      (a, b) =>
-        b.correctPercentage - a.correctPercentage ||
-        a.learningObjectiveTitle.localeCompare(b.learningObjectiveTitle)
-    );
-
     res.json({
       user,
       prePost: {
@@ -708,18 +675,11 @@ const getParticipantProfile = async (req, res) => {
       },
       assessments,
       topicPerformance,
-      learningObjectivePerformance,
       strongAreas: {
         topics: topicPerformance.filter((t) => t.correctPercentage >= STRONG_AREA_THRESHOLD),
-        learningObjectives: learningObjectivePerformance.filter(
-          (o) => o.correctPercentage >= STRONG_AREA_THRESHOLD
-        ),
       },
       weakAreas: {
         topics: topicPerformance.filter((t) => t.correctPercentage < WEAK_AREA_THRESHOLD),
-        learningObjectives: learningObjectivePerformance.filter(
-          (o) => o.correctPercentage < WEAK_AREA_THRESHOLD
-        ),
       },
       note: "Strong/weak areas and prePost use SUBMITTED attempts; correctness is computed over MULTIPLE_CHOICE answers only (OPEN/CODE are not auto-graded).",
     });
@@ -995,7 +955,6 @@ const getQuestionOptionDistribution = async (req, res) => {
       include: {
         answerOptions: { orderBy: { orderIndex: "asc" } },
         topic: { select: { id: true, name: true } },
-        learningObjective: { select: { id: true, title: true } },
       },
     });
 
@@ -1041,7 +1000,6 @@ const getQuestionOptionDistribution = async (req, res) => {
       questionType: question.type,
       difficulty: question.difficulty,
       topic: question.topic,
-      learningObjective: question.learningObjective,
       filters: { trainingId, assessmentId },
       totalSubmittedAnswers: total,
       answeredCount,
@@ -1062,7 +1020,6 @@ const getQuestionOptionDistribution = async (req, res) => {
 
 module.exports = {
   getAnalyticsByTopic,
-  getAnalyticsByLearningObjective,
   getAnalyticsByDifficulty,
   getPrePostComparison,
   computePrePostComparison,

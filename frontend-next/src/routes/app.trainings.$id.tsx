@@ -71,7 +71,6 @@ import { useRole } from "@/lib/role-context";
 import { qk } from "@/lib/query-keys";
 import { trainingsService } from "@/services/trainings";
 import { topicsService } from "@/services/topics";
-import { learningObjectivesService } from "@/services/learningObjectives";
 import { questionsService } from "@/services/questions";
 import { usersService } from "@/services/users";
 import { assessmentsService } from "@/services/assessments";
@@ -79,7 +78,7 @@ import { analyticsService } from "@/services/analytics";
 import { userTrainingsService } from "@/services/userTrainings";
 import { trainingToView } from "@/lib/training-view";
 import { ensureRole } from "@/lib/route-guards";
-import type { Topic, LearningObjective, TrainingRole, UserTraining } from "@/types";
+import type { Topic, TrainingRole, UserTraining } from "@/types";
 
 export const Route = createFileRoute("/app/trainings/$id")({
   beforeLoad: ({ context, location }) =>
@@ -159,25 +158,14 @@ function TrainingDetail() {
     onError: (err) => toast.error(err instanceof Error ? err.message : "Failed to delete training"),
   });
 
-  // --- Curriculum: topics + learning objectives (real API) ---
+  // --- Curriculum: topics (real API) ---
   const topicsQuery = useQuery({
     queryKey: qk.topics.list(),
     queryFn: topicsService.list,
   });
-  const objectivesQuery = useQuery({
-    queryKey: qk.learningObjectives.list(),
-    queryFn: () => learningObjectivesService.list(),
-  });
 
   const trainingTopics = (topicsQuery.data ?? []).filter((t) => t.trainingId === Number(id));
   const trainingTopicIds = new Set(trainingTopics.map((t) => t.id));
-  const objectivesByTopic = (objectivesQuery.data ?? [])
-    .filter((o) => trainingTopicIds.has(o.topicId))
-    .reduce<Record<number, LearningObjective[]>>((acc, o) => {
-      (acc[o.topicId] ??= []).push(o);
-      return acc;
-    }, {});
-  const totalObjectives = Object.values(objectivesByTopic).reduce((s, arr) => s + arr.length, 0);
 
   // --- Question Bank tab: questions for this training's topics (real API) ---
   const questionsQuery = useQuery({
@@ -236,7 +224,6 @@ function TrainingDetail() {
   const addableUsers = (usersQuery.data ?? []).filter((u) => !memberUserIds.has(u.id));
 
   const topicsById = new Map(trainingTopics.map((t) => [t.id, t]));
-  const objectivesById = new Map((objectivesQuery.data ?? []).map((o) => [o.id, o]));
   const trainingQuestions = (questionsQuery.data ?? []).filter((q) =>
     trainingTopicIds.has(q.topicId),
   );
@@ -254,15 +241,6 @@ function TrainingDetail() {
   const [editingTopic, setEditingTopic] = useState<Topic | null>(null);
   const [topicName, setTopicName] = useState("");
   const [topicDeleteTarget, setTopicDeleteTarget] = useState<Topic | null>(null);
-
-  const [objectiveDialogOpen, setObjectiveDialogOpen] = useState(false);
-  const [editingObjective, setEditingObjective] = useState<LearningObjective | null>(null);
-  const [objectiveTitle, setObjectiveTitle] = useState("");
-  const [objectiveDescription, setObjectiveDescription] = useState("");
-  const [objectiveTopicId, setObjectiveTopicId] = useState("");
-  const [objectiveDeleteTarget, setObjectiveDeleteTarget] = useState<LearningObjective | null>(
-    null,
-  );
 
   const openCreateTopic = () => {
     setEditingTopic(null);
@@ -297,58 +275,6 @@ function TrainingDetail() {
       setTopicDeleteTarget(null);
     },
     onError: (err) => toast.error(err instanceof Error ? err.message : "Failed to delete topic"),
-  });
-
-  const openCreateObjective = (topicId?: number) => {
-    setEditingObjective(null);
-    setObjectiveTitle("");
-    setObjectiveDescription("");
-    setObjectiveTopicId(topicId ? String(topicId) : (trainingTopics[0]?.id.toString() ?? ""));
-    setObjectiveDialogOpen(true);
-  };
-  const openEditObjective = (objective: LearningObjective) => {
-    setEditingObjective(objective);
-    setObjectiveTitle(objective.title);
-    setObjectiveDescription(objective.description ?? "");
-    setObjectiveTopicId(String(objective.topicId));
-    setObjectiveDialogOpen(true);
-  };
-
-  const objectiveMutation = useMutation({
-    mutationFn: () =>
-      editingObjective
-        ? learningObjectivesService.update(editingObjective.id, {
-            title: objectiveTitle.trim(),
-            description: objectiveDescription.trim() || null,
-            topicId: Number(objectiveTopicId),
-          })
-        : learningObjectivesService.create({
-            title: objectiveTitle.trim(),
-            description: objectiveDescription.trim() || null,
-            topicId: Number(objectiveTopicId),
-          }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: qk.learningObjectives.all });
-      toast.success(editingObjective ? "Learning objective updated" : "Learning objective created");
-      setObjectiveDialogOpen(false);
-    },
-    onError: (err) =>
-      toast.error(err instanceof Error ? err.message : "Failed to save learning objective"),
-  });
-
-  const deleteObjectiveMutation = useMutation({
-    mutationFn: (objectiveId: number) => learningObjectivesService.remove(objectiveId),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: qk.learningObjectives.all });
-      // Question.learningObjectiveId is ON DELETE SET NULL, so deleting this
-      // objective detaches (not blocks) any questions that referenced it —
-      // refresh questions too so the Question Bank tab doesn't show stale data.
-      queryClient.invalidateQueries({ queryKey: qk.questions.all });
-      toast.success("Learning objective deleted");
-      setObjectiveDeleteTarget(null);
-    },
-    onError: (err) =>
-      toast.error(err instanceof Error ? err.message : "Failed to delete learning objective"),
   });
 
   const addMemberMutation = useMutation({
@@ -477,7 +403,6 @@ function TrainingDetail() {
       <div className="space-y-6 p-4 sm:p-6 lg:p-8">
         <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-5">
           <MetricCard label="Participants" value={participantMembers.length} />
-          <MetricCard label="Learning objectives" value={totalObjectives} />
           <MetricCard
             label="Approved questions"
             value={approvedQuestionCount}
@@ -831,37 +756,27 @@ function TrainingDetail() {
                 <Button variant="outline" size="sm" onClick={openCreateTopic}>
                   Add topic
                 </Button>
-                <Button
-                  size="sm"
-                  onClick={() => openCreateObjective()}
-                  disabled={trainingTopics.length === 0}
-                >
-                  <Plus className="mr-1.5 h-4 w-4" /> Add objective
-                </Button>
               </div>
             </div>
 
-            {topicsQuery.isLoading || objectivesQuery.isLoading ? (
+            {topicsQuery.isLoading ? (
               <LoadingState label="Loading curriculum…" />
-            ) : topicsQuery.isError || objectivesQuery.isError ? (
+            ) : topicsQuery.isError ? (
               <ErrorState
                 message={
                   topicsQuery.error instanceof Error
                     ? topicsQuery.error.message
-                    : objectivesQuery.error instanceof Error
-                      ? objectivesQuery.error.message
-                      : "Failed to load curriculum"
+                    : "Failed to load curriculum"
                 }
                 onRetry={() => {
                   topicsQuery.refetch();
-                  objectivesQuery.refetch();
                 }}
               />
             ) : trainingTopics.length === 0 ? (
               <EmptyState
                 icon={<BookOpen className="h-5 w-5" />}
-                title="Define topics and learning objectives"
-                description="Define topics and learning objectives before creating assessment blueprints."
+                title="Define topics"
+                description="Define topics to organize your questions before creating assessments."
                 action={
                   <Button size="sm" onClick={openCreateTopic}>
                     <Plus className="mr-1.5 h-4 w-4" /> Add topic
@@ -870,81 +785,25 @@ function TrainingDetail() {
               />
             ) : (
               <div className="space-y-3">
-                {trainingTopics.map((topic) => {
-                  const objectives = objectivesByTopic[topic.id] ?? [];
-                  return (
-                    <Card key={topic.id}>
-                      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
-                        <div>
-                          <CardTitle className="text-sm">{topic.name}</CardTitle>
-                          <div className="mt-1 text-xs text-muted-foreground">
-                            {objectives.length} objective{objectives.length === 1 ? "" : "s"}
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <Button variant="ghost" size="sm" onClick={() => openEditTopic(topic)}>
-                            <Pencil className="mr-1.5 h-3.5 w-3.5" /> Edit
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => setTopicDeleteTarget(topic)}
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </Button>
-                        </div>
-                      </CardHeader>
-                      <CardContent className="pt-0 space-y-2">
-                        {objectives.length === 0 ? (
-                          <div className="rounded-md border border-dashed bg-surface p-3 text-xs text-muted-foreground">
-                            No learning objectives yet.
-                          </div>
-                        ) : (
-                          <ul className="divide-y rounded-md border">
-                            {objectives.map((o) => (
-                              <li
-                                key={o.id}
-                                className="flex items-center justify-between gap-3 px-3 py-2.5 text-sm"
-                              >
-                                <div className="min-w-0">
-                                  <div className="truncate font-medium">{o.title}</div>
-                                  {o.description && (
-                                    <div className="truncate text-xs text-muted-foreground">
-                                      {o.description}
-                                    </div>
-                                  )}
-                                </div>
-                                <div className="flex items-center gap-1">
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={() => openEditObjective(o)}
-                                  >
-                                    <Pencil className="h-3.5 w-3.5" />
-                                  </Button>
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={() => setObjectiveDeleteTarget(o)}
-                                  >
-                                    <Trash2 className="h-3.5 w-3.5" />
-                                  </Button>
-                                </div>
-                              </li>
-                            ))}
-                          </ul>
-                        )}
+                {trainingTopics.map((topic) => (
+                  <Card key={topic.id}>
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
+                      <CardTitle className="text-sm">{topic.name}</CardTitle>
+                      <div className="flex items-center gap-1">
+                        <Button variant="ghost" size="sm" onClick={() => openEditTopic(topic)}>
+                          <Pencil className="mr-1.5 h-3.5 w-3.5" /> Edit
+                        </Button>
                         <Button
                           variant="ghost"
                           size="sm"
-                          onClick={() => openCreateObjective(topic.id)}
+                          onClick={() => setTopicDeleteTarget(topic)}
                         >
-                          <Plus className="mr-1.5 h-3.5 w-3.5" /> Add objective
+                          <Trash2 className="h-3.5 w-3.5" />
                         </Button>
-                      </CardContent>
-                    </Card>
-                  );
-                })}
+                      </div>
+                    </CardHeader>
+                  </Card>
+                ))}
               </div>
             )}
           </TabsContent>
@@ -1025,7 +884,6 @@ function TrainingDetail() {
                       <TableRow>
                         <TableHead>Question</TableHead>
                         <TableHead className="hidden md:table-cell">Topic</TableHead>
-                        <TableHead className="hidden lg:table-cell">Objective</TableHead>
                         <TableHead className="hidden sm:table-cell">Difficulty</TableHead>
                         <TableHead>Status</TableHead>
                       </TableRow>
@@ -1046,11 +904,6 @@ function TrainingDetail() {
                             </TableCell>
                             <TableCell className="hidden md:table-cell text-xs text-muted-foreground">
                               {topicsById.get(q.topicId)?.name ?? "—"}
-                            </TableCell>
-                            <TableCell className="hidden lg:table-cell text-xs text-muted-foreground">
-                              {q.learningObjectiveId
-                                ? (objectivesById.get(q.learningObjectiveId)?.title ?? "—")
-                                : "—"}
                             </TableCell>
                             <TableCell className="hidden sm:table-cell text-xs">
                               {QUESTION_DIFFICULTY_LABEL[q.difficulty] ?? q.difficulty}
@@ -1430,9 +1283,8 @@ function TrainingDetail() {
           <AlertDialogHeader>
             <AlertDialogTitle>Delete this topic?</AlertDialogTitle>
             <AlertDialogDescription>
-              This permanently deletes “{topicDeleteTarget?.name}”. If it still has learning
-              objectives or questions attached, the server will refuse to delete it — remove those
-              first.
+              This permanently deletes “{topicDeleteTarget?.name}”. If it still has questions
+              attached, the server will refuse to delete it — remove those first.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -1449,88 +1301,6 @@ function TrainingDetail() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-
-      {/* Learning objective create/edit dialog */}
-      <Dialog open={objectiveDialogOpen} onOpenChange={setObjectiveDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>
-              {editingObjective ? "Edit learning objective" : "Add learning objective"}
-            </DialogTitle>
-            <DialogDescription>
-              {editingObjective
-                ? "Update this learning objective."
-                : "Add a learning objective under a topic."}
-            </DialogDescription>
-          </DialogHeader>
-          <form
-            id="objective-form"
-            className="space-y-3"
-            onSubmit={(e) => {
-              e.preventDefault();
-              if (!objectiveTitle.trim()) {
-                toast.error("Title is required");
-                return;
-              }
-              if (!objectiveTopicId) {
-                toast.error("Topic is required");
-                return;
-              }
-              objectiveMutation.mutate();
-            }}
-          >
-            <div className="space-y-1.5">
-              <Label htmlFor="objective-topic">Topic</Label>
-              <Select value={objectiveTopicId} onValueChange={setObjectiveTopicId}>
-                <SelectTrigger id="objective-topic">
-                  <SelectValue placeholder="Select a topic" />
-                </SelectTrigger>
-                <SelectContent>
-                  {trainingTopics.map((t) => (
-                    <SelectItem key={t.id} value={String(t.id)}>
-                      {t.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="objective-title">Title</Label>
-              <Input
-                id="objective-title"
-                value={objectiveTitle}
-                onChange={(e) => setObjectiveTitle(e.target.value)}
-                autoFocus
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="objective-desc">Description</Label>
-              <Textarea
-                id="objective-desc"
-                value={objectiveDescription}
-                onChange={(e) => setObjectiveDescription(e.target.value)}
-                placeholder="Optional"
-              />
-            </div>
-          </form>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setObjectiveDialogOpen(false)}
-              disabled={objectiveMutation.isPending}
-            >
-              Cancel
-            </Button>
-            <Button type="submit" form="objective-form" disabled={objectiveMutation.isPending}>
-              {objectiveMutation.isPending
-                ? "Saving…"
-                : editingObjective
-                  ? "Save changes"
-                  : "Add objective"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
       {/* Add member dialog (UserTraining) — admin picks a user, instructor adds by email */}
       <Dialog open={addMemberOpen} onOpenChange={setAddMemberOpen}>
@@ -1649,35 +1419,6 @@ function TrainingDetail() {
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Learning objective delete confirm */}
-      <AlertDialog
-        open={!!objectiveDeleteTarget}
-        onOpenChange={(open) => !open && setObjectiveDeleteTarget(null)}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete this learning objective?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This permanently deletes “{objectiveDeleteTarget?.title}”. Questions linked to it will
-              be detached (kept, just no longer mapped to this objective), not deleted.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={deleteObjectiveMutation.isPending}>
-              Cancel
-            </AlertDialogCancel>
-            <AlertDialogAction
-              onClick={(e) => {
-                e.preventDefault();
-                if (objectiveDeleteTarget) deleteObjectiveMutation.mutate(objectiveDeleteTarget.id);
-              }}
-              disabled={deleteObjectiveMutation.isPending}
-            >
-              {deleteObjectiveMutation.isPending ? "Deleting…" : "Delete"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </>
   );
 }

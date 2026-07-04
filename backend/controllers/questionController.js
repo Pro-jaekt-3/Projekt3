@@ -1,9 +1,9 @@
 const prisma = require("../prisma/client");
+const { scopedListWhere, isTrainingOwner } = require("../middleware/scopeMiddleware");
 
 const questionInclude = {
   topic: true,
-  learningObjective: true,
-  equivalentGroup: true,
+  equivalenceGroup: true,
   answerOptions: {
     orderBy: { orderIndex: "asc" },
   },
@@ -11,7 +11,13 @@ const questionInclude = {
 
 const getQuestions = async (req, res) => {
   try {
+    const where = scopedListWhere(req.user, "question");
+    if (where === null) {
+      return res.status(403).json({ error: "Forbidden" });
+    }
+
     const questions = await prisma.question.findMany({
+      where,
       include: questionInclude,
     });
 
@@ -49,8 +55,7 @@ const createQuestion = async (req, res) => {
       topicId,
       type,
       options,
-      learningObjectiveId,
-      equivalentGroupId,
+      equivalenceGroupId,
     } = req.body;
 
     const questionType = type || "OPEN";
@@ -75,6 +80,20 @@ const createQuestion = async (req, res) => {
       });
     }
 
+    if (topicId) {
+      const topic = await prisma.topic.findUnique({
+        where: { id: Number(topicId) },
+        select: { trainingId: true },
+      });
+      if (!topic) {
+        return res.status(404).json({ error: "Topic not found" });
+      }
+      const owns = await isTrainingOwner(req.user.id, topic.trainingId);
+      if (!owns) {
+        return res.status(404).json({ error: "Topic not found" });
+      }
+    }
+
     const question = await prisma.question.create({
       data: {
         title,
@@ -83,8 +102,7 @@ const createQuestion = async (req, res) => {
         topicId,
         type: questionType,
         createdById: req.user.id,
-        learningObjectiveId,
-        equivalentGroupId,
+        equivalenceGroupId,
         answerOptions: options
           ? {
               create: options.map((option, index) => ({
@@ -114,8 +132,7 @@ const updateQuestion = async (req, res) => {
       topicId,
       type,
       options,
-      learningObjectiveId,
-      equivalentGroupId,
+      equivalenceGroupId,
     } = req.body;
 
     const existing = await prisma.question.findUnique({
@@ -180,8 +197,7 @@ const updateQuestion = async (req, res) => {
         ...(difficulty !== undefined && { difficulty }),
         ...(topicId !== undefined && { topicId }),
         ...(type !== undefined && { type }),
-        ...(learningObjectiveId !== undefined && { learningObjectiveId }),
-        ...(equivalentGroupId !== undefined && { equivalentGroupId }),
+        ...(equivalenceGroupId !== undefined && { equivalenceGroupId }),
         ...(answerOptionsUpdate ? { answerOptions: answerOptionsUpdate } : {}),
       },
       include: questionInclude,

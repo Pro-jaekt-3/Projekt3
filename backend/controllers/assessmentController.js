@@ -356,7 +356,6 @@ const generateAssessment = async (req, res) => {
       description,
       trainingId,
       topicId,
-      learningObjectiveId,
       difficulty,
       count,
     } = req.body;
@@ -398,9 +397,6 @@ const generateAssessment = async (req, res) => {
         trainingId: Number(trainingId),
       },
       ...(topicId !== undefined && { topicId: Number(topicId) }),
-      ...(learningObjectiveId !== undefined && {
-        learningObjectiveId: Number(learningObjectiveId),
-      }),
       ...(difficultyValue !== undefined && { difficulty: difficultyValue }),
     };
 
@@ -420,7 +416,7 @@ const generateAssessment = async (req, res) => {
     const overflow = [];
 
     for (const question of availableQuestions) {
-      const groupId = question.equivalentGroupId;
+      const groupId = question.equivalenceGroupId;
       if (groupId !== null && groupId !== undefined) {
         if (!selectedGroupIds.has(groupId)) {
           selectedGroupIds.add(groupId);

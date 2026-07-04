@@ -27,7 +27,6 @@ export const qk = {
   // list("mine") = the caller's own memberships (GET /trainings/mine).
   userTrainings: entityKeys("user-trainings"),
   topics: entityKeys("topics"),
-  learningObjectives: entityKeys("learning-objectives"),
   questions: entityKeys("questions"),
   assessments: entityKeys("assessments"),
   assessmentAttempts: entityKeys("assessment-attempts"),

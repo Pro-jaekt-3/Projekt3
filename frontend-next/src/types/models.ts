@@ -72,16 +72,6 @@ export interface Topic {
   trainingId: Id;
   // Included only on endpoints that request them.
   training?: Training;
-  learningObjectives?: LearningObjective[];
-  questions?: Question[];
-}
-
-export interface LearningObjective {
-  id: Id;
-  title: string;
-  description: string | null;
-  topicId: Id;
-  topic?: Topic;
   questions?: Question[];
 }
 
@@ -102,21 +92,19 @@ export interface Question {
   type: QuestionType;
   status: QuestionStatus;
   topicId: Id;
-  learningObjectiveId: Id | null;
   createdById: Id;
-  reviewedById: Id | null;
   reviewedAt: ISODateString | null;
-  equivalentGroupId: Id | null;
+  equivalenceGroupId?: Id | null;
   // Included on detail / assessment includes.
   answerOptions?: AnswerOption[];
   topic?: Topic;
-  learningObjective?: LearningObjective | null;
-  equivalentGroup?: EquivalentQuestionGroup | null;
+  equivalenceGroup?: EquivalenceGroup | null;
 }
 
-export interface EquivalentQuestionGroup {
+export interface EquivalenceGroup {
   id: Id;
-  name: string;
+  trainingId: Id;
+  title: string | null;
   description: string | null;
   createdAt: ISODateString;
   updatedAt: ISODateString;
@@ -203,7 +191,6 @@ export interface AiInteraction {
   sourceQuestionId: Id | null;
   generatedQuestionId: Id | null;
   reviewStatus: AiReviewStatus;
-  reviewedById: Id | null;
   reviewedAt: ISODateString | null;
   createdAt: ISODateString;
   updatedAt: ISODateString;
