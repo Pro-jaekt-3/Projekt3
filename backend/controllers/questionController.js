@@ -256,7 +256,6 @@ const updateQuestionStatus = async (req, res) => {
     };
 
     if (status === "APPROVED" || status === "REJECTED") {
-      data.reviewedById = Number(req.user.id);
       data.reviewedAt = new Date();
     }
 
