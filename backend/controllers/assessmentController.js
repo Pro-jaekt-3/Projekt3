@@ -380,6 +380,151 @@ const validatePairedAssessment = async ({
   return { pairedAssessmentId: parsedPairedAssessmentId };
 };
 
+const buildGenericGeneratedQuestions = (availableQuestions, count) => {
+  const selectedQuestions = [];
+  const selectedGroupIds = new Set();
+  const overflow = [];
+
+  for (const question of availableQuestions) {
+    const groupId = question.equivalenceGroupId;
+    if (groupId !== null && groupId !== undefined) {
+      if (!selectedGroupIds.has(groupId)) {
+        selectedGroupIds.add(groupId);
+        selectedQuestions.push(question);
+      } else {
+        overflow.push(question);
+      }
+    } else {
+      selectedQuestions.push(question);
+    }
+
+    if (selectedQuestions.length >= count) {
+      break;
+    }
+  }
+
+  if (selectedQuestions.length < count) {
+    for (const question of overflow) {
+      selectedQuestions.push(question);
+      if (selectedQuestions.length >= count) {
+        break;
+      }
+    }
+  }
+
+  return selectedQuestions;
+};
+
+const buildPairedPostTestQuestions = async ({
+  pairedAssessmentId,
+  trainingId,
+  topicId,
+  difficultyValue,
+  count,
+}) => {
+  const pairedPreTest = await prisma.assessment.findUnique({
+    where: { id: pairedAssessmentId },
+    include: {
+      questions: {
+        orderBy: { orderIndex: "asc" },
+        include: {
+          question: {
+            include: {
+              topic: true,
+            },
+          },
+        },
+      },
+    },
+  });
+
+  if (!pairedPreTest) {
+    return {
+      error: "Paired assessment not found",
+      status: 404,
+    };
+  }
+
+  const preQuestions = pairedPreTest.questions
+    .map((item) => item.question)
+    .filter(Boolean);
+  const preQuestionIds = preQuestions.map((question) => question.id);
+  const seenGroupIds = new Set();
+  const orderedGroupIds = [];
+
+  for (const question of preQuestions) {
+    const groupId = question.equivalenceGroupId;
+    if (groupId === null || groupId === undefined || seenGroupIds.has(groupId)) {
+      continue;
+    }
+
+    seenGroupIds.add(groupId);
+    orderedGroupIds.push(groupId);
+  }
+
+  if (orderedGroupIds.length === 0) {
+    return {
+      error: "No equivalent approved questions are available for the selected paired PRE_TEST",
+      status: 400,
+    };
+  }
+
+  const candidates = await prisma.question.findMany({
+    where: {
+      status: "APPROVED",
+      equivalenceGroupId: { in: orderedGroupIds },
+      id: { notIn: preQuestionIds },
+      topic: {
+        trainingId: Number(trainingId),
+      },
+      ...(topicId !== undefined && { topicId: Number(topicId) }),
+      ...(difficultyValue !== undefined && { difficulty: difficultyValue }),
+    },
+    orderBy: { id: "asc" },
+  });
+
+  const candidatesByGroupId = new Map();
+  for (const candidate of candidates) {
+    const groupId = candidate.equivalenceGroupId;
+    if (groupId === null || groupId === undefined) {
+      continue;
+    }
+
+    const list = candidatesByGroupId.get(groupId) ?? [];
+    list.push(candidate);
+    candidatesByGroupId.set(groupId, list);
+  }
+
+  const selectedQuestions = [];
+  const usedGroupIds = new Set();
+  const usedQuestionIds = new Set();
+
+  for (const question of preQuestions) {
+    const groupId = question.equivalenceGroupId;
+    if (groupId === null || groupId === undefined || usedGroupIds.has(groupId)) {
+      continue;
+    }
+
+    const candidate = (candidatesByGroupId.get(groupId) ?? []).find(
+      (item) => item.id !== question.id && !usedQuestionIds.has(item.id)
+    );
+
+    if (!candidate) {
+      continue;
+    }
+
+    usedGroupIds.add(groupId);
+    usedQuestionIds.add(candidate.id);
+    selectedQuestions.push(candidate);
+
+    if (selectedQuestions.length >= count) {
+      break;
+    }
+  }
+
+  return { questions: selectedQuestions };
+};
+
 const createAssessment = async (req, res) => {
   try {
     const {
@@ -464,6 +609,8 @@ const generateAssessment = async (req, res) => {
       title,
       description,
       trainingId,
+      type = "QUIZ",
+      pairedAssessmentId,
       topicId,
       difficulty,
       count,
@@ -500,61 +647,69 @@ const generateAssessment = async (req, res) => {
       }
     }
 
-    const questionWhere = {
-      status: "APPROVED",
-      topic: {
-        trainingId: Number(trainingId),
-      },
-      ...(topicId !== undefined && { topicId: Number(topicId) }),
-      ...(difficultyValue !== undefined && { difficulty: difficultyValue }),
-    };
-
-    const availableQuestions = await prisma.question.findMany({
-      where: questionWhere,
-      orderBy: { id: "asc" },
+    const pairingValidation = await validatePairedAssessment({
+      pairedAssessmentId,
+      type,
+      trainingId,
     });
+    if (pairingValidation.error) {
+      return res
+        .status(pairingValidation.status ?? 400)
+        .json({ error: pairingValidation.error });
+    }
 
-    if (availableQuestions.length < parsedCount) {
-      return res.status(400).json({
-        error: `Only ${availableQuestions.length} approved questions match the requested filters`,
+    let selectedQuestions = [];
+
+    if (type === "POST_TEST" && pairingValidation.pairedAssessmentId) {
+      const equivalentSelection = await buildPairedPostTestQuestions({
+        pairedAssessmentId: pairingValidation.pairedAssessmentId,
+        trainingId,
+        topicId,
+        difficultyValue,
+        count: parsedCount,
       });
-    }
 
-    const selectedQuestions = [];
-    const selectedGroupIds = new Set();
-    const overflow = [];
-
-    for (const question of availableQuestions) {
-      const groupId = question.equivalenceGroupId;
-      if (groupId !== null && groupId !== undefined) {
-        if (!selectedGroupIds.has(groupId)) {
-          selectedGroupIds.add(groupId);
-          selectedQuestions.push(question);
-        } else {
-          overflow.push(question);
-        }
-      } else {
-        selectedQuestions.push(question);
+      if (equivalentSelection.error) {
+        return res
+          .status(equivalentSelection.status ?? 400)
+          .json({ error: equivalentSelection.error });
       }
 
-      if (selectedQuestions.length >= parsedCount) {
-        break;
-      }
-    }
+      selectedQuestions = equivalentSelection.questions;
 
-    if (selectedQuestions.length < parsedCount) {
-      for (const question of overflow) {
-        selectedQuestions.push(question);
-        if (selectedQuestions.length >= parsedCount) {
-          break;
-        }
+      if (selectedQuestions.length < parsedCount) {
+        return res.status(400).json({
+          error: `Only ${selectedQuestions.length} approved equivalent questions match the requested filters for the paired PRE_TEST`,
+        });
       }
-    }
+    } else {
+      const questionWhere = {
+        status: "APPROVED",
+        topic: {
+          trainingId: Number(trainingId),
+        },
+        ...(topicId !== undefined && { topicId: Number(topicId) }),
+        ...(difficultyValue !== undefined && { difficulty: difficultyValue }),
+      };
 
-    if (selectedQuestions.length < parsedCount) {
-      return res.status(400).json({
-        error: `Only ${availableQuestions.length} approved questions match the requested filters`,
+      const availableQuestions = await prisma.question.findMany({
+        where: questionWhere,
+        orderBy: { id: "asc" },
       });
+
+      if (availableQuestions.length < parsedCount) {
+        return res.status(400).json({
+          error: `Only ${availableQuestions.length} approved questions match the requested filters`,
+        });
+      }
+
+      selectedQuestions = buildGenericGeneratedQuestions(availableQuestions, parsedCount);
+
+      if (selectedQuestions.length < parsedCount) {
+        return res.status(400).json({
+          error: `Only ${availableQuestions.length} approved questions match the requested filters`,
+        });
+      }
     }
 
     const assessment = await prisma.assessment.create({
@@ -562,8 +717,11 @@ const generateAssessment = async (req, res) => {
         title: title.trim(),
         description,
         trainingId: Number(trainingId),
-        type: "QUIZ",
+        type,
         status: "DRAFT",
+        ...(pairingValidation.pairedAssessmentId !== undefined && {
+          pairedAssessmentId: pairingValidation.pairedAssessmentId,
+        }),
         questions: {
           create: selectedQuestions.slice(0, parsedCount).map((question, index) => ({
             questionId: question.id,
