@@ -68,27 +68,25 @@ const startAttempt = async (req, res) => {
       return res.status(401).json({ error: "Authenticated user is required" });
     }
 
-    const [assessment, participant] = await Promise.all([
-      prisma.assessment.findUnique({
-        where: { id: assessmentId },
-      }),
-      participantId
-        ? prisma.user.findUnique({
-            where: { id: participantId },
-          })
-        : Promise.resolve(null),
-    ]);
+    const assessment = req.enrolledAssessment;
 
-    if (!assessment) {
+    if (!assessment || assessment.id !== assessmentId) {
       return res.status(404).json({ error: "Assessment not found" });
     }
 
-    if (assessment.status !== "PUBLISHED") {
-      return res.status(403).json({ error: "This assessment is not available." });
-    }
+    const existingAttempt = await prisma.assessmentAttempt.findUnique({
+      where: {
+        assessmentId_userId: {
+          assessmentId,
+          userId: participantId,
+        },
+      },
+    });
 
-    if (participantId && !participant) {
-      return res.status(404).json({ error: "Participant not found" });
+    if (existingAttempt) {
+      return res.status(409).json({
+        error: "You already have an attempt for this assessment",
+      });
     }
 
     const attempt = await prisma.assessmentAttempt.create({
