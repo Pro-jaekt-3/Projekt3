@@ -33,6 +33,18 @@ const parseId = (value) => {
   return parsed;
 };
 
+const parseOptionalId = (value) => {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  if (value === null || value === "") {
+    return null;
+  }
+
+  return parseId(value);
+};
+
 const normalizeQuestionItems = (questions) => {
   return questions.map((item, index) => {
     if (typeof item === "number") {
@@ -292,9 +304,92 @@ const validateQuestions = async (questionItems, trainingId) => {
   return { questionItems, questionIds: uniqueQuestionIds };
 };
 
+const validatePairedAssessment = async ({
+  pairedAssessmentId,
+  type,
+  trainingId,
+  assessmentId,
+}) => {
+  const parsedTrainingId = parseId(trainingId);
+
+  if (!parsedTrainingId) {
+    return { status: 400, error: "trainingId is required" };
+  }
+
+  if (type !== "POST_TEST") {
+    if (pairedAssessmentId !== null && pairedAssessmentId !== undefined) {
+      return {
+        status: 400,
+        error: "Only POST_TEST assessments can use pairedAssessmentId",
+      };
+    }
+
+    return { pairedAssessmentId: null };
+  }
+
+  if (pairedAssessmentId === undefined || pairedAssessmentId === null) {
+    return { pairedAssessmentId: pairedAssessmentId ?? null };
+  }
+
+  const parsedPairedAssessmentId = parseOptionalId(pairedAssessmentId);
+
+  if (!parsedPairedAssessmentId) {
+    return {
+      status: 400,
+      error: "pairedAssessmentId must be a positive integer",
+    };
+  }
+
+  if (assessmentId && parsedPairedAssessmentId === assessmentId) {
+    return {
+      status: 400,
+      error: "Assessment cannot be paired with itself",
+    };
+  }
+
+  const pairedAssessment = await prisma.assessment.findUnique({
+    where: { id: parsedPairedAssessmentId },
+    select: {
+      id: true,
+      trainingId: true,
+      type: true,
+    },
+  });
+
+  if (!pairedAssessment) {
+    return {
+      status: 404,
+      error: "Paired assessment not found",
+    };
+  }
+
+  if (pairedAssessment.trainingId !== parsedTrainingId) {
+    return {
+      status: 400,
+      error: "Paired assessment must belong to the same training",
+    };
+  }
+
+  if (pairedAssessment.type !== "PRE_TEST") {
+    return {
+      status: 400,
+      error: "POST_TEST assessments can only be paired with PRE_TEST assessments",
+    };
+  }
+
+  return { pairedAssessmentId: parsedPairedAssessmentId };
+};
+
 const createAssessment = async (req, res) => {
   try {
-    const { title, description, trainingId, type = "QUIZ", questions } = req.body;
+    const {
+      title,
+      description,
+      trainingId,
+      type = "QUIZ",
+      questions,
+      pairedAssessmentId,
+    } = req.body;
 
     if (!title || !title.trim()) {
       return res.status(400).json({ error: "Title is required" });
@@ -314,6 +409,17 @@ const createAssessment = async (req, res) => {
       return res.status(400).json({ error: validation.error });
     }
 
+    const pairingValidation = await validatePairedAssessment({
+      pairedAssessmentId,
+      type,
+      trainingId,
+    });
+    if (pairingValidation.error) {
+      return res
+        .status(pairingValidation.status ?? 400)
+        .json({ error: pairingValidation.error });
+    }
+
     const assessment = await prisma.assessment.create({
       data: {
         title: title.trim(),
@@ -321,6 +427,9 @@ const createAssessment = async (req, res) => {
         trainingId: Number(trainingId),
         type,
         status: "DRAFT",
+        ...(pairingValidation.pairedAssessmentId !== undefined && {
+          pairedAssessmentId: pairingValidation.pairedAssessmentId,
+        }),
         questions: {
           create: questionItems.map((item) => ({
             questionId: item.questionId,
@@ -483,7 +592,7 @@ const generateAssessment = async (req, res) => {
 const updateAssessment = async (req, res) => {
   try {
     const { id } = req.params;
-    const { title, description, trainingId, type, questions } = req.body;
+    const { title, description, trainingId, type, questions, pairedAssessmentId } = req.body;
 
     const existing = await prisma.assessment.findUnique({
       where: { id: Number(id) },
@@ -520,6 +629,9 @@ const updateAssessment = async (req, res) => {
 
     const effectiveTrainingId =
       trainingId !== undefined ? Number(trainingId) : existing.trainingId;
+    const effectiveType = type !== undefined ? type : existing.type;
+    const effectivePairedAssessmentId =
+      pairedAssessmentId !== undefined ? pairedAssessmentId : existing.pairedAssessmentId;
 
     let questionUpdate = undefined;
     if (questions !== undefined) {
@@ -553,6 +665,18 @@ const updateAssessment = async (req, res) => {
       }
     }
 
+    const pairingValidation = await validatePairedAssessment({
+      pairedAssessmentId: effectivePairedAssessmentId,
+      type: effectiveType,
+      trainingId: effectiveTrainingId,
+      assessmentId: existing.id,
+    });
+    if (pairingValidation.error) {
+      return res
+        .status(pairingValidation.status ?? 400)
+        .json({ error: pairingValidation.error });
+    }
+
     const assessment = await prisma.assessment.update({
       where: { id: Number(id) },
       data: {
@@ -560,6 +684,9 @@ const updateAssessment = async (req, res) => {
         ...(description !== undefined && { description }),
         ...(trainingId !== undefined && { trainingId: Number(trainingId) }),
         ...(type !== undefined && { type }),
+        ...(pairedAssessmentId !== undefined || existing.pairedAssessmentId !== null
+          ? { pairedAssessmentId: pairingValidation.pairedAssessmentId ?? null }
+          : {}),
         ...(questionUpdate ? { questions: questionUpdate } : {}),
       },
       include: {
