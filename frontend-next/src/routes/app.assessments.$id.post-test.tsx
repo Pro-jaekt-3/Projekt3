@@ -39,12 +39,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { assessmentsService } from "@/services/assessments";
 import { topicsService } from "@/services/topics";
-import { learningObjectivesService } from "@/services/learningObjectives";
 import { questionsService } from "@/services/questions";
 import { qk } from "@/lib/query-keys";
 import { cn } from "@/lib/utils";
 import { ensureRole } from "@/lib/route-guards";
-import type { Assessment, AssessmentStatus, LearningObjective, Question, Topic } from "@/types";
+import type { Assessment, AssessmentStatus, Question, Topic } from "@/types";
 
 export const Route = createFileRoute("/app/assessments/$id/post-test")({
   beforeLoad: ({ context, location }) =>
@@ -104,7 +103,6 @@ function PostTestWizard() {
     description:
       "Follow-up assessment using approved same-training questions for comparable post-test review.",
     topicId: "all",
-    learningObjectiveId: "all",
     difficulty: "any" as "any" | "easy" | "medium" | "hard",
     count: 0,
   });
@@ -121,10 +119,6 @@ function PostTestWizard() {
     queryKey: qk.topics.list(),
     queryFn: topicsService.list,
   });
-  const objectivesQuery = useQuery({
-    queryKey: qk.learningObjectives.list(),
-    queryFn: () => learningObjectivesService.list(),
-  });
   const questionsQuery = useQuery({
     queryKey: qk.questions.list(),
     queryFn: questionsService.list,
@@ -134,20 +128,17 @@ function PostTestWizard() {
     relatedAssessmentQuery.isLoading ||
     assessmentsQuery.isLoading ||
     topicsQuery.isLoading ||
-    objectivesQuery.isLoading ||
     questionsQuery.isLoading;
   const dataError =
     relatedAssessmentQuery.error ??
     assessmentsQuery.error ??
     topicsQuery.error ??
-    objectivesQuery.error ??
     questionsQuery.error ??
     null;
 
   const allAssessments = assessmentsQuery.data ?? [];
   const preTests = allAssessments.filter((assessment) => assessment.type === "PRE_TEST");
   const topics = topicsQuery.data ?? [];
-  const objectives = objectivesQuery.data ?? [];
   const questionsCatalog = questionsQuery.data ?? [];
   const questionById = useMemo(
     () => new Map(questionsCatalog.map((question) => [question.id, question])),
@@ -173,13 +164,6 @@ function PostTestWizard() {
     () => new Set(trainingTopics.map((topic) => topic.id)),
     [trainingTopics],
   );
-  const visibleObjectives = useMemo(() => {
-    if (!selectedPre) return [];
-    if (config.topicId === "all") {
-      return objectives.filter((objective) => trainingTopicIds.has(objective.topicId));
-    }
-    return objectives.filter((objective) => objective.topicId === Number(config.topicId));
-  }, [objectives, trainingTopicIds, selectedPre, config.topicId]);
   const approvedTrainingQuestions = useMemo(
     () =>
       questionsCatalog.filter(
@@ -193,34 +177,34 @@ function PostTestWizard() {
       .map((item) => questionById.get(item.questionId) ?? item.question)
       .filter((question): question is Question => Boolean(question));
   }, [selectedPre, questionById]);
-  const groupedVariants = useMemo(() => {
+  const variantOptionsByEquivalenceGroupId = useMemo(() => {
     const byGroup = new Map<number, Question[]>();
     for (const question of approvedTrainingQuestions) {
-      if (!question.equivalentGroupId) continue;
-      const list = byGroup.get(question.equivalentGroupId) ?? [];
+      if (!question.equivalenceGroupId) continue;
+      const list = byGroup.get(question.equivalenceGroupId) ?? [];
       list.push(question);
-      byGroup.set(question.equivalentGroupId, list);
+      byGroup.set(question.equivalenceGroupId, list);
     }
     return byGroup;
   }, [approvedTrainingQuestions]);
-  const variantCandidatesByQuestionId = useMemo(() => {
+  const equivalentVariantByPreQuestionId = useMemo(() => {
     const map = new Map<number, Question | null>();
     for (const question of preQuestions) {
-      if (!question.equivalentGroupId) {
+      if (!question.equivalenceGroupId) {
         map.set(question.id, null);
         continue;
       }
       const candidate =
-        groupedVariants
-          .get(question.equivalentGroupId)
+        variantOptionsByEquivalenceGroupId
+          .get(question.equivalenceGroupId)
           ?.find((item) => item.id !== question.id && item.status === "APPROVED") ?? null;
       map.set(question.id, candidate);
     }
     return map;
-  }, [groupedVariants, preQuestions]);
-  const missingVariantQuestions = useMemo(
-    () => preQuestions.filter((question) => !variantCandidatesByQuestionId.get(question.id)),
-    [preQuestions, variantCandidatesByQuestionId],
+  }, [variantOptionsByEquivalenceGroupId, preQuestions]);
+  const preQuestionsMissingEquivalenceVariant = useMemo(
+    () => preQuestions.filter((question) => !equivalentVariantByPreQuestionId.get(question.id)),
+    [preQuestions, equivalentVariantByPreQuestionId],
   );
 
   useEffect(() => {
@@ -237,19 +221,11 @@ function PostTestWizard() {
   }, [selectedPre, preQuestions.length, approvedTrainingQuestions.length]);
 
   useEffect(() => {
-    if (config.learningObjectiveId === "all") return;
-    if (visibleObjectives.some((objective) => String(objective.id) === config.learningObjectiveId)) {
-      return;
-    }
-    setConfig((current) => ({ ...current, learningObjectiveId: "all" }));
-  }, [visibleObjectives, config.learningObjectiveId]);
-
-  useEffect(() => {
     setGeneratedAssessment(null);
     setGeneratedSignature(null);
     setReviewed({});
     setActionError(null);
-  }, [selectedPreId, config.topicId, config.learningObjectiveId, config.difficulty, config.count, config.title, config.description]);
+  }, [selectedPreId, config.topicId, config.difficulty, config.count, config.title, config.description]);
 
   const generationSignature = selectedPre
     ? buildGenerationSignature({
@@ -257,7 +233,6 @@ function PostTestWizard() {
         title: config.title,
         description: config.description,
         topicId: config.topicId,
-        learningObjectiveId: config.learningObjectiveId,
         difficulty: config.difficulty,
         count: config.count,
       })
@@ -281,20 +256,13 @@ function PostTestWizard() {
         title: config.title.trim(),
         description: config.description.trim() || null,
         trainingId: selectedPre.trainingId,
+        type: "POST_TEST",
+        pairedAssessmentId: selectedPre.id,
         topicId: config.topicId !== "all" ? Number(config.topicId) : undefined,
-        learningObjectiveId:
-          config.learningObjectiveId !== "all" ? Number(config.learningObjectiveId) : undefined,
         difficulty: config.difficulty === "any" ? undefined : config.difficulty,
         count: config.count,
       });
-
-      const updated = await assessmentsService.update(generated.id, {
-        title: config.title.trim(),
-        description: config.description.trim() || null,
-        type: "POST_TEST",
-      });
-
-      return updated;
+      return generated;
     },
     onSuccess: (generated) => {
       queryClient.invalidateQueries({ queryKey: qk.assessments.all });
@@ -402,7 +370,6 @@ function PostTestWizard() {
           relatedAssessmentQuery.refetch();
           assessmentsQuery.refetch();
           topicsQuery.refetch();
-          objectivesQuery.refetch();
           questionsQuery.refetch();
         }}
       />
@@ -427,7 +394,9 @@ function PostTestWizard() {
     { ok: generatedAssessment !== null, label: "Draft generated from approved same-training questions" },
     { ok: config.count > 0, label: "Question count defined" },
     {
-      ok: missingVariantQuestions.every((question) => reviewed[String(question.id)] === "approved"),
+      ok: preQuestionsMissingEquivalenceVariant.every(
+        (question) => reviewed[String(question.id)] === "approved",
+      ),
       label: "Missing variants reviewed",
     },
     { ok: true, label: "Publish remains a separate explicit step" },
@@ -566,7 +535,6 @@ function PostTestWizard() {
                         setConfig((current) => ({
                           ...current,
                           topicId: value,
-                          learningObjectiveId: "all",
                         }))
                       }
                     >
@@ -578,26 +546,6 @@ function PostTestWizard() {
                         {trainingTopics.map((topic) => (
                           <SelectItem key={topic.id} value={String(topic.id)}>
                             {topic.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </Field>
-                  <Field label="Learning objective focus">
-                    <Select
-                      value={config.learningObjectiveId}
-                      onValueChange={(value) =>
-                        setConfig((current) => ({ ...current, learningObjectiveId: value }))
-                      }
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">All learning objectives</SelectItem>
-                        {visibleObjectives.map((objective) => (
-                          <SelectItem key={objective.id} value={String(objective.id)}>
-                            {objective.title}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -657,7 +605,7 @@ function PostTestWizard() {
                   </TableHeader>
                   <TableBody>
                     {preQuestions.map((question) => {
-                      const candidate = variantCandidatesByQuestionId.get(question.id) ?? null;
+                      const candidate = equivalentVariantByPreQuestionId.get(question.id) ?? null;
                       return (
                         <TableRow key={question.id}>
                           <TableCell className="max-w-xs">
@@ -759,9 +707,9 @@ function PostTestWizard() {
                       </div>
                     </div>
 
-                    {missingVariantQuestions.length > 0 && (
+                    {preQuestionsMissingEquivalenceVariant.length > 0 && (
                       <div className="space-y-3">
-                        {missingVariantQuestions.map((question) => (
+                        {preQuestionsMissingEquivalenceVariant.map((question) => (
                           <div key={question.id} className="rounded-md border bg-card">
                             <div className="grid gap-4 p-4 md:grid-cols-2">
                               <div>
@@ -1096,7 +1044,6 @@ function buildGenerationSignature({
   title,
   description,
   topicId,
-  learningObjectiveId,
   difficulty,
   count,
 }: {
@@ -1104,7 +1051,6 @@ function buildGenerationSignature({
   title: string;
   description: string;
   topicId: string;
-  learningObjectiveId: string;
   difficulty: string;
   count: number;
 }) {
@@ -1113,7 +1059,6 @@ function buildGenerationSignature({
     title: title.trim(),
     description: description.trim(),
     topicId,
-    learningObjectiveId,
     difficulty,
     count,
   });

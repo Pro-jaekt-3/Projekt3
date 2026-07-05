@@ -25,10 +25,9 @@ import { qk } from "@/lib/query-keys";
 import { assessmentsService } from "@/services/assessments";
 import { trainingsService } from "@/services/trainings";
 import { topicsService } from "@/services/topics";
-import { learningObjectivesService } from "@/services/learningObjectives";
 import { questionsService } from "@/services/questions";
 import { cn } from "@/lib/utils";
-import type { AssessmentType, LearningObjective, Question, Topic, Training } from "@/types";
+import type { AssessmentType, Question, Topic, Training } from "@/types";
 import { ensureRole } from "@/lib/route-guards";
 
 export const Route = createFileRoute("/app/assessments/new")({
@@ -60,10 +59,6 @@ function CreateAssessmentWizard() {
     queryKey: qk.topics.list(),
     queryFn: topicsService.list,
   });
-  const objectivesQuery = useQuery({
-    queryKey: qk.learningObjectives.list(),
-    queryFn: () => learningObjectivesService.list(),
-  });
   const questionsQuery = useQuery({
     queryKey: qk.questions.list(),
     queryFn: questionsService.list,
@@ -76,7 +71,6 @@ function CreateAssessmentWizard() {
     type: "Pre-test",
     trainingId: trainingId ?? "",
     topicIds: [] as string[],
-    learningObjectiveId: "all",
     generationDifficulty: "any" as "any" | "easy" | "medium" | "hard",
     difficulty: { easy: 40, medium: 40, hard: 20 },
     questionCount: 8,
@@ -85,7 +79,6 @@ function CreateAssessmentWizard() {
 
   const trainings = trainingsQuery.data ?? [];
   const topics = topicsQuery.data ?? [];
-  const objectives = objectivesQuery.data ?? [];
   const questions = questionsQuery.data ?? [];
   const selectedTrainingId = Number(form.trainingId);
 
@@ -116,11 +109,6 @@ function CreateAssessmentWizard() {
       ),
     [trainingQuestions, form.selectedQuestionIds],
   );
-  const visibleObjectives = useMemo(() => {
-    if (form.topicIds.length === 0) return [];
-    const selectedTopicIds = new Set(form.topicIds.map((id) => Number(id)));
-    return objectives.filter((objective) => selectedTopicIds.has(objective.topicId));
-  }, [objectives, form.topicIds]);
   const topicQuestionCounts = useMemo(() => {
     const counts = new Map<number, number>();
     for (const question of questions) {
@@ -143,15 +131,13 @@ function CreateAssessmentWizard() {
     if (trainingTopics.length === 0) {
       if (
         form.topicIds.length === 0 &&
-        form.selectedQuestionIds.length === 0 &&
-        form.learningObjectiveId === "all"
+        form.selectedQuestionIds.length === 0
       ) {
         return;
       }
       setForm((current) => ({
         ...current,
         topicIds: [],
-        learningObjectiveId: "all",
         selectedQuestionIds: [],
       }));
       return;
@@ -170,20 +156,10 @@ function CreateAssessmentWizard() {
         .map((question) => String(question.id)),
     );
     const nextSelectedQuestionIds = form.selectedQuestionIds.filter((id) => validQuestionIds.has(id));
-    const validObjectiveIds = new Set(
-      objectives
-        .filter((objective) => resolvedTopicIdSet.has(objective.topicId))
-        .map((objective) => String(objective.id)),
-    );
-    const nextLearningObjectiveId =
-      form.learningObjectiveId === "all" || validObjectiveIds.has(form.learningObjectiveId)
-        ? form.learningObjectiveId
-        : "all";
 
     if (
       arraysEqual(resolvedTopicIds, form.topicIds) &&
-      arraysEqual(nextSelectedQuestionIds, form.selectedQuestionIds) &&
-      nextLearningObjectiveId === form.learningObjectiveId
+      arraysEqual(nextSelectedQuestionIds, form.selectedQuestionIds)
     ) {
       return;
     }
@@ -191,17 +167,9 @@ function CreateAssessmentWizard() {
     setForm((current) => ({
       ...current,
       topicIds: resolvedTopicIds,
-      learningObjectiveId: nextLearningObjectiveId,
       selectedQuestionIds: nextSelectedQuestionIds,
     }));
-  }, [
-    trainingTopics,
-    questions,
-    objectives,
-    form.topicIds,
-    form.selectedQuestionIds,
-    form.learningObjectiveId,
-  ]);
+  }, [trainingTopics, questions, form.topicIds, form.selectedQuestionIds]);
 
   const createMutation = useMutation({
     mutationFn: () =>
@@ -233,15 +201,12 @@ function CreateAssessmentWizard() {
     mutationFn: async () => {
       const singleTopicId =
         form.topicIds.length === 1 ? Number(form.topicIds[0]) : undefined;
-      const learningObjectiveId =
-        form.learningObjectiveId !== "all" ? Number(form.learningObjectiveId) : undefined;
 
       return assessmentsService.generate({
         title: form.title.trim(),
         description: form.description.trim() || null,
         trainingId: selectedTrainingId,
         topicId: singleTopicId,
-        learningObjectiveId,
         difficulty:
           form.generationDifficulty === "any" ? undefined : form.generationDifficulty,
         count: form.questionCount,
@@ -307,12 +272,10 @@ function CreateAssessmentWizard() {
   const loading =
     trainingsQuery.isLoading ||
     topicsQuery.isLoading ||
-    objectivesQuery.isLoading ||
     questionsQuery.isLoading;
   const dataError =
     trainingsQuery.error ??
     topicsQuery.error ??
-    objectivesQuery.error ??
     questionsQuery.error ??
     null;
 
@@ -358,7 +321,6 @@ function CreateAssessmentWizard() {
           onRetry={() => {
             trainingsQuery.refetch();
             topicsQuery.refetch();
-            objectivesQuery.refetch();
             questionsQuery.refetch();
           }}
         />
@@ -435,7 +397,6 @@ function CreateAssessmentWizard() {
                 form={form}
                 setForm={setForm}
                 topics={trainingTopics}
-                objectives={visibleObjectives}
                 topicQuestionCounts={topicQuestionCounts}
               />
             )}
@@ -543,7 +504,6 @@ type AssessmentFormState = {
   type: "Pre-test" | "Post-test" | "Regular test" | "Practice";
   trainingId: string;
   topicIds: string[];
-  learningObjectiveId: string;
   generationDifficulty: "any" | "easy" | "medium" | "hard";
   difficulty: { easy: number; medium: number; hard: number };
   questionCount: number;
@@ -621,13 +581,11 @@ function Step2({
   form,
   setForm,
   topics,
-  objectives,
   topicQuestionCounts,
 }: {
   form: AssessmentFormState;
   setForm: React.Dispatch<React.SetStateAction<AssessmentFormState>>;
   topics: Topic[];
-  objectives: LearningObjective[];
   topicQuestionCounts: Map<number, number>;
 }) {
   const toggleTopic = (id: string) => {
@@ -709,24 +667,6 @@ function Step2({
         </Field>
 
         <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Learning objective filter">
-            <Select
-              value={form.learningObjectiveId}
-              onValueChange={(value) => setForm({ ...form, learningObjectiveId: value })}
-            >
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All learning objectives</SelectItem>
-                {objectives.map((objective) => (
-                  <SelectItem key={objective.id} value={String(objective.id)}>
-                    {objective.title}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </Field>
           <Field label="AI generation difficulty">
             <Select
               value={form.generationDifficulty}
@@ -859,16 +799,14 @@ function Step3({
                     <div className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
                       <span>{q.topic?.name ?? "—"}</span>
                       <span>·</span>
-                      <span>{q.learningObjective?.title ?? "No objective"}</span>
-                      <span>·</span>
                       <span>{difficultyLabel(q.difficulty)}</span>
                     </div>
                   </div>
                   <div className="flex shrink-0 flex-col items-end gap-1">
                     <StatusBadge status="Approved" />
-                    {q.equivalentGroup && (
+                    {q.equivalenceGroup && (
                       <span className="text-[10px] text-muted-foreground">
-                        Group: {q.equivalentGroup.name}
+                        Group: {q.equivalenceGroup.title ?? "Untitled group"}
                       </span>
                     )}
                   </div>
@@ -1015,4 +953,3 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
     </div>
   );
 }
-
