@@ -21,7 +21,6 @@ import { analyticsService } from "@/services/analytics";
 import type {
   ParticipantProfile,
   ParticipantTopicPerformance,
-  ParticipantObjectivePerformance,
 } from "@/services/analytics";
 import { ensureRole } from "@/lib/route-guards";
 import { analyticsSearchSchema } from "@/lib/analytics-filters";
@@ -32,7 +31,7 @@ export const Route = createFileRoute("/app/participants/$userId")({
   // these params, so the page reads them purely to preserve the back-link.
   validateSearch: analyticsSearchSchema,
   beforeLoad: ({ context, location }) =>
-    ensureRole({ auth: context.auth, href: location.href }, ["admin", "instructor"]),
+    ensureRole({ auth: context.auth, href: location.href }, ["instructor"]),
   component: ParticipantProfilePage,
 });
 
@@ -247,7 +246,6 @@ function ProfileBody({ profile }: { profile: ParticipantProfile }) {
           title="Strong areas"
           icon={<TrendingUp className="h-4 w-4 text-emerald-600" />}
           topics={profile.strongAreas.topics}
-          objectives={profile.strongAreas.learningObjectives}
           emptyLabel="No strong areas yet (≥ 70% correct on multiple-choice)."
           tone="positive"
         />
@@ -255,7 +253,6 @@ function ProfileBody({ profile }: { profile: ParticipantProfile }) {
           title="Weak areas"
           icon={<TrendingDown className="h-4 w-4 text-rose-600" />}
           topics={profile.weakAreas.topics}
-          objectives={profile.weakAreas.learningObjectives}
           emptyLabel="No weak areas yet (< 50% correct on multiple-choice)."
           tone="negative"
         />
@@ -270,18 +267,16 @@ function AreaCard({
   title,
   icon,
   topics,
-  objectives,
   emptyLabel,
   tone,
 }: {
   title: string;
   icon: React.ReactNode;
   topics: ParticipantTopicPerformance[];
-  objectives: ParticipantObjectivePerformance[];
   emptyLabel: string;
   tone: "positive" | "negative";
 }) {
-  const isEmpty = topics.length === 0 && objectives.length === 0;
+  const isEmpty = topics.length === 0;
   const valueClass = tone === "positive" ? "text-emerald-600" : "text-rose-600";
 
   return (
@@ -299,30 +294,16 @@ function AreaCard({
           </div>
         ) : (
           <div className="space-y-4">
-            {topics.length > 0 && (
-              <AreaList
-                label="Topics"
-                items={topics.map((t) => ({
-                  id: t.topicId,
-                  title: t.topicTitle,
-                  percentage: t.correctPercentage,
-                  answerCount: t.answerCount,
-                }))}
-                valueClass={valueClass}
-              />
-            )}
-            {objectives.length > 0 && (
-              <AreaList
-                label="Learning objectives"
-                items={objectives.map((o) => ({
-                  id: o.learningObjectiveId,
-                  title: o.learningObjectiveTitle,
-                  percentage: o.correctPercentage,
-                  answerCount: o.answerCount,
-                }))}
-                valueClass={valueClass}
-              />
-            )}
+            <AreaList
+              label="Topics"
+              items={topics.map((t) => ({
+                id: t.topicId,
+                title: t.topicTitle,
+                percentage: t.correctPercentage,
+                answerCount: t.answerCount,
+              }))}
+              valueClass={valueClass}
+            />
           </div>
         )}
       </CardContent>

@@ -12,7 +12,6 @@ import { Button } from "@/components/ui/button";
 import { qk } from "@/lib/query-keys";
 import { trainingsService } from "@/services/trainings";
 import { topicsService } from "@/services/topics";
-import { learningObjectivesService } from "@/services/learningObjectives";
 import {
   DIFFICULTY_OPTIONS,
   EMPTY_ANALYTICS_SEARCH,
@@ -21,7 +20,7 @@ import {
 } from "@/lib/analytics-filters";
 import { cn } from "@/lib/utils";
 
-// Shared analytics filter bar (training / topic / objective / difficulty).
+// Shared analytics filter bar (training / topic / difficulty).
 // Stateless: the current selection comes in via `value` and every change is
 // pushed back through `onChange` (the page keeps the truth in the URL search).
 // Selecting a parent narrows and resets its children so the query stays valid.
@@ -57,10 +56,6 @@ export function FilterBar({ value, onChange, className }: FilterBarProps) {
     queryKey: qk.topics.list(),
     queryFn: topicsService.list,
   });
-  const objectives = useQuery({
-    queryKey: qk.learningObjectives.list(),
-    queryFn: () => learningObjectivesService.list(),
-  });
 
   // Cascading option sets: when a parent is chosen, only show its children.
   const topicOptions = useMemo(() => {
@@ -70,30 +65,15 @@ export function FilterBar({ value, onChange, className }: FilterBarProps) {
       : all.filter((t) => t.trainingId === value.trainingId);
   }, [topics.data, value.trainingId]);
 
-  const objectiveOptions = useMemo(() => {
-    const all = objectives.data ?? [];
-    if (value.topicId !== undefined) return all.filter((o) => o.topicId === value.topicId);
-    if (value.trainingId !== undefined) {
-      const topicIds = new Set(topicOptions.map((t) => t.id));
-      return all.filter((o) => topicIds.has(o.topicId));
-    }
-    return all;
-  }, [objectives.data, value.topicId, value.trainingId, topicOptions]);
-
   const setTraining = (raw: string) =>
-    // Reset topic + objective: they may no longer belong to the new training.
+    // Reset topic: it may no longer belong to the new training.
     onChange({
       ...value,
       trainingId: fromValue(raw),
       topicId: undefined,
-      learningObjectiveId: undefined,
     });
 
-  const setTopic = (raw: string) =>
-    // Reset objective: it may no longer belong to the new topic.
-    onChange({ ...value, topicId: fromValue(raw), learningObjectiveId: undefined });
-
-  const setObjective = (raw: string) => onChange({ ...value, learningObjectiveId: fromValue(raw) });
+  const setTopic = (raw: string) => onChange({ ...value, topicId: fromValue(raw) });
 
   const setDifficulty = (raw: string) => onChange({ ...value, difficulty: fromValue(raw) });
 
@@ -144,22 +124,6 @@ export function FilterBar({ value, onChange, className }: FilterBarProps) {
               {topicOptions.map((t) => (
                 <SelectItem key={t.id} value={String(t.id)}>
                   {t.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </FilterField>
-
-        <FilterField label="Learning objective">
-          <Select value={toValue(value.learningObjectiveId)} onValueChange={setObjective}>
-            <SelectTrigger>
-              <SelectValue placeholder="All objectives" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={ALL}>All objectives</SelectItem>
-              {objectiveOptions.map((o) => (
-                <SelectItem key={o.id} value={String(o.id)}>
-                  {o.title}
                 </SelectItem>
               ))}
             </SelectContent>
