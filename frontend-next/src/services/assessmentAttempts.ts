@@ -9,9 +9,11 @@ import type { AssessmentAttempt, Question } from "@/types";
 //   POST /assessment-attempts/start       -> AssessmentAttempt (201)
 //   POST /assessment-attempts/:id/submit  -> AssessmentAttempt
 //   GET  /assessment-attempts/:id         -> AssessmentAttempt
+//   PATCH /assessment-attempts/:attemptId/answers/:answerId/grade -> AssessmentAttempt
 //
 // Gotchas (see docs/FRONTEND-NOTES.md):
-//   - start returns 403 unless the assessment is PUBLISHED.
+//   - start requires a PUBLISHED assessment plus participant enrollment and now
+//     returns 409 if the user already has an attempt.
 //   - submit is one-shot; re-submit returns 400.
 //   - score/maxScore are only present after submit.
 //   - OPEN/CODE answers are stored for manual review (needsManualReview = true).
@@ -30,6 +32,11 @@ export interface SubmitAssessmentAttemptAnswerInput {
 
 export interface SubmitAssessmentAttemptInput {
   answers: SubmitAssessmentAttemptAnswerInput[];
+}
+
+export interface GradeAssessmentAttemptAnswerInput {
+  isCorrect?: boolean | null;
+  pointsAwarded?: number | null;
 }
 
 const jsonHeaders = { "Content-Type": "application/json" };
@@ -71,6 +78,22 @@ export const assessmentAttemptsService = {
       headers: jsonHeaders,
       body: JSON.stringify(input),
     }),
+
+  gradeAnswer: async (
+    attemptId: number | string,
+    answerId: number | string,
+    input: GradeAssessmentAttemptAnswerInput,
+  ) =>
+    sanitizeAttempt(
+      await apiJsonFetch<AssessmentAttempt>(
+        `/assessment-attempts/${attemptId}/answers/${answerId}/grade`,
+        {
+          method: "PATCH",
+          headers: jsonHeaders,
+          body: JSON.stringify(input),
+        },
+      ),
+    ),
 
   get: async (id: number | string) =>
     sanitizeAttempt(await apiJsonFetch<AssessmentAttempt>(`/assessment-attempts/${id}`)),

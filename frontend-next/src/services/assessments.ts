@@ -15,7 +15,7 @@ import type {
 //   GET    /assessments/:id         -> Assessment (participant gets 403 unless published)
 //   GET    /assessments/:id/results -> AssessmentResults (ADMIN/INSTRUCTOR only)
 //   POST   /assessments             -> Assessment (201, always created as DRAFT)
-//   POST   /assessments/generate    -> Assessment (201, generated DRAFT quiz)
+//   POST   /assessments/generate    -> Assessment (201, generated DRAFT assessment)
 //   PUT    /assessments/:id         -> Assessment (DRAFT only, 409 if submitted attempts exist)
 //   PATCH  /assessments/:id/status  -> Assessment
 //   DELETE /assessments/:id         -> { message } JSON, 200
@@ -23,6 +23,8 @@ import type {
 // Gotchas (see docs/FRONTEND-NOTES.md):
 //   - Question picker must send only APPROVED questions from the selected training.
 //   - Duplicate question ids are rejected with 400.
+//   - pairedAssessmentId is valid only for POST_TEST and must reference a PRE_TEST
+//     in the same training.
 //   - GET /assessments/:id includes answerOptions.isCorrect; solving views must sanitize.
 //   - Results use the bespoke AssessmentResults response, NOT Assessment.
 
@@ -36,6 +38,7 @@ export interface CreateAssessmentInput {
   description?: string | null;
   trainingId: number;
   type?: AssessmentType;
+  pairedAssessmentId?: number | null;
   questions: Array<number | AssessmentQuestionInput>;
 }
 
@@ -44,6 +47,7 @@ export interface UpdateAssessmentInput {
   description?: string | null;
   trainingId?: number;
   type?: AssessmentType;
+  pairedAssessmentId?: number | null;
   questions?: Array<number | AssessmentQuestionInput>;
 }
 
@@ -51,8 +55,9 @@ export interface GenerateAssessmentInput {
   title: string;
   description?: string | null;
   trainingId: number;
+  type?: AssessmentType;
+  pairedAssessmentId?: number | null;
   topicId?: number;
-  learningObjectiveId?: number;
   difficulty?: "easy" | "medium" | "hard" | 1 | 2 | 3 | number;
   count: number;
 }
