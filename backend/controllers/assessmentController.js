@@ -1,4 +1,10 @@
 const prisma = require("../prisma/client");
+const {
+  scopedListWhere,
+  isTrainingOwner,
+  isTrainingParticipant,
+  TRAINING_ROLES,
+} = require("../middleware/scopeMiddleware");
 
 const ASSESSMENT_STATUSES = ["DRAFT", "PUBLISHED", "ARCHIVED"];
 
@@ -20,8 +26,16 @@ const assessmentDetailInclude = {
   },
 };
 
-const canManageAssessments = (user) =>
-  user?.role === "ADMIN" || user?.role === "INSTRUCTOR";
+// PUBLISHED assessmenti treningov, v katere je klicatelj vpisan kot PARTICIPANT
+// (UserTraining) — participant veja seznamov (handoff_dev2_dev3).
+const enrolledPublishedWhere = (userId) => ({
+  status: "PUBLISHED",
+  training: {
+    members: {
+      some: { userId: Number(userId), role: TRAINING_ROLES.PARTICIPANT },
+    },
+  },
+});
 
 const parseId = (value) => {
   const parsed = Number(value);
@@ -69,12 +83,21 @@ const normalizeQuestionItems = (questions) => {
 
 const getAssessments = async (req, res) => {
   try {
+    let where;
+
+    if (req.user?.role === "PARTICIPANT") {
+      where = enrolledPublishedWhere(req.user.id);
+    } else {
+      // INSTRUCTOR -> samo assessmenti lastnih treningov; ADMIN -> null (ni
+      // content-collaborator; route ga sicer že ustavi z requireRole).
+      where = scopedListWhere(req.user, "assessment");
+      if (where === null) {
+        return res.status(403).json({ error: "Forbidden" });
+      }
+    }
+
     const assessments = await prisma.assessment.findMany({
-      where: canManageAssessments(req.user)
-        ? undefined
-        : {
-            status: "PUBLISHED",
-          },
+      where,
       include: assessmentDetailInclude,
     });
 
@@ -87,9 +110,9 @@ const getAssessments = async (req, res) => {
 const getAvailableAssessments = async (req, res) => {
   try {
     const assessments = await prisma.assessment.findMany({
-      where: {
-        status: "PUBLISHED",
-      },
+      // "Na voljo za reševanje" = PUBLISHED + vpisan kot PARTICIPANT, ne glede
+      // na globalno vlogo (tudi INSTRUCTOR je lahko vpisan v tuj trening).
+      where: enrolledPublishedWhere(req.user.id),
       include: {
         training: true,
       },
@@ -121,8 +144,20 @@ const getAssessment = async (req, res) => {
       return res.status(404).json({ error: "Assessment not found" });
     }
 
-    if (!canManageAssessments(req.user) && assessment.status !== "PUBLISHED") {
-      return res.status(403).json({ error: "This assessment is not available." });
+    // Lastnik-instruktor vidi vsak status; vsi ostali samo PUBLISHED assessmente
+    // treningov, v katere so vpisani kot PARTICIPANT. Tuje -> 404 (konvencija).
+    const owner =
+      req.user.role === "INSTRUCTOR" &&
+      (await isTrainingOwner(req.user.id, assessment.trainingId));
+
+    if (!owner) {
+      const enrolled =
+        assessment.status === "PUBLISHED" &&
+        (await isTrainingParticipant(req.user.id, assessment.trainingId));
+
+      if (!enrolled) {
+        return res.status(404).json({ error: "Assessment not found" });
+      }
     }
 
     res.json(assessment);
@@ -174,8 +209,10 @@ const getAssessmentResults = async (req, res) => {
       return res.status(404).json({ error: "Assessment not found" });
     }
 
+    // GRADED je zaključen (ročno ocenjen) SUBMITTED — v rezultatih šteje enako,
+    // sicer poskusi po ocenjevanju izginejo iz statistike (audit §2.3).
     const submittedAttempts = assessment.attempts.filter(
-      (attempt) => attempt.status === "SUBMITTED"
+      (attempt) => attempt.status === "SUBMITTED" || attempt.status === "GRADED"
     );
     const scoredAttempts = submittedAttempts.filter(
       (attempt) => typeof attempt.score === "number"
@@ -548,6 +585,11 @@ const createAssessment = async (req, res) => {
       return res.status(400).json({ error: "trainingId is required" });
     }
 
+    // Lastniška preverba ciljnega traininga (vzorec: POST /questions) — tuj/neobstoječ -> 404.
+    if (!(await isTrainingOwner(req.user.id, trainingId))) {
+      return res.status(404).json({ error: "Training not found" });
+    }
+
     const questionItems = normalizeQuestionItems(questions);
     const validation = await validateQuestions(questionItems, trainingId);
     if (validation.error) {
@@ -622,6 +664,11 @@ const generateAssessment = async (req, res) => {
 
     if (!trainingId) {
       return res.status(400).json({ error: "trainingId is required" });
+    }
+
+    // Lastniška preverba ciljnega traininga (vzorec: POST /questions) — tuj/neobstoječ -> 404.
+    if (!(await isTrainingOwner(req.user.id, trainingId))) {
+      return res.status(404).json({ error: "Training not found" });
     }
 
     const parsedCount = Number(count);
@@ -760,7 +807,8 @@ const updateAssessment = async (req, res) => {
         },
         attempts: {
           where: {
-            status: "SUBMITTED",
+            // GRADED je prav tako oddan (in že ocenjen) poskus — blokira urejanje enako.
+            status: { in: ["SUBMITTED", "GRADED"] },
           },
           select: {
             id: true,
@@ -783,6 +831,16 @@ const updateAssessment = async (req, res) => {
       return res.status(409).json({
         error: "Assessments with submitted attempts cannot be edited",
       });
+    }
+
+    // requireOwnership na routi pokrije OBSTOJEČI assessment; ob prestavitvi na
+    // drug training mora klicatelj biti lastnik tudi ciljnega traininga.
+    if (
+      trainingId !== undefined &&
+      Number(trainingId) !== existing.trainingId &&
+      !(await isTrainingOwner(req.user.id, trainingId))
+    ) {
+      return res.status(404).json({ error: "Training not found" });
     }
 
     const effectiveTrainingId =
