@@ -1,4 +1,4 @@
-import { createFileRoute, Link, useNavigate, useSearch } from "@tanstack/react-router";
+import { createFileRoute, Link, Outlet, useMatchRoute, useNavigate, useSearch } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { z } from "zod";
@@ -235,6 +235,12 @@ function AssessmentDetail() {
     },
   });
 
+  const matchRoute = useMatchRoute();
+  const isChildActive = Boolean(
+    matchRoute({ to: "/app/assessments/$id/results" }) ||
+    matchRoute({ to: "/app/assessments/$id/post-test" }),
+  );
+
   if (assessmentQuery.isLoading) {
     return <LoadingState label="Loading assessment…" />;
   }
@@ -376,6 +382,9 @@ function AssessmentDetail() {
         </div>
       )}
 
+      {isChildActive ? (
+        <Outlet />
+      ) : (
       <div className="space-y-6 p-4 sm:p-6 lg:p-8">
         {actionError && (
           <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
@@ -517,14 +526,21 @@ function AssessmentDetail() {
 
           <TabsContent value="results" className="mt-4">
             <Card>
-              <CardContent className="py-10 text-center text-sm text-muted-foreground">
-                Per-assessment results are not wired in this step yet. Use this page for real
-                detail, draft editing and status transitions only.
+              <CardContent className="flex flex-col items-center gap-4 py-10">
+                <p className="text-sm text-muted-foreground">
+                  View submitted attempts, score distribution, and manually grade open/code answers.
+                </p>
+                <Button asChild>
+                  <Link to="/app/assessments/$id/results" params={{ id }}>
+                    View results
+                  </Link>
+                </Button>
               </CardContent>
             </Card>
           </TabsContent>
         </Tabs>
       </div>
+      )}
 
       <EditAssessmentDialog
         open={editOpen}
@@ -996,8 +1012,10 @@ function AccessDrawer({
             <Button variant="outline" size="sm" disabled={assessment.status !== "PUBLISHED"}>
               <Play className="mr-1.5 h-4 w-4" /> Open / close
             </Button>
-            <Button size="sm" disabled>
-              View results
+            <Button asChild size="sm">
+              <Link to="/app/assessments/$id/results" params={{ id: String(assessment.id) }}>
+                View results
+              </Link>
             </Button>
           </div>
         </div>

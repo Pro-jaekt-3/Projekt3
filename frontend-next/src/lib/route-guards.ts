@@ -13,7 +13,7 @@ type GuardArgs = {
  * on auth in main.tsx, but this keeps guards safe even if that changes.
  */
 export function ensureAuthenticated({ auth, href }: GuardArgs) {
-  if (auth.isLoading) return;
+  if (!auth || auth.isLoading) return;
   if (!auth.isAuthenticated) {
     throw redirect({ to: "/login", search: { redirect: href } });
   }
@@ -25,7 +25,7 @@ export function ensureAuthenticated({ auth, href }: GuardArgs) {
  */
 export function ensureRole({ auth, href }: GuardArgs, roles: Role[]) {
   ensureAuthenticated({ auth, href });
-  if (auth.isLoading) return;
+  if (!auth || auth.isLoading) return;
   if (!roles.includes(auth.role)) {
     throw redirect({ to: "/app/dashboard" });
   }

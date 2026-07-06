@@ -394,10 +394,10 @@ function PostTestWizard() {
     { ok: generatedAssessment !== null, label: "Draft generated from approved same-training questions" },
     { ok: config.count > 0, label: "Question count defined" },
     {
-      ok: preQuestionsMissingEquivalenceVariant.every(
+      ok: preQuestions.every(
         (question) => reviewed[String(question.id)] === "approved",
       ),
-      label: "Missing variants reviewed",
+      label: "All variants reviewed",
     },
     { ok: true, label: "Publish remains a separate explicit step" },
   ];
@@ -638,7 +638,13 @@ function PostTestWizard() {
                                   }))
                                 }
                               >
-                                Use variant
+                                {reviewed[String(question.id)] === "approved" ? (
+                                  <>
+                                    <Check className="mr-1.5 h-4 w-4" /> Variant approved
+                                  </>
+                                ) : (
+                                  "Use variant"
+                                )}
                               </Button>
                             ) : (
                               <Button
