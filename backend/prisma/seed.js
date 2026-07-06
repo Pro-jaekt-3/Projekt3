@@ -845,12 +845,43 @@ async function main() {
       })),
   });
 
+  // VALIDACIJA MC OPCIJ: vsak seedan MULTIPLE_CHOICE mora imeti >=2 AnswerOption
+  // in natanko eno isCorrect=true, sicer je za participanta nerešljiv (bug:
+  // MC brez opcij v demo predtestu). Seed pade glasno, da delno seedano stanje
+  // ne obvelja kot uspeh.
+  const multipleChoiceQuestions = await prisma.question.findMany({
+    where: { type: "MULTIPLE_CHOICE" },
+    include: { answerOptions: true },
+  });
+
+  const invalidMultipleChoice = multipleChoiceQuestions.filter((question) => {
+    const correctCount = question.answerOptions.filter(
+      (option) => option.isCorrect
+    ).length;
+    return question.answerOptions.length < 2 || correctCount !== 1;
+  });
+
+  if (invalidMultipleChoice.length > 0) {
+    const details = invalidMultipleChoice
+      .map(
+        (question) =>
+          `id=${question.id} "${question.title}" (options=${question.answerOptions.length}, correct=${question.answerOptions.filter((option) => option.isCorrect).length})`
+      )
+      .join("; ");
+    throw new Error(
+      `Seed validation failed: MULTIPLE_CHOICE questions without valid answer options: ${details}`
+    );
+  }
+
   console.log("Seed data inserted.");
 }
 
 main()
   .catch((e) => {
     console.error(e);
+    // Brez tega seed ob napaki konča z exit code 0 in delni seed (npr. MC brez
+    // AnswerOption) navzven izgleda kot uspešen.
+    process.exitCode = 1;
   })
   .finally(async () => {
     await prisma.$disconnect();
