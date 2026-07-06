@@ -1,4 +1,7 @@
 const { PrismaClient } = require("@prisma/client");
+const {
+  generateEnrollmentToken,
+} = require("../controllers/userTrainingController");
 
 const prisma = new PrismaClient();
 
@@ -112,6 +115,38 @@ async function main() {
     });
   };
 
+  // Vpis/lastništvo (UserTraining): idempotenten prek @@unique([userId, trainingId]).
+  const upsertUserTraining = async (userId, trainingId, role) =>
+    prisma.userTraining.upsert({
+      where: {
+        userId_trainingId: {
+          userId,
+          trainingId,
+        },
+      },
+      update: {
+        role,
+      },
+      create: {
+        userId,
+        trainingId,
+        role,
+      },
+    });
+
+  // enrollmentToken nastavi samo, če manjka — obstoječi token ostane, da je
+  // seed ponovljiv (QR/link za enrollment se ob ponovnem seedu ne razveljavi).
+  const ensureEnrollmentToken = async (training) => {
+    if (training.enrollmentToken) {
+      return training;
+    }
+
+    return prisma.training.update({
+      where: { id: training.id },
+      data: { enrollmentToken: generateEnrollmentToken() },
+    });
+  };
+
   const findOrCreateAssessment = async ({
     title,
     description,
@@ -119,6 +154,7 @@ async function main() {
     type,
     status,
     timeLimitMinutes,
+    pairedAssessmentId = null,
   }) => {
     const existingAssessment = await prisma.assessment.findFirst({
       where: {
@@ -133,6 +169,7 @@ async function main() {
       type,
       status,
       timeLimitMinutes,
+      pairedAssessmentId,
     };
 
     if (existingAssessment) {
@@ -337,6 +374,16 @@ async function main() {
       },
     });
   }
+
+  // Vsak seedan training dobi enrollmentToken (če ga še nima), da je enrollment
+  // po tokenu (QR/link) testabilen takoj po seedu.
+  training = await ensureEnrollmentToken(training);
+
+  // USER-TRAINING (lastništvo + enrollment): brez teh vrstic instruktor po seedu
+  // nima lastništva (prazni seznami/404 prek scopeMiddleware), participant pa ni
+  // vpisan (POST /assessment-attempts/start -> 404 na requireEnrollment).
+  await upsertUserTraining(instructor.id, training.id, "INSTRUCTOR");
+  await upsertUserTraining(participant.id, training.id, "PARTICIPANT");
 
   // TOPICS
   const uml = await findOrCreateTopic("UML", training.id);
@@ -752,6 +799,50 @@ async function main() {
       isCorrect: answer.isCorrect,
       pointsAwarded: answer.pointsAwarded,
     })),
+  });
+
+  // PRE/POST PAIRING DEMO: POST_TEST istega traininga, POST.pairedAssessmentId=PRE.id
+  // (konvencija iz schema-v2-NOTES). PUBLISHED + samo MC vprašanja, da lahko
+  // participant takoj testira /start -> submit -> samodejni GRADED (PRE ima že
+  // seedan poskus, zato je zaradi pravila en-poskus POST edini prosti /start).
+  const demoPostAssessment = await findOrCreateAssessment({
+    title: "Demo posttest - Osnove informatike",
+    description: "Demo POST_TEST, paran na demo predtest za testiranje pairinga.",
+    type: "POST_TEST",
+    status: "PUBLISHED",
+    timeLimitMinutes: 30,
+    trainingId: training.id,
+    pairedAssessmentId: demoAssessment.id,
+  });
+
+  const demoPostAssessmentQuestions = [
+    {
+      questionId: sqlMultipleChoice.id,
+      orderIndex: 1,
+      points: 1,
+    },
+    {
+      questionId: umlMultipleChoice.id,
+      orderIndex: 2,
+      points: 1,
+    },
+  ];
+
+  await prisma.assessmentQuestion.deleteMany({
+    where: {
+      assessmentId: demoPostAssessment.id,
+    },
+  });
+
+  await prisma.assessmentQuestion.createMany({
+    data: demoPostAssessmentQuestions
+      .filter((question) => approvedQuestionIds.has(question.questionId))
+      .map((question) => ({
+        assessmentId: demoPostAssessment.id,
+        questionId: question.questionId,
+        orderIndex: question.orderIndex,
+        points: question.points,
+      })),
   });
 
   console.log("Seed data inserted.");

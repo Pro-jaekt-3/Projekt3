@@ -120,6 +120,35 @@ const startAttempt = async (req, res) => {
   }
 };
 
+// Skupna logika zaključka poskusa (invarianta NOTES §5.6): če po zapisu
+// odgovorov NOBEN odgovor poskusa ne čaka ročne ocene (needsManualReview),
+// je poskus v celoti ocenjen -> status=GRADED + score iz vsote pointsAwarded.
+// Kliče se iz submitAttempt (MC-only poskusi so GRADED takoj ob oddaji) in iz
+// gradeAnswer (mešani poskusi po zadnji ročni oceni). Vrne Prisma data
+// fragment za assessmentAttempt.update ({} = še čaka ročno oceno).
+const finalizeAttemptIfFullyGraded = async (tx, attemptId) => {
+  const pendingCount = await tx.participantAnswer.count({
+    where: { attemptId, needsManualReview: true },
+  });
+
+  if (pendingCount > 0) {
+    return {};
+  }
+
+  const gradedAnswers = await tx.participantAnswer.findMany({
+    where: { attemptId },
+    select: { pointsAwarded: true },
+  });
+
+  return {
+    status: "GRADED",
+    score: gradedAnswers.reduce(
+      (total, entry) => total + (entry.pointsAwarded ?? 0),
+      0
+    ),
+  };
+};
+
 const submitAttempt = async (req, res) => {
   try {
     const attemptId = parseId(req.params.id);
@@ -268,6 +297,10 @@ const submitAttempt = async (req, res) => {
         });
       }
 
+      // SUBMITTED = čaka ročno oceno; MC-only poskus je ob oddaji že v celoti
+      // samodejno ocenjen, zato ga finalize takoj prepiše v GRADED.
+      const finalizeData = await finalizeAttemptIfFullyGraded(tx, attemptId);
+
       return tx.assessmentAttempt.update({
         where: { id: attemptId },
         data: {
@@ -275,6 +308,7 @@ const submitAttempt = async (req, res) => {
           submittedAt: new Date(),
           score,
           maxScore,
+          ...finalizeData,
         },
         include: attemptResponseInclude,
       });
@@ -375,24 +409,7 @@ const gradeAnswer = async (req, res) => {
         },
       });
 
-      const pendingCount = await tx.participantAnswer.count({
-        where: { attemptId, needsManualReview: true },
-      });
-
-      const attemptData = {};
-
-      if (pendingCount === 0) {
-        const gradedAnswers = await tx.participantAnswer.findMany({
-          where: { attemptId },
-          select: { pointsAwarded: true },
-        });
-
-        attemptData.status = "GRADED";
-        attemptData.score = gradedAnswers.reduce(
-          (total, entry) => total + (entry.pointsAwarded ?? 0),
-          0
-        );
-      }
+      const attemptData = await finalizeAttemptIfFullyGraded(tx, attemptId);
 
       return tx.assessmentAttempt.update({
         where: { id: attemptId },
