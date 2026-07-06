@@ -154,9 +154,9 @@ export interface ParticipantAnswer {
 export interface AssessmentAttempt {
   id: Id;
   assessmentId: Id;
-  userId: Id | null;
+  userId: Id;
   /** Serialized alias of `userId` (same value). */
-  participantId?: Id | null;
+  participantId?: Id;
   startedAt: ISODateString;
   submittedAt: ISODateString | null;
   score: number | null;
