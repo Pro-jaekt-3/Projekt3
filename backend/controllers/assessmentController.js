@@ -1,4 +1,10 @@
 const prisma = require("../prisma/client");
+const {
+  scopedListWhere,
+  isTrainingOwner,
+  isTrainingParticipant,
+  TRAINING_ROLES,
+} = require("../middleware/scopeMiddleware");
 
 const ASSESSMENT_STATUSES = ["DRAFT", "PUBLISHED", "ARCHIVED"];
 
@@ -20,8 +26,16 @@ const assessmentDetailInclude = {
   },
 };
 
-const canManageAssessments = (user) =>
-  user?.role === "ADMIN" || user?.role === "INSTRUCTOR";
+// PUBLISHED assessmenti treningov, v katere je klicatelj vpisan kot PARTICIPANT
+// (UserTraining) — participant veja seznamov (handoff_dev2_dev3).
+const enrolledPublishedWhere = (userId) => ({
+  status: "PUBLISHED",
+  training: {
+    members: {
+      some: { userId: Number(userId), role: TRAINING_ROLES.PARTICIPANT },
+    },
+  },
+});
 
 const parseId = (value) => {
   const parsed = Number(value);
@@ -31,6 +45,18 @@ const parseId = (value) => {
   }
 
   return parsed;
+};
+
+const parseOptionalId = (value) => {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  if (value === null || value === "") {
+    return null;
+  }
+
+  return parseId(value);
 };
 
 const normalizeQuestionItems = (questions) => {
@@ -57,12 +83,21 @@ const normalizeQuestionItems = (questions) => {
 
 const getAssessments = async (req, res) => {
   try {
+    let where;
+
+    if (req.user?.role === "PARTICIPANT") {
+      where = enrolledPublishedWhere(req.user.id);
+    } else {
+      // INSTRUCTOR -> samo assessmenti lastnih treningov; ADMIN -> null (ni
+      // content-collaborator; route ga sicer že ustavi z requireRole).
+      where = scopedListWhere(req.user, "assessment");
+      if (where === null) {
+        return res.status(403).json({ error: "Forbidden" });
+      }
+    }
+
     const assessments = await prisma.assessment.findMany({
-      where: canManageAssessments(req.user)
-        ? undefined
-        : {
-            status: "PUBLISHED",
-          },
+      where,
       include: assessmentDetailInclude,
     });
 
@@ -75,9 +110,9 @@ const getAssessments = async (req, res) => {
 const getAvailableAssessments = async (req, res) => {
   try {
     const assessments = await prisma.assessment.findMany({
-      where: {
-        status: "PUBLISHED",
-      },
+      // "Na voljo za reševanje" = PUBLISHED + vpisan kot PARTICIPANT, ne glede
+      // na globalno vlogo (tudi INSTRUCTOR je lahko vpisan v tuj trening).
+      where: enrolledPublishedWhere(req.user.id),
       include: {
         training: true,
       },
@@ -109,8 +144,20 @@ const getAssessment = async (req, res) => {
       return res.status(404).json({ error: "Assessment not found" });
     }
 
-    if (!canManageAssessments(req.user) && assessment.status !== "PUBLISHED") {
-      return res.status(403).json({ error: "This assessment is not available." });
+    // Lastnik-instruktor vidi vsak status; vsi ostali samo PUBLISHED assessmente
+    // treningov, v katere so vpisani kot PARTICIPANT. Tuje -> 404 (konvencija).
+    const owner =
+      req.user.role === "INSTRUCTOR" &&
+      (await isTrainingOwner(req.user.id, assessment.trainingId));
+
+    if (!owner) {
+      const enrolled =
+        assessment.status === "PUBLISHED" &&
+        (await isTrainingParticipant(req.user.id, assessment.trainingId));
+
+      if (!enrolled) {
+        return res.status(404).json({ error: "Assessment not found" });
+      }
     }
 
     res.json(assessment);
@@ -162,8 +209,10 @@ const getAssessmentResults = async (req, res) => {
       return res.status(404).json({ error: "Assessment not found" });
     }
 
+    // GRADED je zaključen (ročno ocenjen) SUBMITTED — v rezultatih šteje enako,
+    // sicer poskusi po ocenjevanju izginejo iz statistike (audit §2.3).
     const submittedAttempts = assessment.attempts.filter(
-      (attempt) => attempt.status === "SUBMITTED"
+      (attempt) => attempt.status === "SUBMITTED" || attempt.status === "GRADED"
     );
     const scoredAttempts = submittedAttempts.filter(
       (attempt) => typeof attempt.score === "number"
@@ -292,9 +341,237 @@ const validateQuestions = async (questionItems, trainingId) => {
   return { questionItems, questionIds: uniqueQuestionIds };
 };
 
+const validatePairedAssessment = async ({
+  pairedAssessmentId,
+  type,
+  trainingId,
+  assessmentId,
+}) => {
+  const parsedTrainingId = parseId(trainingId);
+
+  if (!parsedTrainingId) {
+    return { status: 400, error: "trainingId is required" };
+  }
+
+  if (type !== "POST_TEST") {
+    if (pairedAssessmentId !== null && pairedAssessmentId !== undefined) {
+      return {
+        status: 400,
+        error: "Only POST_TEST assessments can use pairedAssessmentId",
+      };
+    }
+
+    return { pairedAssessmentId: null };
+  }
+
+  if (pairedAssessmentId === undefined || pairedAssessmentId === null) {
+    return { pairedAssessmentId: pairedAssessmentId ?? null };
+  }
+
+  const parsedPairedAssessmentId = parseOptionalId(pairedAssessmentId);
+
+  if (!parsedPairedAssessmentId) {
+    return {
+      status: 400,
+      error: "pairedAssessmentId must be a positive integer",
+    };
+  }
+
+  if (assessmentId && parsedPairedAssessmentId === assessmentId) {
+    return {
+      status: 400,
+      error: "Assessment cannot be paired with itself",
+    };
+  }
+
+  const pairedAssessment = await prisma.assessment.findUnique({
+    where: { id: parsedPairedAssessmentId },
+    select: {
+      id: true,
+      trainingId: true,
+      type: true,
+    },
+  });
+
+  if (!pairedAssessment) {
+    return {
+      status: 404,
+      error: "Paired assessment not found",
+    };
+  }
+
+  if (pairedAssessment.trainingId !== parsedTrainingId) {
+    return {
+      status: 400,
+      error: "Paired assessment must belong to the same training",
+    };
+  }
+
+  if (pairedAssessment.type !== "PRE_TEST") {
+    return {
+      status: 400,
+      error: "POST_TEST assessments can only be paired with PRE_TEST assessments",
+    };
+  }
+
+  return { pairedAssessmentId: parsedPairedAssessmentId };
+};
+
+const buildGenericGeneratedQuestions = (availableQuestions, count) => {
+  const selectedQuestions = [];
+  const selectedGroupIds = new Set();
+  const overflow = [];
+
+  for (const question of availableQuestions) {
+    const groupId = question.equivalenceGroupId;
+    if (groupId !== null && groupId !== undefined) {
+      if (!selectedGroupIds.has(groupId)) {
+        selectedGroupIds.add(groupId);
+        selectedQuestions.push(question);
+      } else {
+        overflow.push(question);
+      }
+    } else {
+      selectedQuestions.push(question);
+    }
+
+    if (selectedQuestions.length >= count) {
+      break;
+    }
+  }
+
+  if (selectedQuestions.length < count) {
+    for (const question of overflow) {
+      selectedQuestions.push(question);
+      if (selectedQuestions.length >= count) {
+        break;
+      }
+    }
+  }
+
+  return selectedQuestions;
+};
+
+const buildPairedPostTestQuestions = async ({
+  pairedAssessmentId,
+  trainingId,
+  topicId,
+  difficultyValue,
+  count,
+}) => {
+  const pairedPreTest = await prisma.assessment.findUnique({
+    where: { id: pairedAssessmentId },
+    include: {
+      questions: {
+        orderBy: { orderIndex: "asc" },
+        include: {
+          question: {
+            include: {
+              topic: true,
+            },
+          },
+        },
+      },
+    },
+  });
+
+  if (!pairedPreTest) {
+    return {
+      error: "Paired assessment not found",
+      status: 404,
+    };
+  }
+
+  const preQuestions = pairedPreTest.questions
+    .map((item) => item.question)
+    .filter(Boolean);
+  const preQuestionIds = preQuestions.map((question) => question.id);
+  const seenGroupIds = new Set();
+  const orderedGroupIds = [];
+
+  for (const question of preQuestions) {
+    const groupId = question.equivalenceGroupId;
+    if (groupId === null || groupId === undefined || seenGroupIds.has(groupId)) {
+      continue;
+    }
+
+    seenGroupIds.add(groupId);
+    orderedGroupIds.push(groupId);
+  }
+
+  if (orderedGroupIds.length === 0) {
+    return {
+      error: "No equivalent approved questions are available for the selected paired PRE_TEST",
+      status: 400,
+    };
+  }
+
+  const candidates = await prisma.question.findMany({
+    where: {
+      status: "APPROVED",
+      equivalenceGroupId: { in: orderedGroupIds },
+      id: { notIn: preQuestionIds },
+      topic: {
+        trainingId: Number(trainingId),
+      },
+      ...(topicId !== undefined && { topicId: Number(topicId) }),
+      ...(difficultyValue !== undefined && { difficulty: difficultyValue }),
+    },
+    orderBy: { id: "asc" },
+  });
+
+  const candidatesByGroupId = new Map();
+  for (const candidate of candidates) {
+    const groupId = candidate.equivalenceGroupId;
+    if (groupId === null || groupId === undefined) {
+      continue;
+    }
+
+    const list = candidatesByGroupId.get(groupId) ?? [];
+    list.push(candidate);
+    candidatesByGroupId.set(groupId, list);
+  }
+
+  const selectedQuestions = [];
+  const usedGroupIds = new Set();
+  const usedQuestionIds = new Set();
+
+  for (const question of preQuestions) {
+    const groupId = question.equivalenceGroupId;
+    if (groupId === null || groupId === undefined || usedGroupIds.has(groupId)) {
+      continue;
+    }
+
+    const candidate = (candidatesByGroupId.get(groupId) ?? []).find(
+      (item) => item.id !== question.id && !usedQuestionIds.has(item.id)
+    );
+
+    if (!candidate) {
+      continue;
+    }
+
+    usedGroupIds.add(groupId);
+    usedQuestionIds.add(candidate.id);
+    selectedQuestions.push(candidate);
+
+    if (selectedQuestions.length >= count) {
+      break;
+    }
+  }
+
+  return { questions: selectedQuestions };
+};
+
 const createAssessment = async (req, res) => {
   try {
-    const { title, description, trainingId, type = "QUIZ", questions } = req.body;
+    const {
+      title,
+      description,
+      trainingId,
+      type = "QUIZ",
+      questions,
+      pairedAssessmentId,
+    } = req.body;
 
     if (!title || !title.trim()) {
       return res.status(400).json({ error: "Title is required" });
@@ -308,10 +585,26 @@ const createAssessment = async (req, res) => {
       return res.status(400).json({ error: "trainingId is required" });
     }
 
+    // Lastniška preverba ciljnega traininga (vzorec: POST /questions) — tuj/neobstoječ -> 404.
+    if (!(await isTrainingOwner(req.user.id, trainingId))) {
+      return res.status(404).json({ error: "Training not found" });
+    }
+
     const questionItems = normalizeQuestionItems(questions);
     const validation = await validateQuestions(questionItems, trainingId);
     if (validation.error) {
       return res.status(400).json({ error: validation.error });
+    }
+
+    const pairingValidation = await validatePairedAssessment({
+      pairedAssessmentId,
+      type,
+      trainingId,
+    });
+    if (pairingValidation.error) {
+      return res
+        .status(pairingValidation.status ?? 400)
+        .json({ error: pairingValidation.error });
     }
 
     const assessment = await prisma.assessment.create({
@@ -321,6 +614,9 @@ const createAssessment = async (req, res) => {
         trainingId: Number(trainingId),
         type,
         status: "DRAFT",
+        ...(pairingValidation.pairedAssessmentId !== undefined && {
+          pairedAssessmentId: pairingValidation.pairedAssessmentId,
+        }),
         questions: {
           create: questionItems.map((item) => ({
             questionId: item.questionId,
@@ -355,8 +651,9 @@ const generateAssessment = async (req, res) => {
       title,
       description,
       trainingId,
+      type = "QUIZ",
+      pairedAssessmentId,
       topicId,
-      learningObjectiveId,
       difficulty,
       count,
     } = req.body;
@@ -367,6 +664,11 @@ const generateAssessment = async (req, res) => {
 
     if (!trainingId) {
       return res.status(400).json({ error: "trainingId is required" });
+    }
+
+    // Lastniška preverba ciljnega traininga (vzorec: POST /questions) — tuj/neobstoječ -> 404.
+    if (!(await isTrainingOwner(req.user.id, trainingId))) {
+      return res.status(404).json({ error: "Training not found" });
     }
 
     const parsedCount = Number(count);
@@ -392,64 +694,69 @@ const generateAssessment = async (req, res) => {
       }
     }
 
-    const questionWhere = {
-      status: "APPROVED",
-      topic: {
-        trainingId: Number(trainingId),
-      },
-      ...(topicId !== undefined && { topicId: Number(topicId) }),
-      ...(learningObjectiveId !== undefined && {
-        learningObjectiveId: Number(learningObjectiveId),
-      }),
-      ...(difficultyValue !== undefined && { difficulty: difficultyValue }),
-    };
-
-    const availableQuestions = await prisma.question.findMany({
-      where: questionWhere,
-      orderBy: { id: "asc" },
+    const pairingValidation = await validatePairedAssessment({
+      pairedAssessmentId,
+      type,
+      trainingId,
     });
+    if (pairingValidation.error) {
+      return res
+        .status(pairingValidation.status ?? 400)
+        .json({ error: pairingValidation.error });
+    }
 
-    if (availableQuestions.length < parsedCount) {
-      return res.status(400).json({
-        error: `Only ${availableQuestions.length} approved questions match the requested filters`,
+    let selectedQuestions = [];
+
+    if (type === "POST_TEST" && pairingValidation.pairedAssessmentId) {
+      const equivalentSelection = await buildPairedPostTestQuestions({
+        pairedAssessmentId: pairingValidation.pairedAssessmentId,
+        trainingId,
+        topicId,
+        difficultyValue,
+        count: parsedCount,
       });
-    }
 
-    const selectedQuestions = [];
-    const selectedGroupIds = new Set();
-    const overflow = [];
-
-    for (const question of availableQuestions) {
-      const groupId = question.equivalentGroupId;
-      if (groupId !== null && groupId !== undefined) {
-        if (!selectedGroupIds.has(groupId)) {
-          selectedGroupIds.add(groupId);
-          selectedQuestions.push(question);
-        } else {
-          overflow.push(question);
-        }
-      } else {
-        selectedQuestions.push(question);
+      if (equivalentSelection.error) {
+        return res
+          .status(equivalentSelection.status ?? 400)
+          .json({ error: equivalentSelection.error });
       }
 
-      if (selectedQuestions.length >= parsedCount) {
-        break;
-      }
-    }
+      selectedQuestions = equivalentSelection.questions;
 
-    if (selectedQuestions.length < parsedCount) {
-      for (const question of overflow) {
-        selectedQuestions.push(question);
-        if (selectedQuestions.length >= parsedCount) {
-          break;
-        }
+      if (selectedQuestions.length < parsedCount) {
+        return res.status(400).json({
+          error: `Only ${selectedQuestions.length} approved equivalent questions match the requested filters for the paired PRE_TEST`,
+        });
       }
-    }
+    } else {
+      const questionWhere = {
+        status: "APPROVED",
+        topic: {
+          trainingId: Number(trainingId),
+        },
+        ...(topicId !== undefined && { topicId: Number(topicId) }),
+        ...(difficultyValue !== undefined && { difficulty: difficultyValue }),
+      };
 
-    if (selectedQuestions.length < parsedCount) {
-      return res.status(400).json({
-        error: `Only ${availableQuestions.length} approved questions match the requested filters`,
+      const availableQuestions = await prisma.question.findMany({
+        where: questionWhere,
+        orderBy: { id: "asc" },
       });
+
+      if (availableQuestions.length < parsedCount) {
+        return res.status(400).json({
+          error: `Only ${availableQuestions.length} approved questions match the requested filters`,
+        });
+      }
+
+      selectedQuestions = buildGenericGeneratedQuestions(availableQuestions, parsedCount);
+
+      if (selectedQuestions.length < parsedCount) {
+        return res.status(400).json({
+          error: `Only ${availableQuestions.length} approved questions match the requested filters`,
+        });
+      }
     }
 
     const assessment = await prisma.assessment.create({
@@ -457,8 +764,11 @@ const generateAssessment = async (req, res) => {
         title: title.trim(),
         description,
         trainingId: Number(trainingId),
-        type: "QUIZ",
+        type,
         status: "DRAFT",
+        ...(pairingValidation.pairedAssessmentId !== undefined && {
+          pairedAssessmentId: pairingValidation.pairedAssessmentId,
+        }),
         questions: {
           create: selectedQuestions.slice(0, parsedCount).map((question, index) => ({
             questionId: question.id,
@@ -487,7 +797,7 @@ const generateAssessment = async (req, res) => {
 const updateAssessment = async (req, res) => {
   try {
     const { id } = req.params;
-    const { title, description, trainingId, type, questions } = req.body;
+    const { title, description, trainingId, type, questions, pairedAssessmentId } = req.body;
 
     const existing = await prisma.assessment.findUnique({
       where: { id: Number(id) },
@@ -497,7 +807,8 @@ const updateAssessment = async (req, res) => {
         },
         attempts: {
           where: {
-            status: "SUBMITTED",
+            // GRADED je prav tako oddan (in že ocenjen) poskus — blokira urejanje enako.
+            status: { in: ["SUBMITTED", "GRADED"] },
           },
           select: {
             id: true,
@@ -522,8 +833,21 @@ const updateAssessment = async (req, res) => {
       });
     }
 
+    // requireOwnership na routi pokrije OBSTOJEČI assessment; ob prestavitvi na
+    // drug training mora klicatelj biti lastnik tudi ciljnega traininga.
+    if (
+      trainingId !== undefined &&
+      Number(trainingId) !== existing.trainingId &&
+      !(await isTrainingOwner(req.user.id, trainingId))
+    ) {
+      return res.status(404).json({ error: "Training not found" });
+    }
+
     const effectiveTrainingId =
       trainingId !== undefined ? Number(trainingId) : existing.trainingId;
+    const effectiveType = type !== undefined ? type : existing.type;
+    const effectivePairedAssessmentId =
+      pairedAssessmentId !== undefined ? pairedAssessmentId : existing.pairedAssessmentId;
 
     let questionUpdate = undefined;
     if (questions !== undefined) {
@@ -557,6 +881,18 @@ const updateAssessment = async (req, res) => {
       }
     }
 
+    const pairingValidation = await validatePairedAssessment({
+      pairedAssessmentId: effectivePairedAssessmentId,
+      type: effectiveType,
+      trainingId: effectiveTrainingId,
+      assessmentId: existing.id,
+    });
+    if (pairingValidation.error) {
+      return res
+        .status(pairingValidation.status ?? 400)
+        .json({ error: pairingValidation.error });
+    }
+
     const assessment = await prisma.assessment.update({
       where: { id: Number(id) },
       data: {
@@ -564,6 +900,9 @@ const updateAssessment = async (req, res) => {
         ...(description !== undefined && { description }),
         ...(trainingId !== undefined && { trainingId: Number(trainingId) }),
         ...(type !== undefined && { type }),
+        ...(pairedAssessmentId !== undefined || existing.pairedAssessmentId !== null
+          ? { pairedAssessmentId: pairingValidation.pairedAssessmentId ?? null }
+          : {}),
         ...(questionUpdate ? { questions: questionUpdate } : {}),
       },
       include: {

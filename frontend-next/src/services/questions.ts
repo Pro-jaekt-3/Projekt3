@@ -5,7 +5,7 @@ import type { Question, QuestionType } from "@/types";
 // the Bearer-token fetch. Endpoints (backend/routes/questionRoutes.js, ADMIN/INSTRUCTOR):
 //   GET    /questions             -> Question[] (ALL statuses, no filter — filter client-side)
 //   GET    /questions/:id         -> Question (404 if missing)
-//   POST   /questions             -> Question (201)  body: { title, description, difficulty, topicId, type, options?, learningObjectiveId?, equivalentGroupId? }
+//   POST   /questions             -> Question (201)  body: { title, description, difficulty, topicId, type, options?, equivalenceGroupId? }
 //   PUT    /questions/:id         -> Question         body: same fields, all optional
 //   PATCH  /questions/:id/status  -> Question         body: { status }; only REVIEW|APPROVED|REJECTED|ARCHIVED allowed
 //   DELETE /questions/:id         -> { message } JSON, 200 (NOT 204 — use apiJsonFetch, not apiEnsureOk)
@@ -31,8 +31,7 @@ export interface CreateQuestionInput {
   topicId: number;
   type: QuestionType;
   options?: AnswerOptionInput[];
-  learningObjectiveId?: number | null;
-  equivalentGroupId?: number | null;
+  equivalenceGroupId?: number | null;
 }
 
 export interface UpdateQuestionInput {
@@ -42,8 +41,7 @@ export interface UpdateQuestionInput {
   topicId?: number;
   type?: QuestionType;
   options?: AnswerOptionInput[];
-  learningObjectiveId?: number | null;
-  equivalentGroupId?: number | null;
+  equivalenceGroupId?: number | null;
 }
 
 const jsonHeaders = { "Content-Type": "application/json" };

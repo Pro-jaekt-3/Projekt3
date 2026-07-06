@@ -2,11 +2,10 @@ import { apiJsonFetch } from "./apiClient";
 import type { AssessmentType, QuestionType, UserRole } from "@/types";
 
 // Analytics domain service. Thin wrapper over apiClient — every call goes through
-// the Bearer-token fetch. All endpoints are ADMIN/INSTRUCTOR only and aggregate
-// ONLY submitted attempts (submittedAt != null), so empty results are normal until
+// the Bearer-token fetch. All endpoints are INSTRUCTOR only and aggregate ONLY
+// submitted attempts (submittedAt != null), so empty results are normal until
 // participants submit. Endpoints (backend/routes/analyticsRoutes.js):
 //   GET /analytics/by-topic               -> TopicAnalytics[]
-//   GET /analytics/by-learning-objective  -> LearningObjectiveAnalytics[]
 //   GET /analytics/by-difficulty          -> DifficultyAnalytics[]
 //   GET /analytics/pre-post-comparison    -> PrePostComparison   (PAIRED, see below)
 //   GET /analytics/worst-questions?limit=N            -> WorstQuestion[]
@@ -18,9 +17,9 @@ import type { AssessmentType, QuestionType, UserRole } from "@/types";
 //   GET /analytics/trends                             -> Trends
 //   GET /analytics/questions/:id/option-distribution  -> QuestionOptionDistribution
 //
-// The by-topic / by-learning-objective / by-difficulty / worst-questions /
-// questions / summary breakdowns all accept the SHARED analytics filters
-// (AnalyticsFilters) — the basis for the global filter bar + drill-down.
+// The by-topic / by-difficulty / worst-questions / questions / summary
+// breakdowns all accept the SHARED analytics filters (AnalyticsFilters) — the
+// basis for the global filter bar + drill-down.
 //
 // These response shapes are custom to analytics (not backend entities), so they
 // live here rather than in the frozen src/types.
@@ -33,7 +32,6 @@ import type { AssessmentType, QuestionType, UserRole } from "@/types";
 export interface AnalyticsFilters {
   trainingId?: number;
   topicId?: number;
-  learningObjectiveId?: number;
   difficulty?: number; // 1 = EASY, 2 = MEDIUM, 3 = HARD
   questionId?: number;
   participantId?: number;
@@ -73,7 +71,6 @@ const withQuery = (path: string, params: Record<string, number | string | boolea
 const filterParams = (filters?: AnalyticsFilters) => ({
   trainingId: filters?.trainingId,
   topicId: filters?.topicId,
-  learningObjectiveId: filters?.learningObjectiveId,
   difficulty: filters?.difficulty,
   questionId: filters?.questionId,
   participantId: filters?.participantId,
@@ -82,21 +79,11 @@ const filterParams = (filters?: AnalyticsFilters) => ({
 
 // --- Breakdown response shapes --------------------------------------------
 
-// Paired breakdowns (topic / objective / difficulty) score 1 point per answer,
+// Paired breakdowns (topic / difficulty) score 1 point per answer,
 // so `percentage` is a CORRECTNESS RATE, not a weighted-points score.
 export interface TopicAnalytics {
   topicId: number;
   topicTitle: string;
-  answerCount: number;
-  score: number;
-  maxScore: number;
-  attemptCount: number;
-  percentage: number;
-}
-
-export interface LearningObjectiveAnalytics {
-  learningObjectiveId: number;
-  learningObjectiveTitle: string;
   answerCount: number;
   score: number;
   maxScore: number;
@@ -155,7 +142,6 @@ export interface AnalyticsSummary {
   filters: {
     trainingId: number | null;
     topicId: number | null;
-    learningObjectiveId: number | null;
     difficulty: number | null;
     questionId: number | null;
     participantId: number | null;
@@ -172,18 +158,10 @@ export interface AnalyticsSummary {
   };
 }
 
-// Per-topic / per-objective correctness for a single participant (MC ONLY).
+// Per-topic correctness for a single participant (MC ONLY).
 export interface ParticipantTopicPerformance {
   topicId: number;
   topicTitle: string;
-  answerCount: number;
-  correctCount: number;
-  correctPercentage: number;
-}
-
-export interface ParticipantObjectivePerformance {
-  learningObjectiveId: number;
-  learningObjectiveTitle: string;
   answerCount: number;
   correctCount: number;
   correctPercentage: number;
@@ -203,7 +181,8 @@ export interface ParticipantAssessmentRow {
   timeTakenSeconds: number | null;
 }
 
-// GET /analytics/participants/:userId — INSTRUCTOR+ADMIN, so identity is included.
+// GET /analytics/participants/:userId — INSTRUCTOR only, so identity is included
+// within owned-training scope.
 export interface ParticipantProfile {
   user: { id: number; email: string; name: string | null; role: UserRole };
   prePost: {
@@ -214,14 +193,11 @@ export interface ParticipantProfile {
   };
   assessments: ParticipantAssessmentRow[];
   topicPerformance: ParticipantTopicPerformance[];
-  learningObjectivePerformance: ParticipantObjectivePerformance[];
   strongAreas: {
     topics: ParticipantTopicPerformance[];
-    learningObjectives: ParticipantObjectivePerformance[];
   };
   weakAreas: {
     topics: ParticipantTopicPerformance[];
-    learningObjectives: ParticipantObjectivePerformance[];
   };
   note: string;
 }
@@ -246,8 +222,8 @@ export interface ParticipantImprovements {
 }
 
 // GET /analytics/leaderboard — anonymized by default. `name`/`email` are present
-// ONLY when revealed (reveal=true AND caller is INSTRUCTOR/ADMIN); PII is never
-// sent in the query string.
+// ONLY when revealed (reveal=true AND caller is INSTRUCTOR); PII is never sent
+// in the query string.
 export interface LeaderboardEntry {
   rank: number;
   userId: number;
@@ -313,7 +289,6 @@ export interface QuestionOptionDistribution {
   questionType: QuestionType;
   difficulty: number;
   topic: { id: number; name: string } | null;
-  learningObjective: { id: number; title: string } | null;
   filters: { trainingId: number | null; assessmentId: number | null };
   totalSubmittedAnswers: number;
   answeredCount: number;
@@ -330,7 +305,7 @@ export interface LeaderboardParams {
   assessmentId?: number;
   limit?: number;
   // No PII default. Names/emails are only returned when reveal=true AND the caller
-  // is INSTRUCTOR/ADMIN (re-checked server-side). Never put PII in the URL.
+  // is INSTRUCTOR (re-checked server-side). Never put PII in the URL.
   reveal?: boolean;
 }
 
@@ -362,11 +337,6 @@ export const analyticsService = {
     apiJsonFetch<TopicAnalytics[]>(
       withQuery("/analytics/by-topic", filterParams(filters)),
     )) as FilterableBreakdown<TopicAnalytics[]>,
-
-  byLearningObjective: ((filters?: AnalyticsFilters) =>
-    apiJsonFetch<LearningObjectiveAnalytics[]>(
-      withQuery("/analytics/by-learning-objective", filterParams(filters)),
-    )) as FilterableBreakdown<LearningObjectiveAnalytics[]>,
 
   byDifficulty: ((filters?: AnalyticsFilters) =>
     apiJsonFetch<DifficultyAnalytics[]>(

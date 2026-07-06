@@ -1,8 +1,21 @@
 const prisma = require("../prisma/client");
+const {
+  RESOURCE_TYPES,
+  scopedListWhere,
+  isTrainingOwner,
+} = require("../middleware/scopeMiddleware");
 
 const getTopics = async (req, res) => {
   try {
+    // Instructor vidi samo topice svojih treningov (app-invarianta #2).
+    const where = scopedListWhere(req.user, RESOURCE_TYPES.TOPIC);
+
+    if (where === null) {
+      return res.status(403).json({ error: "Forbidden" });
+    }
+
     const topics = await prisma.topic.findMany({
+      where,
       include: {
         training: true,
       },
@@ -68,7 +81,8 @@ const createTopic = async (req, res) => {
       },
     });
 
-    if (!training) {
+    // 404 tudi za tuj training (ne razkrivaj obstoja — 404-namesto-403 konvencija).
+    if (!training || !(await isTrainingOwner(req.user.id, training.id))) {
       return res.status(404).json({
         error: "Training not found",
       });
@@ -110,7 +124,8 @@ const updateTopic = async (req, res) => {
       });
     }
 
-    // If trainingId is provided, validate it
+    // If trainingId is provided, validate it (tudi lastništvo CILJNEGA traininga
+    // — premik topica v tuj training mora vrniti 404, ne uspeti).
     if (trainingId) {
       const training = await prisma.training.findUnique({
         where: {
@@ -118,7 +133,7 @@ const updateTopic = async (req, res) => {
         },
       });
 
-      if (!training) {
+      if (!training || !(await isTrainingOwner(req.user.id, training.id))) {
         return res.status(404).json({
           error: "Training not found",
         });

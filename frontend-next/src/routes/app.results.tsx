@@ -29,7 +29,7 @@ import { ensureRole } from "@/lib/route-guards";
 
 export const Route = createFileRoute("/app/results")({
   beforeLoad: ({ context, location }) =>
-    ensureRole({ auth: context.auth, href: location.href }, ["admin", "instructor"]),
+    ensureRole({ auth: context.auth, href: location.href }, ["instructor"]),
   component: GlobalResults,
 });
 
@@ -46,10 +46,6 @@ function GlobalResults() {
     queryKey: qk.analytics.list("by-topic"),
     queryFn: analyticsService.byTopic,
   });
-  const byObjective = useQuery({
-    queryKey: qk.analytics.list("by-learning-objective"),
-    queryFn: analyticsService.byLearningObjective,
-  });
   const byDifficulty = useQuery({
     queryKey: qk.analytics.list("by-difficulty"),
     queryFn: analyticsService.byDifficulty,
@@ -63,7 +59,7 @@ function GlobalResults() {
     queryFn: () => analyticsService.questions(),
   });
 
-  const queries = [prePost, byTopic, byObjective, byDifficulty, worst, questions];
+  const queries = [prePost, byTopic, byDifficulty, worst, questions];
 
   if (queries.some((q) => q.isLoading)) {
     return <LoadingState label="Loading analytics…" />;
@@ -81,7 +77,6 @@ function GlobalResults() {
 
   const pp = prePost.data;
   const topics = byTopic.data ?? [];
-  const objectives = byObjective.data ?? [];
   const difficulties = byDifficulty.data ?? [];
   const worstRows = worst.data ?? [];
   const questionRows = questions.data ?? [];
@@ -101,7 +96,6 @@ function GlobalResults() {
   const everythingEmpty =
     !hasPrePost &&
     topics.length === 0 &&
-    objectives.length === 0 &&
     difficulties.length === 0 &&
     worstRows.length === 0 &&
     questionRows.length === 0;
@@ -232,29 +226,27 @@ function GlobalResults() {
 
             <Card>
               <CardHeader>
-                <CardTitle className="text-base">By learning objective</CardTitle>
+                <CardTitle className="text-base">Topic details</CardTitle>
               </CardHeader>
-              {objectives.length ? (
+              {topics.length ? (
                 <div className="overflow-x-auto">
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead>Objective</TableHead>
+                        <TableHead>Topic</TableHead>
                         <TableHead className="text-right">Attempts</TableHead>
                         <TableHead className="text-right">Correct</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {objectives.map((o) => (
-                        <TableRow key={o.learningObjectiveId}>
-                          <TableCell className="font-medium">
-                            {o.learningObjectiveTitle}
-                          </TableCell>
+                      {topics.map((topic) => (
+                        <TableRow key={topic.topicId}>
+                          <TableCell className="font-medium">{topic.topicTitle}</TableCell>
                           <TableCell className="text-right tabular-nums">
-                            {o.attemptCount}
+                            {topic.attemptCount}
                           </TableCell>
                           <TableCell className="text-right tabular-nums font-medium">
-                            {pct(o.percentage)}
+                            {pct(topic.percentage)}
                           </TableCell>
                         </TableRow>
                       ))}
@@ -263,7 +255,7 @@ function GlobalResults() {
                 </div>
               ) : (
                 <CardContent>
-                  <SectionEmpty label="No learning-objective data yet." />
+                  <SectionEmpty label="No topic data yet." />
                 </CardContent>
               )}
             </Card>

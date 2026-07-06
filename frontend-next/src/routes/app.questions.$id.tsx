@@ -45,8 +45,7 @@ import { qk } from "@/lib/query-keys";
 import { questionsService } from "@/services/questions";
 import type { CreateQuestionInput } from "@/services/questions";
 import { topicsService } from "@/services/topics";
-import { learningObjectivesService } from "@/services/learningObjectives";
-import { equivalentGroupsService, equivalentGroupsKeys } from "@/services/equivalentGroups";
+import { equivalenceGroupsService, equivalenceGroupsKeys } from "@/services/equivalenceGroups";
 import { aiAuthoringService, aiAuthoringKeys } from "@/services/aiAuthoring";
 import type { AiModelSummary, DraftedQuestion } from "@/services/aiAuthoring";
 import type { QuestionType, QuestionStatus } from "@/types";
@@ -76,8 +75,6 @@ const STATUS_META: Record<QuestionStatus, { label: string; tone: Tone }> = {
   ARCHIVED: { label: "Archived", tone: "neutral" },
 };
 
-const NO_OBJECTIVE = "__none__";
-
 interface OptionDraft {
   text: string;
   isCorrect: boolean;
@@ -100,13 +97,9 @@ function QuestionEditor() {
     enabled: !isNew,
   });
   const topicsQuery = useQuery({ queryKey: qk.topics.list(), queryFn: topicsService.list });
-  const objectivesQuery = useQuery({
-    queryKey: qk.learningObjectives.list(),
-    queryFn: () => learningObjectivesService.list(),
-  });
   const groupsQuery = useQuery({
-    queryKey: equivalentGroupsKeys.list(),
-    queryFn: equivalentGroupsService.list,
+    queryKey: equivalenceGroupsKeys.list(),
+    queryFn: equivalenceGroupsService.list,
     enabled: !isNew,
   });
 
@@ -115,7 +108,6 @@ function QuestionEditor() {
   const [type, setType] = useState<QuestionType>("OPEN");
   const [difficulty, setDifficulty] = useState(2);
   const [topicId, setTopicId] = useState("");
-  const [learningObjectiveId, setLearningObjectiveId] = useState(NO_OBJECTIVE);
   const [options, setOptions] = useState<OptionDraft[]>(emptyOptions());
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [selectedGroupId, setSelectedGroupId] = useState("");
@@ -130,7 +122,6 @@ function QuestionEditor() {
     setType(q.type);
     setDifficulty(q.difficulty);
     setTopicId(String(q.topicId));
-    setLearningObjectiveId(q.learningObjectiveId ? String(q.learningObjectiveId) : NO_OBJECTIVE);
     if (q.type === "MULTIPLE_CHOICE" && q.answerOptions && q.answerOptions.length > 0) {
       setOptions(q.answerOptions.map((o) => ({ text: o.text, isCorrect: o.isCorrect })));
     }
@@ -138,9 +129,6 @@ function QuestionEditor() {
   }, [questionQuery.data?.id]);
 
   const topics = topicsQuery.data ?? [];
-  const objectivesForTopic = (objectivesQuery.data ?? []).filter(
-    (o) => String(o.topicId) === topicId,
-  );
 
   const saveMutation = useMutation({
     mutationFn: (input: CreateQuestionInput) =>
@@ -180,10 +168,10 @@ function QuestionEditor() {
 
   const addToGroupMutation = useMutation({
     mutationFn: (groupId: number) =>
-      equivalentGroupsService.addQuestion(groupId, questionQuery.data!.id),
+      equivalenceGroupsService.addQuestion(groupId, questionQuery.data!.id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: qk.questions.detail(id) });
-      queryClient.invalidateQueries({ queryKey: equivalentGroupsKeys.all });
+      queryClient.invalidateQueries({ queryKey: equivalenceGroupsKeys.all });
       toast.success("Added to equivalent group");
       setSelectedGroupId("");
     },
@@ -192,13 +180,13 @@ function QuestionEditor() {
 
   const removeFromGroupMutation = useMutation({
     mutationFn: () =>
-      equivalentGroupsService.removeQuestion(
-        questionQuery.data!.equivalentGroupId!,
+      equivalenceGroupsService.removeQuestion(
+        questionQuery.data!.equivalenceGroupId!,
         questionQuery.data!.id,
       ),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: qk.questions.detail(id) });
-      queryClient.invalidateQueries({ queryKey: equivalentGroupsKeys.all });
+      queryClient.invalidateQueries({ queryKey: equivalenceGroupsKeys.all });
       toast.success("Removed from equivalent group");
     },
     onError: (err) =>
@@ -243,8 +231,6 @@ function QuestionEditor() {
       topicId: topicIdNum,
       type,
       options: optionsPayload,
-      learningObjectiveId:
-        learningObjectiveId === NO_OBJECTIVE ? null : Number(learningObjectiveId),
     });
   };
 
@@ -431,10 +417,10 @@ function QuestionEditor() {
                 <div className="rounded-md border border-dashed bg-surface p-4 text-sm text-muted-foreground">
                   Save the question first to assign it to an equivalent group.
                 </div>
-              ) : existing?.equivalentGroup ? (
+              ) : existing?.equivalenceGroup ? (
                 <div className="flex items-center justify-between gap-3 rounded-md border bg-card p-3 text-sm">
                   <span>
-                    Part of <span className="font-medium">{existing.equivalentGroup.name}</span>
+                    Part of <span className="font-medium">{existing.equivalenceGroup.title ?? "(untitled)"}</span>
                   </span>
                   <Button
                     variant="ghost"
@@ -458,7 +444,7 @@ function QuestionEditor() {
                       <SelectContent>
                         {(groupsQuery.data ?? []).map((g) => (
                           <SelectItem key={g.id} value={String(g.id)}>
-                            {g.name}
+                            {g.title ?? "(untitled)"}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -543,7 +529,6 @@ function QuestionEditor() {
                   value={topicId}
                   onValueChange={(v) => {
                     setTopicId(v);
-                    setLearningObjectiveId(NO_OBJECTIVE);
                   }}
                 >
                   <SelectTrigger>
@@ -558,41 +543,15 @@ function QuestionEditor() {
                   </SelectContent>
                 </Select>
               </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs">Learning objective</Label>
-                <Select
-                  value={learningObjectiveId}
-                  onValueChange={setLearningObjectiveId}
-                  disabled={!topicId}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value={NO_OBJECTIVE}>None</SelectItem>
-                    {objectivesForTopic.map((o) => (
-                      <SelectItem key={o.id} value={String(o.id)}>
-                        {o.title}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
             </CardContent>
           </Card>
 
           <AIAssistantPanel
             questionId={existing?.id}
-            existingGroupId={existing?.equivalentGroupId ?? null}
+            existingGroupId={existing?.equivalenceGroupId ?? null}
             questionType={type}
             difficulty={difficulty}
             topicName={topics.find((t) => String(t.id) === topicId)?.name ?? null}
-            objectiveTitle={
-              learningObjectiveId !== NO_OBJECTIVE
-                ? (objectivesForTopic.find((o) => String(o.id) === learningObjectiveId)?.title ??
-                  null)
-                : null
-            }
             onApplyDraft={(question) => {
               setTitle(question.title);
               setDescription(question.description);
@@ -668,7 +627,6 @@ interface AIAssistantPanelProps {
   questionType: QuestionType;
   difficulty: number;
   topicName: string | null;
-  objectiveTitle: string | null;
   onApplyDraft: (question: DraftedQuestion) => void;
 }
 
@@ -678,7 +636,6 @@ function AIAssistantPanel({
   questionType,
   difficulty,
   topicName,
-  objectiveTitle,
   onApplyDraft,
 }: AIAssistantPanelProps) {
   const queryClient = useQueryClient();
@@ -717,7 +674,7 @@ function AIAssistantPanel({
 
   const ollamaReachable = statusQuery.data?.reachable ?? false;
   const hasLocalModel = localModels.length > 0;
-  const canGenerate = ollamaReachable && hasLocalModel && !!topicName && !!objectiveTitle;
+  const canGenerate = ollamaReachable && hasLocalModel && !!topicName;
 
   // ---- Draft generation (POST /ai/question-draft) ----
   // Structured drafts on local models can take 30-60s+; apiFetch has no client-side
@@ -727,7 +684,6 @@ function AIAssistantPanel({
     mutationFn: () =>
       aiAuthoringService.generateQuestionDraft({
         topic: topicName ?? "",
-        learningObjective: objectiveTitle ?? "",
         questionType,
         difficulty: DIFFICULTY_TEXT[difficulty] ?? String(difficulty),
         instructions: instructions.trim() || undefined,
@@ -789,16 +745,16 @@ function AIAssistantPanel({
     mutationFn: async (status: "ACCEPTED" | "REJECTED") => {
       await aiAuthoringService.reviewInteraction(equiv!.interactionId, status);
       // Accepting links B into A's existing group via existing DEV A grouping
-      // (Question.equivalentGroupId, onDelete SetNull).
+      // (Question.equivalenceGroupId, onDelete SetNull).
       if (status === "ACCEPTED" && existingGroupId !== null && equiv) {
-        await equivalentGroupsService.addQuestion(existingGroupId, equiv.questionBId);
+        await equivalenceGroupsService.addQuestion(existingGroupId, equiv.questionBId);
       }
       return status;
     },
     onSuccess: (status) => {
       if (status === "ACCEPTED") {
         if (existingGroupId !== null) {
-          queryClient.invalidateQueries({ queryKey: equivalentGroupsKeys.all });
+          queryClient.invalidateQueries({ queryKey: equivalenceGroupsKeys.all });
           queryClient.invalidateQueries({ queryKey: qk.questions.all });
           toast.success("Equivalence accepted — linked into this question's group.");
         } else {
@@ -817,7 +773,7 @@ function AIAssistantPanel({
 
   // Detect when question B is already in a different equivalent group than A.
   const questionBData = equiv ? otherQuestions.find((q) => q.id === equiv.questionBId) : null;
-  const equivBGroupId = questionBData?.equivalentGroupId ?? null;
+  const equivBGroupId = questionBData?.equivalenceGroupId ?? null;
   const hasGroupConflict =
     existingGroupId !== null && equivBGroupId !== null && equivBGroupId !== existingGroupId;
 
@@ -924,9 +880,9 @@ function AIAssistantPanel({
             ) : (
               ollamaReachable &&
               hasLocalModel &&
-              (!topicName || !objectiveTitle) && (
+              !topicName && (
                 <p className="text-[11px] text-muted-foreground">
-                  Select a topic and learning objective first.
+                  Select a topic first.
                 </p>
               )
             )}

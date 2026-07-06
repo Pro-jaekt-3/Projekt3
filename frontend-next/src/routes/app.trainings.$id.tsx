@@ -16,6 +16,9 @@ import {
   Pencil,
   Search,
   Trash2,
+  Copy,
+  RefreshCw,
+  QrCode,
 } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/common/PageHeader";
@@ -63,27 +66,19 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { RECENT_ACTIVITY } from "@/lib/mock-data";
-import {
-  ResponsiveContainer,
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  Tooltip,
-  CartesianGrid,
-} from "recharts";
+import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid } from "recharts";
 import { useRole } from "@/lib/role-context";
 import { qk } from "@/lib/query-keys";
 import { trainingsService } from "@/services/trainings";
 import { topicsService } from "@/services/topics";
-import { learningObjectivesService } from "@/services/learningObjectives";
 import { questionsService } from "@/services/questions";
 import { usersService } from "@/services/users";
 import { assessmentsService } from "@/services/assessments";
 import { analyticsService } from "@/services/analytics";
+import { userTrainingsService } from "@/services/userTrainings";
 import { trainingToView } from "@/lib/training-view";
 import { ensureRole } from "@/lib/route-guards";
-import type { Topic, LearningObjective, Question } from "@/types";
+import type { Topic, TrainingRole, UserTraining } from "@/types";
 
 export const Route = createFileRoute("/app/trainings/$id")({
   beforeLoad: ({ context, location }) =>
@@ -163,25 +158,14 @@ function TrainingDetail() {
     onError: (err) => toast.error(err instanceof Error ? err.message : "Failed to delete training"),
   });
 
-  // --- Curriculum: topics + learning objectives (real API) ---
+  // --- Curriculum: topics (real API) ---
   const topicsQuery = useQuery({
     queryKey: qk.topics.list(),
     queryFn: topicsService.list,
   });
-  const objectivesQuery = useQuery({
-    queryKey: qk.learningObjectives.list(),
-    queryFn: () => learningObjectivesService.list(),
-  });
 
   const trainingTopics = (topicsQuery.data ?? []).filter((t) => t.trainingId === Number(id));
   const trainingTopicIds = new Set(trainingTopics.map((t) => t.id));
-  const objectivesByTopic = (objectivesQuery.data ?? [])
-    .filter((o) => trainingTopicIds.has(o.topicId))
-    .reduce<Record<number, LearningObjective[]>>((acc, o) => {
-      (acc[o.topicId] ??= []).push(o);
-      return acc;
-    }, {});
-  const totalObjectives = Object.values(objectivesByTopic).reduce((s, arr) => s + arr.length, 0);
 
   // --- Question Bank tab: questions for this training's topics (real API) ---
   const questionsQuery = useQuery({
@@ -206,25 +190,40 @@ function TrainingDetail() {
   });
   const [questionSearch, setQuestionSearch] = useState("");
   const [participantSearch, setParticipantSearch] = useState("");
-  const [addParticipantOpen, setAddParticipantOpen] = useState(false);
-  const [pendingAddUserId, setPendingAddUserId] = useState("");
+  const [addMemberOpen, setAddMemberOpen] = useState(false);
+  const [memberEmail, setMemberEmail] = useState("");
+  const [pendingMemberUserId, setPendingMemberUserId] = useState("");
+  const [memberRole, setMemberRole] = useState<TrainingRole>("PARTICIPANT");
+  const [memberRemoveTarget, setMemberRemoveTarget] = useState<UserTraining | null>(null);
 
-  const participantsQuery = useQuery({
-    queryKey: qk.users.list(),
-    queryFn: usersService.list,
-    // GET /users is ADMIN-only — instructors would receive 403
-    enabled: isAdmin,
+  // Real UserTraining memberships (GET /trainings/:id/members — ADMIN or owner).
+  const membersQuery = useQuery({
+    queryKey: qk.userTrainings.list(Number(id)),
+    queryFn: () => userTrainingsService.listMembers(id),
   });
-  const allParticipants = (participantsQuery.data ?? []).filter((u) => u.role === "PARTICIPANT");
-  const visibleParticipants = allParticipants.filter((p) => {
+  const members = membersQuery.data ?? [];
+  const instructorMembers = members.filter((m) => m.role === "INSTRUCTOR");
+  const participantMembers = members.filter((m) => m.role === "PARTICIPANT");
+  const visibleParticipantMembers = participantMembers.filter((m) => {
     if (!participantSearch) return true;
     const q = participantSearch.toLowerCase();
-    return (p.name ?? "").toLowerCase().includes(q) || p.email.toLowerCase().includes(q);
+    return (
+      (m.user?.name ?? "").toLowerCase().includes(q) ||
+      (m.user?.email ?? "").toLowerCase().includes(q)
+    );
   });
-  const nonParticipants = (participantsQuery.data ?? []).filter((u) => u.role !== "PARTICIPANT");
+
+  // Admin picks from the full user list; instructors add members by email
+  // (GET /users is ADMIN-only).
+  const usersQuery = useQuery({
+    queryKey: qk.users.list(),
+    queryFn: usersService.list,
+    enabled: isAdmin,
+  });
+  const memberUserIds = new Set(members.map((m) => m.userId));
+  const addableUsers = (usersQuery.data ?? []).filter((u) => !memberUserIds.has(u.id));
 
   const topicsById = new Map(trainingTopics.map((t) => [t.id, t]));
-  const objectivesById = new Map((objectivesQuery.data ?? []).map((o) => [o.id, o]));
   const trainingQuestions = (questionsQuery.data ?? []).filter((q) =>
     trainingTopicIds.has(q.topicId),
   );
@@ -242,15 +241,6 @@ function TrainingDetail() {
   const [editingTopic, setEditingTopic] = useState<Topic | null>(null);
   const [topicName, setTopicName] = useState("");
   const [topicDeleteTarget, setTopicDeleteTarget] = useState<Topic | null>(null);
-
-  const [objectiveDialogOpen, setObjectiveDialogOpen] = useState(false);
-  const [editingObjective, setEditingObjective] = useState<LearningObjective | null>(null);
-  const [objectiveTitle, setObjectiveTitle] = useState("");
-  const [objectiveDescription, setObjectiveDescription] = useState("");
-  const [objectiveTopicId, setObjectiveTopicId] = useState("");
-  const [objectiveDeleteTarget, setObjectiveDeleteTarget] = useState<LearningObjective | null>(
-    null,
-  );
 
   const openCreateTopic = () => {
     setEditingTopic(null);
@@ -287,68 +277,47 @@ function TrainingDetail() {
     onError: (err) => toast.error(err instanceof Error ? err.message : "Failed to delete topic"),
   });
 
-  const openCreateObjective = (topicId?: number) => {
-    setEditingObjective(null);
-    setObjectiveTitle("");
-    setObjectiveDescription("");
-    setObjectiveTopicId(topicId ? String(topicId) : (trainingTopics[0]?.id.toString() ?? ""));
-    setObjectiveDialogOpen(true);
-  };
-  const openEditObjective = (objective: LearningObjective) => {
-    setEditingObjective(objective);
-    setObjectiveTitle(objective.title);
-    setObjectiveDescription(objective.description ?? "");
-    setObjectiveTopicId(String(objective.topicId));
-    setObjectiveDialogOpen(true);
-  };
-
-  const objectiveMutation = useMutation({
+  const addMemberMutation = useMutation({
     mutationFn: () =>
-      editingObjective
-        ? learningObjectivesService.update(editingObjective.id, {
-            title: objectiveTitle.trim(),
-            description: objectiveDescription.trim() || null,
-            topicId: Number(objectiveTopicId),
-          })
-        : learningObjectivesService.create({
-            title: objectiveTitle.trim(),
-            description: objectiveDescription.trim() || null,
-            topicId: Number(objectiveTopicId),
-          }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: qk.learningObjectives.all });
-      toast.success(editingObjective ? "Learning objective updated" : "Learning objective created");
-      setObjectiveDialogOpen(false);
+      userTrainingsService.addMember(id, {
+        ...(isAdmin && pendingMemberUserId
+          ? { userId: Number(pendingMemberUserId) }
+          : { email: memberEmail.trim() }),
+        role: memberRole,
+      }),
+    onSuccess: (membership) => {
+      queryClient.invalidateQueries({ queryKey: qk.userTrainings.all });
+      toast.success(
+        membership.role === "INSTRUCTOR"
+          ? `Ownership granted to ${membership.user?.email ?? "user"}`
+          : `${membership.user?.email ?? "User"} enrolled as participant`,
+      );
+      setAddMemberOpen(false);
+      setMemberEmail("");
+      setPendingMemberUserId("");
+      setMemberRole("PARTICIPANT");
     },
-    onError: (err) =>
-      toast.error(err instanceof Error ? err.message : "Failed to save learning objective"),
+    onError: (err) => toast.error(err instanceof Error ? err.message : "Failed to add member"),
   });
 
-  const deleteObjectiveMutation = useMutation({
-    mutationFn: (objectiveId: number) => learningObjectivesService.remove(objectiveId),
+  const removeMemberMutation = useMutation({
+    mutationFn: (member: UserTraining) => userTrainingsService.removeMember(id, member.userId),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: qk.learningObjectives.all });
-      // Question.learningObjectiveId is ON DELETE SET NULL, so deleting this
-      // objective detaches (not blocks) any questions that referenced it —
-      // refresh questions too so the Question Bank tab doesn't show stale data.
-      queryClient.invalidateQueries({ queryKey: qk.questions.all });
-      toast.success("Learning objective deleted");
-      setObjectiveDeleteTarget(null);
+      queryClient.invalidateQueries({ queryKey: qk.userTrainings.all });
+      toast.success("Member removed");
+      setMemberRemoveTarget(null);
     },
-    onError: (err) =>
-      toast.error(err instanceof Error ? err.message : "Failed to delete learning objective"),
+    onError: (err) => toast.error(err instanceof Error ? err.message : "Failed to remove member"),
   });
 
-  const addParticipantMutation = useMutation({
-    mutationFn: (userId: number) => usersService.updateRole(userId, "PARTICIPANT"),
+  const regenerateTokenMutation = useMutation({
+    mutationFn: () => userTrainingsService.regenerateToken(id),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: qk.users.all });
-      toast.success("User added as participant");
-      setAddParticipantOpen(false);
-      setPendingAddUserId("");
+      queryClient.invalidateQueries({ queryKey: qk.trainings.detail(id) });
+      toast.success("Enrollment code regenerated — previous QR links no longer work");
     },
     onError: (err) =>
-      toast.error(err instanceof Error ? err.message : "Failed to update user role"),
+      toast.error(err instanceof Error ? err.message : "Failed to regenerate the code"),
   });
 
   if (trainingQuery.isLoading) {
@@ -406,7 +375,7 @@ function TrainingDetail() {
           <>
             <StatusBadge status={training.status} />
             <span>·</span>
-            <span>{training.participants} participants</span>
+            <span>{participantMembers.length} participants</span>
             <span>·</span>
             <span>Updated {training.lastActivity}</span>
           </>
@@ -419,11 +388,9 @@ function TrainingDetail() {
             <Button variant="outline" size="sm" onClick={() => setDeleteOpen(true)}>
               <Trash2 className="mr-1.5 h-4 w-4" /> Delete
             </Button>
-            {isAdmin && (
-              <Button variant="outline" size="sm" onClick={() => setAddParticipantOpen(true)}>
-                <UserPlus className="mr-1.5 h-4 w-4" /> Add participant
-              </Button>
-            )}
+            <Button variant="outline" size="sm" onClick={() => setAddMemberOpen(true)}>
+              <UserPlus className="mr-1.5 h-4 w-4" /> Add member
+            </Button>
             <Button asChild size="sm">
               <Link to="/app/assessments/new" search={{ trainingId: training.id } as never}>
                 <Plus className="mr-1.5 h-4 w-4" /> Create assessment
@@ -435,8 +402,7 @@ function TrainingDetail() {
 
       <div className="space-y-6 p-4 sm:p-6 lg:p-8">
         <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-5">
-          <MetricCard label="Participants" value={training.participants} />
-          <MetricCard label="Learning objectives" value={totalObjectives} />
+          <MetricCard label="Participants" value={participantMembers.length} />
           <MetricCard
             label="Approved questions"
             value={approvedQuestionCount}
@@ -548,8 +514,136 @@ function TrainingDetail() {
             </Card>
           </TabsContent>
 
-          {/* PARTICIPANTS */}
+          {/* PARTICIPANTS / MEMBERS */}
           <TabsContent value="participants" className="mt-4 space-y-4">
+            {/* QR / enrollment code (owner or admin — token comes from GET /trainings/:id) */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <QrCode className="h-4 w-4" /> Self-enrollment link
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                {trainingQuery.data.enrollmentToken ? (
+                  <>
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                      <Input
+                        readOnly
+                        className="font-mono text-xs"
+                        value={`${window.location.origin}/app/join?trainingId=${id}&token=${trainingQuery.data.enrollmentToken}`}
+                      />
+                      <div className="flex shrink-0 gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            navigator.clipboard
+                              .writeText(
+                                `${window.location.origin}/app/join?trainingId=${id}&token=${trainingQuery.data.enrollmentToken}`,
+                              )
+                              .then(() => toast.success("Enrollment link copied"))
+                              .catch(() => toast.error("Could not copy the link"));
+                          }}
+                        >
+                          <Copy className="mr-1.5 h-3.5 w-3.5" /> Copy link
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => regenerateTokenMutation.mutate()}
+                          disabled={regenerateTokenMutation.isPending}
+                        >
+                          <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
+                          {regenerateTokenMutation.isPending ? "Regenerating…" : "Regenerate"}
+                        </Button>
+                      </div>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Share this link (or a QR code pointing to it) with participants — opening it
+                      enrolls them into this training. Regenerating invalidates previously shared
+                      links.
+                    </p>
+                  </>
+                ) : (
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="text-sm text-muted-foreground">
+                      No enrollment code yet. Generate one to let participants self-enroll via QR.
+                    </p>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => regenerateTokenMutation.mutate()}
+                      disabled={regenerateTokenMutation.isPending}
+                    >
+                      <RefreshCw className="mr-1.5 h-3.5 w-3.5" /> Generate code
+                    </Button>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Instructors (ownership) */}
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
+                <CardTitle className="text-base">Instructors</CardTitle>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setMemberRole("INSTRUCTOR");
+                    setAddMemberOpen(true);
+                  }}
+                >
+                  <UserPlus className="mr-1.5 h-3.5 w-3.5" /> Add instructor
+                </Button>
+              </CardHeader>
+              <CardContent className="pt-0">
+                {membersQuery.isLoading ? (
+                  <LoadingState label="Loading members…" />
+                ) : membersQuery.isError ? (
+                  <ErrorState
+                    message={
+                      membersQuery.error instanceof Error
+                        ? membersQuery.error.message
+                        : "Failed to load members"
+                    }
+                    onRetry={() => membersQuery.refetch()}
+                  />
+                ) : instructorMembers.length === 0 ? (
+                  <div className="rounded-md border border-dashed bg-surface p-3 text-xs text-muted-foreground">
+                    No instructor owner yet{isAdmin ? " — grant ownership to an instructor." : "."}
+                  </div>
+                ) : (
+                  <ul className="divide-y rounded-md border">
+                    {instructorMembers.map((m) => (
+                      <li
+                        key={m.id}
+                        className="flex items-center justify-between gap-3 px-3 py-2.5 text-sm"
+                      >
+                        <div className="min-w-0">
+                          <div className="truncate font-medium">{m.user?.name ?? "—"}</div>
+                          <div className="truncate text-xs text-muted-foreground">
+                            {m.user?.email}
+                          </div>
+                        </div>
+                        {isAdmin && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setMemberRemoveTarget(m)}
+                            title="Revoke ownership (admin only)"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Participants (enrollment) */}
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex flex-1 items-center gap-2">
                 <Input
@@ -557,49 +651,51 @@ function TrainingDetail() {
                   className="max-w-sm"
                   value={participantSearch}
                   onChange={(e) => setParticipantSearch(e.target.value)}
-                  disabled={!isAdmin}
                 />
                 <Button variant="outline" size="sm" className="shrink-0" disabled>
                   <Filter className="mr-1.5 h-4 w-4" /> Filters
                 </Button>
               </div>
-              {isAdmin && (
-                <Button size="sm" onClick={() => setAddParticipantOpen(true)}>
-                  <UserPlus className="mr-1.5 h-4 w-4" /> Add participant
-                </Button>
-              )}
+              <Button
+                size="sm"
+                onClick={() => {
+                  setMemberRole("PARTICIPANT");
+                  setAddMemberOpen(true);
+                }}
+              >
+                <UserPlus className="mr-1.5 h-4 w-4" /> Add participant
+              </Button>
             </div>
 
-            {!isAdmin ? (
-              <Card>
-                <CardContent className="py-8 text-center text-sm text-muted-foreground">
-                  Participant management requires admin access. Contact your administrator to manage
-                  user roles.
-                </CardContent>
-              </Card>
-            ) : participantsQuery.isLoading ? (
+            {membersQuery.isLoading ? (
               <LoadingState label="Loading participants…" />
-            ) : participantsQuery.isError ? (
+            ) : membersQuery.isError ? (
               <ErrorState
                 message={
-                  participantsQuery.error instanceof Error
-                    ? participantsQuery.error.message
+                  membersQuery.error instanceof Error
+                    ? membersQuery.error.message
                     : "Failed to load participants"
                 }
-                onRetry={() => participantsQuery.refetch()}
+                onRetry={() => membersQuery.refetch()}
               />
-            ) : allParticipants.length === 0 ? (
+            ) : participantMembers.length === 0 ? (
               <EmptyState
                 icon={<Users className="h-5 w-5" />}
                 title="No participants yet"
-                description="Add users as participants so they can take assessments."
+                description="Enroll participants directly or share the self-enrollment link above."
                 action={
-                  <Button size="sm" onClick={() => setAddParticipantOpen(true)}>
+                  <Button
+                    size="sm"
+                    onClick={() => {
+                      setMemberRole("PARTICIPANT");
+                      setAddMemberOpen(true);
+                    }}
+                  >
                     <UserPlus className="mr-1.5 h-4 w-4" /> Add participant
                   </Button>
                 }
               />
-            ) : visibleParticipants.length === 0 ? (
+            ) : visibleParticipantMembers.length === 0 ? (
               <EmptyState
                 icon={<Users className="h-5 w-5" />}
                 title="No participants match your search"
@@ -613,17 +709,33 @@ function TrainingDetail() {
                       <TableRow>
                         <TableHead>Participant</TableHead>
                         <TableHead className="hidden sm:table-cell">Email</TableHead>
+                        <TableHead className="hidden md:table-cell">Enrolled</TableHead>
+                        <TableHead className="w-12" />
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {visibleParticipants.map((p) => (
-                        <TableRow key={p.id}>
+                      {visibleParticipantMembers.map((m) => (
+                        <TableRow key={m.id}>
                           <TableCell>
-                            <div className="font-medium">{p.name ?? "—"}</div>
-                            <div className="text-xs text-muted-foreground sm:hidden">{p.email}</div>
+                            <div className="font-medium">{m.user?.name ?? "—"}</div>
+                            <div className="text-xs text-muted-foreground sm:hidden">
+                              {m.user?.email}
+                            </div>
                           </TableCell>
                           <TableCell className="hidden sm:table-cell text-xs text-muted-foreground">
-                            {p.email}
+                            {m.user?.email}
+                          </TableCell>
+                          <TableCell className="hidden md:table-cell text-xs text-muted-foreground">
+                            {new Date(m.enrolledAt).toLocaleDateString()}
+                          </TableCell>
+                          <TableCell>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => setMemberRemoveTarget(m)}
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
                           </TableCell>
                         </TableRow>
                       ))}
@@ -644,37 +756,27 @@ function TrainingDetail() {
                 <Button variant="outline" size="sm" onClick={openCreateTopic}>
                   Add topic
                 </Button>
-                <Button
-                  size="sm"
-                  onClick={() => openCreateObjective()}
-                  disabled={trainingTopics.length === 0}
-                >
-                  <Plus className="mr-1.5 h-4 w-4" /> Add objective
-                </Button>
               </div>
             </div>
 
-            {topicsQuery.isLoading || objectivesQuery.isLoading ? (
+            {topicsQuery.isLoading ? (
               <LoadingState label="Loading curriculum…" />
-            ) : topicsQuery.isError || objectivesQuery.isError ? (
+            ) : topicsQuery.isError ? (
               <ErrorState
                 message={
                   topicsQuery.error instanceof Error
                     ? topicsQuery.error.message
-                    : objectivesQuery.error instanceof Error
-                      ? objectivesQuery.error.message
-                      : "Failed to load curriculum"
+                    : "Failed to load curriculum"
                 }
                 onRetry={() => {
                   topicsQuery.refetch();
-                  objectivesQuery.refetch();
                 }}
               />
             ) : trainingTopics.length === 0 ? (
               <EmptyState
                 icon={<BookOpen className="h-5 w-5" />}
-                title="Define topics and learning objectives"
-                description="Define topics and learning objectives before creating assessment blueprints."
+                title="Define topics"
+                description="Define topics to organize your questions before creating assessments."
                 action={
                   <Button size="sm" onClick={openCreateTopic}>
                     <Plus className="mr-1.5 h-4 w-4" /> Add topic
@@ -683,81 +785,25 @@ function TrainingDetail() {
               />
             ) : (
               <div className="space-y-3">
-                {trainingTopics.map((topic) => {
-                  const objectives = objectivesByTopic[topic.id] ?? [];
-                  return (
-                    <Card key={topic.id}>
-                      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
-                        <div>
-                          <CardTitle className="text-sm">{topic.name}</CardTitle>
-                          <div className="mt-1 text-xs text-muted-foreground">
-                            {objectives.length} objective{objectives.length === 1 ? "" : "s"}
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <Button variant="ghost" size="sm" onClick={() => openEditTopic(topic)}>
-                            <Pencil className="mr-1.5 h-3.5 w-3.5" /> Edit
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => setTopicDeleteTarget(topic)}
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </Button>
-                        </div>
-                      </CardHeader>
-                      <CardContent className="pt-0 space-y-2">
-                        {objectives.length === 0 ? (
-                          <div className="rounded-md border border-dashed bg-surface p-3 text-xs text-muted-foreground">
-                            No learning objectives yet.
-                          </div>
-                        ) : (
-                          <ul className="divide-y rounded-md border">
-                            {objectives.map((o) => (
-                              <li
-                                key={o.id}
-                                className="flex items-center justify-between gap-3 px-3 py-2.5 text-sm"
-                              >
-                                <div className="min-w-0">
-                                  <div className="truncate font-medium">{o.title}</div>
-                                  {o.description && (
-                                    <div className="truncate text-xs text-muted-foreground">
-                                      {o.description}
-                                    </div>
-                                  )}
-                                </div>
-                                <div className="flex items-center gap-1">
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={() => openEditObjective(o)}
-                                  >
-                                    <Pencil className="h-3.5 w-3.5" />
-                                  </Button>
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={() => setObjectiveDeleteTarget(o)}
-                                  >
-                                    <Trash2 className="h-3.5 w-3.5" />
-                                  </Button>
-                                </div>
-                              </li>
-                            ))}
-                          </ul>
-                        )}
+                {trainingTopics.map((topic) => (
+                  <Card key={topic.id}>
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
+                      <CardTitle className="text-sm">{topic.name}</CardTitle>
+                      <div className="flex items-center gap-1">
+                        <Button variant="ghost" size="sm" onClick={() => openEditTopic(topic)}>
+                          <Pencil className="mr-1.5 h-3.5 w-3.5" /> Edit
+                        </Button>
                         <Button
                           variant="ghost"
                           size="sm"
-                          onClick={() => openCreateObjective(topic.id)}
+                          onClick={() => setTopicDeleteTarget(topic)}
                         >
-                          <Plus className="mr-1.5 h-3.5 w-3.5" /> Add objective
+                          <Trash2 className="h-3.5 w-3.5" />
                         </Button>
-                      </CardContent>
-                    </Card>
-                  );
-                })}
+                      </div>
+                    </CardHeader>
+                  </Card>
+                ))}
               </div>
             )}
           </TabsContent>
@@ -838,7 +884,6 @@ function TrainingDetail() {
                       <TableRow>
                         <TableHead>Question</TableHead>
                         <TableHead className="hidden md:table-cell">Topic</TableHead>
-                        <TableHead className="hidden lg:table-cell">Objective</TableHead>
                         <TableHead className="hidden sm:table-cell">Difficulty</TableHead>
                         <TableHead>Status</TableHead>
                       </TableRow>
@@ -859,11 +904,6 @@ function TrainingDetail() {
                             </TableCell>
                             <TableCell className="hidden md:table-cell text-xs text-muted-foreground">
                               {topicsById.get(q.topicId)?.name ?? "—"}
-                            </TableCell>
-                            <TableCell className="hidden lg:table-cell text-xs text-muted-foreground">
-                              {q.learningObjectiveId
-                                ? (objectivesById.get(q.learningObjectiveId)?.title ?? "—")
-                                : "—"}
                             </TableCell>
                             <TableCell className="hidden sm:table-cell text-xs">
                               {QUESTION_DIFFICULTY_LABEL[q.difficulty] ?? q.difficulty}
@@ -961,10 +1001,7 @@ function TrainingDetail() {
                           </Button>
                           {a.status !== "DRAFT" && (
                             <Button asChild size="sm">
-                              <Link
-                                to="/app/assessments/$id/results"
-                                params={{ id: String(a.id) }}
-                              >
+                              <Link to="/app/assessments/$id/results" params={{ id: String(a.id) }}>
                                 View results
                               </Link>
                             </Button>
@@ -1027,10 +1064,7 @@ function TrainingDetail() {
                         : undefined
                     }
                   />
-                  <MetricCard
-                    label="Submitted attempts"
-                    value={summaryData?.attemptCount ?? 0}
-                  />
+                  <MetricCard label="Submitted attempts" value={summaryData?.attemptCount ?? 0} />
                   <MetricCard
                     label="Strongest topic"
                     value={strongestTopic?.topicTitle ?? "—"}
@@ -1099,12 +1133,7 @@ function TrainingDetail() {
                             >
                               <CartesianGrid strokeDasharray="3 3" />
                               <XAxis type="number" domain={[0, 100]} fontSize={11} />
-                              <YAxis
-                                type="category"
-                                dataKey="topic"
-                                fontSize={11}
-                                width={100}
-                              />
+                              <YAxis type="category" dataKey="topic" fontSize={11} width={100} />
                               <Tooltip />
                               <Bar dataKey="score" fill="var(--primary)" radius={4} />
                             </BarChart>
@@ -1254,9 +1283,8 @@ function TrainingDetail() {
           <AlertDialogHeader>
             <AlertDialogTitle>Delete this topic?</AlertDialogTitle>
             <AlertDialogDescription>
-              This permanently deletes “{topicDeleteTarget?.name}”. If it still has learning
-              objectives or questions attached, the server will refuse to delete it — remove those
-              first.
+              This permanently deletes “{topicDeleteTarget?.name}”. If it still has questions
+              attached, the server will refuse to delete it — remove those first.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -1274,174 +1302,123 @@ function TrainingDetail() {
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Learning objective create/edit dialog */}
-      <Dialog open={objectiveDialogOpen} onOpenChange={setObjectiveDialogOpen}>
+      {/* Add member dialog (UserTraining) — admin picks a user, instructor adds by email */}
+      <Dialog open={addMemberOpen} onOpenChange={setAddMemberOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>
-              {editingObjective ? "Edit learning objective" : "Add learning objective"}
-            </DialogTitle>
+            <DialogTitle>Add member</DialogTitle>
             <DialogDescription>
-              {editingObjective
-                ? "Update this learning objective."
-                : "Add a learning objective under a topic."}
-            </DialogDescription>
-          </DialogHeader>
-          <form
-            id="objective-form"
-            className="space-y-3"
-            onSubmit={(e) => {
-              e.preventDefault();
-              if (!objectiveTitle.trim()) {
-                toast.error("Title is required");
-                return;
-              }
-              if (!objectiveTopicId) {
-                toast.error("Topic is required");
-                return;
-              }
-              objectiveMutation.mutate();
-            }}
-          >
-            <div className="space-y-1.5">
-              <Label htmlFor="objective-topic">Topic</Label>
-              <Select value={objectiveTopicId} onValueChange={setObjectiveTopicId}>
-                <SelectTrigger id="objective-topic">
-                  <SelectValue placeholder="Select a topic" />
-                </SelectTrigger>
-                <SelectContent>
-                  {trainingTopics.map((t) => (
-                    <SelectItem key={t.id} value={String(t.id)}>
-                      {t.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="objective-title">Title</Label>
-              <Input
-                id="objective-title"
-                value={objectiveTitle}
-                onChange={(e) => setObjectiveTitle(e.target.value)}
-                autoFocus
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="objective-desc">Description</Label>
-              <Textarea
-                id="objective-desc"
-                value={objectiveDescription}
-                onChange={(e) => setObjectiveDescription(e.target.value)}
-                placeholder="Optional"
-              />
-            </div>
-          </form>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setObjectiveDialogOpen(false)}
-              disabled={objectiveMutation.isPending}
-            >
-              Cancel
-            </Button>
-            <Button type="submit" form="objective-form" disabled={objectiveMutation.isPending}>
-              {objectiveMutation.isPending
-                ? "Saving…"
-                : editingObjective
-                  ? "Save changes"
-                  : "Add objective"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Add participant dialog (admin-only — GET /users is ADMIN-restricted) */}
-      <Dialog open={addParticipantOpen} onOpenChange={setAddParticipantOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Add participant</DialogTitle>
-            <DialogDescription>
-              Assign the Participant role to an existing user so they can access published
-              assessments.
+              Enroll a participant or grant instructor ownership on this training.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
-            {nonParticipants.length === 0 ? (
-              <p className="text-sm text-muted-foreground">
-                All users are already participants, or there are no other users in the system.
-              </p>
-            ) : (
+            <div className="space-y-1.5">
+              <Label htmlFor="member-role">Role</Label>
+              <Select value={memberRole} onValueChange={(v) => setMemberRole(v as TrainingRole)}>
+                <SelectTrigger id="member-role">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="PARTICIPANT">Participant (can take assessments)</SelectItem>
+                  <SelectItem value="INSTRUCTOR">Instructor (owns this training)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            {isAdmin ? (
               <div className="space-y-1.5">
-                <Label htmlFor="add-participant-select">User</Label>
-                <Select value={pendingAddUserId} onValueChange={setPendingAddUserId}>
-                  <SelectTrigger id="add-participant-select">
+                <Label htmlFor="member-user-select">User</Label>
+                <Select value={pendingMemberUserId} onValueChange={setPendingMemberUserId}>
+                  <SelectTrigger id="member-user-select">
                     <SelectValue placeholder="Select a user…" />
                   </SelectTrigger>
                   <SelectContent>
-                    {nonParticipants.map((u) => (
+                    {addableUsers.map((u) => (
                       <SelectItem key={u.id} value={String(u.id)}>
                         {u.name ?? u.email} ({u.role.toLowerCase()})
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
+                {addableUsers.length === 0 && (
+                  <p className="text-xs text-muted-foreground">
+                    Every user is already a member of this training.
+                  </p>
+                )}
+              </div>
+            ) : (
+              <div className="space-y-1.5">
+                <Label htmlFor="member-email">User email</Label>
+                <Input
+                  id="member-email"
+                  type="email"
+                  value={memberEmail}
+                  onChange={(e) => setMemberEmail(e.target.value)}
+                  placeholder="user@example.com"
+                />
+                <p className="text-xs text-muted-foreground">
+                  The user must already have an account with this email.
+                </p>
               </div>
             )}
           </div>
           <DialogFooter>
             <Button
               variant="outline"
-              onClick={() => setAddParticipantOpen(false)}
-              disabled={addParticipantMutation.isPending}
+              onClick={() => setAddMemberOpen(false)}
+              disabled={addMemberMutation.isPending}
             >
               Cancel
             </Button>
             <Button
               disabled={
-                !pendingAddUserId ||
-                addParticipantMutation.isPending ||
-                nonParticipants.length === 0
+                addMemberMutation.isPending ||
+                (isAdmin ? !pendingMemberUserId : !memberEmail.trim())
               }
-              onClick={() => {
-                if (pendingAddUserId) addParticipantMutation.mutate(Number(pendingAddUserId));
-              }}
+              onClick={() => addMemberMutation.mutate()}
             >
-              {addParticipantMutation.isPending ? "Adding…" : "Add as participant"}
+              {addMemberMutation.isPending
+                ? "Adding…"
+                : memberRole === "INSTRUCTOR"
+                  ? "Grant ownership"
+                  : "Enroll participant"}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* Learning objective delete confirm */}
+      {/* Remove member confirm */}
       <AlertDialog
-        open={!!objectiveDeleteTarget}
-        onOpenChange={(open) => !open && setObjectiveDeleteTarget(null)}
+        open={!!memberRemoveTarget}
+        onOpenChange={(open) => !open && setMemberRemoveTarget(null)}
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete this learning objective?</AlertDialogTitle>
+            <AlertDialogTitle>
+              {memberRemoveTarget?.role === "INSTRUCTOR"
+                ? "Revoke instructor ownership?"
+                : "Remove this participant?"}
+            </AlertDialogTitle>
             <AlertDialogDescription>
-              This permanently deletes “{objectiveDeleteTarget?.title}”. Questions linked to it will
-              be detached (kept, just no longer mapped to this objective), not deleted.
+              {memberRemoveTarget?.role === "INSTRUCTOR"
+                ? `${memberRemoveTarget?.user?.email ?? "This user"} will lose access to manage this training's content.`
+                : `${memberRemoveTarget?.user?.email ?? "This user"} will no longer see this training's assessments.`}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={deleteObjectiveMutation.isPending}>
-              Cancel
-            </AlertDialogCancel>
+            <AlertDialogCancel disabled={removeMemberMutation.isPending}>Cancel</AlertDialogCancel>
             <AlertDialogAction
               onClick={(e) => {
                 e.preventDefault();
-                if (objectiveDeleteTarget) deleteObjectiveMutation.mutate(objectiveDeleteTarget.id);
+                if (memberRemoveTarget) removeMemberMutation.mutate(memberRemoveTarget);
               }}
-              disabled={deleteObjectiveMutation.isPending}
+              disabled={removeMemberMutation.isPending}
             >
-              {deleteObjectiveMutation.isPending ? "Deleting…" : "Delete"}
+              {removeMemberMutation.isPending ? "Removing…" : "Remove"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
     </>
   );
 }

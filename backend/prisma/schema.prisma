@@ -1,54 +1,120 @@
+// =============================================================================
+// PROJEKT3 — schema.prisma  (AKTIVNA SHEMA, stanje po CUTOVER v2)
+// -----------------------------------------------------------------------------
+// Cutover (destruktivna faza 3) je uveljavil ciljno shemo iz schema-v2.prisma:
+//   - DROP: LearningObjective, AssessmentBlueprint, EquivalentQuestionGroup
+//   - DROP stolpci: Question.learningObjectiveId, Question.equivalentGroupId,
+//     Question.reviewedById, AiInteraction.reviewedById
+//   - AssessmentAttempt.userId NOT NULL (Restrict) + @@unique([assessmentId,userId])
+//
+// Legenda oznak v komentarjih:
+//   [NEW]      = nova tabela / stolpec / relacija (glede na predcutover shemo v1)
+//   [CHANGED]  = spremenjeno glede na staro shemo
+//   [REMOVED]  = odstranjeno glede na staro shemo (navedeno, kje je bilo)
+//   [APP]      = pravilo, ki ga FK ne izrazi; uveljavi ga koda
+// =============================================================================
+
 generator client {
   provider = "prisma-client-js"
 }
 
-generator erd {
-  provider = "prisma-erd-generator"
-}
+// generator erd {
+//   provider = "prisma-erd-generator"
+//   output   = "./erd-v2.svg"
+// }
 
 datasource db {
   provider = "mysql"
   url      = env("DATABASE_URL")
 }
 
+// =============================================================================
+// USER
+// =============================================================================
 model User {
-  id                      Int                 @id @default(autoincrement())
-  firebaseUid             String?             @unique
-  email                   String              @unique
-  name                    String?
-  externalAuthId          String?             @unique
-  role                    UserRole            @default(PARTICIPANT)
+  id             Int      @id @default(autoincrement())
+  firebaseUid    String?  @unique
+  email          String   @unique
+  name           String?
+  externalAuthId String?  @unique // legacy/seed auth pot; Firebase middleware fallback. OHRANJENO.
+  role           UserRole @default(PARTICIPANT) // globalni tier; per-training vloga je v UserTraining.
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   createdQuestions        Question[]          @relation("QuestionCreatedBy")
-  reviewedQuestions       Question[]          @relation("QuestionReviewedBy")
   assessmentAttempts      AssessmentAttempt[]
   requestedAiInteractions AiInteraction[]     @relation("AiInteractionRequestedBy")
-  reviewedAiInteractions  AiInteraction[]     @relation("AiInteractionReviewedBy")
+  gradedAnswers           ParticipantAnswer[] @relation("AnswerGradedBy") // ročno ocenjevanje
+  trainingMemberships     UserTraining[] // lastništvo + enrollment
+
+  // [REMOVED] reviewedQuestions        (Question.reviewedById odpade)
+  // [REMOVED] reviewedAiInteractions   (AiInteraction.reviewedById odpade)
 }
 
-model Topic {
-  id                 Int                 @id @default(autoincrement())
-  name               String
-  trainingId         Int
-  training           Training            @relation(fields: [trainingId], references: [id])
-  learningObjectives LearningObjective[]
-  questions          Question[]
-}
-
+// =============================================================================
+// TRAINING  (koren; lastništvo izhaja iz UserTraining, ne iz FK navzgor)
+// =============================================================================
 model Training {
-  id                   Int                   @id @default(autoincrement())
-  title                String
-  description          String?
-  createdAt            DateTime              @default(now())
-  updatedAt            DateTime              @updatedAt
-  topics               Topic[]
-  assessments          Assessment[]
-  assessmentBlueprints AssessmentBlueprint[]
+  id          Int     @id @default(autoincrement())
+  title       String
+  description String?
+
+  enrollmentToken String? @unique // za QR self-enrollment; koda ga generira/regenerira
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  topics            Topic[]
+  assessments       Assessment[]
+  members           UserTraining[]
+  equivalenceGroups EquivalenceGroup[] // ekvivalenca je scope-ana na training
+
+  // [REMOVED] assessmentBlueprints  (AssessmentBlueprint tabela odpade — mrtva shema)
 }
 
+// =============================================================================
+// UserTraining — vezna tabela User <-> Training (M:N)
+//   role=INSTRUCTOR  -> lastništvo (co-teaching mogoč: več instructorjev na training)
+//   role=PARTICIPANT -> enrollment (dostop do PUBLISHED assessmentov tega treninga)
+// =============================================================================
+model UserTraining {
+  id         Int          @id @default(autoincrement())
+  userId     Int
+  user       User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  trainingId Int
+  training   Training     @relation(fields: [trainingId], references: [id], onDelete: Cascade)
+  role       TrainingRole
+  enrolledAt DateTime     @default(now())
+
+  @@unique([userId, trainingId]) // en member = ena vloga na training
+  @@index([trainingId, role]) // "instruktorji/udeleženci tega treninga"
+}
+
+// =============================================================================
+// TOPIC
+// =============================================================================
+model Topic {
+  id         Int      @id @default(autoincrement())
+  name       String
+  trainingId Int
+  training   Training @relation(fields: [trainingId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  questions Question[]
+
+  // [REMOVED] learningObjectives  (LearningObjective tabela odpade)
+}
+
+// =============================================================================
+// QUESTION
+// =============================================================================
 model Question {
   id          Int    @id @default(autoincrement())
   title       String
-  description String
+  description String @db.Text // CODE/OPEN vsebina
   difficulty  Int
 
   type   QuestionType   @default(OPEN)
@@ -57,30 +123,175 @@ model Question {
   topicId Int
   topic   Topic @relation(fields: [topicId], references: [id])
 
-  learningObjectiveId Int?
-
-  learningObjective LearningObjective? @relation(fields: [learningObjectiveId], references: [id])
-
   createdById Int
   createdBy   User @relation("QuestionCreatedBy", fields: [createdById], references: [id])
 
-  reviewedById Int?
-  reviewedBy   User?     @relation("QuestionReviewedBy", fields: [reviewedById], references: [id])
-  reviewedAt   DateTime?
+  reviewedAt DateTime? // OHRANJENO (kdaj potrjeno); reviewedById odpade
 
-  answerOptions AnswerOption[]
+  equivalenceGroupId Int? // [CHANGED] nadomešča stari equivalentGroupId; kaže na EquivalenceGroup
+  equivalenceGroup   EquivalenceGroup? @relation(fields: [equivalenceGroupId], references: [id], onDelete: SetNull)
 
-  equivalentGroupId Int?
-  equivalentGroup   EquivalentQuestionGroup? @relation(fields: [equivalentGroupId], references: [id], onDelete: SetNull)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
+  answerOptions           AnswerOption[]
   assessmentQuestions     AssessmentQuestion[]
   participantAnswers      ParticipantAnswer[]
   sourceAiInteractions    AiInteraction[]      @relation("AiInteractionSourceQuestion")
   generatedAiInteractions AiInteraction[]      @relation("AiInteractionGeneratedQuestion")
 
-  @@index([equivalentGroupId])
+  @@index([equivalenceGroupId])
+  @@index([status, topicId]) // filter banke: "APPROVED vprašanja te teme"
+
+  // [REMOVED] learningObjectiveId / learningObjective
+  // [REMOVED] reviewedById / reviewedBy
+  // [APP] question.topic.trainingId mora biti enak equivalenceGroup.trainingId (če je v skupini)
 }
 
+// =============================================================================
+// EquivalenceGroup — čista različica stare EquivalentQuestionGroup
+//   Popravki: (1) scope na training, (2) app pravilo >=2 člana za "uporabno",
+//   (3) dedup — največ en član skupine na assessment (uveljavi generacija testa).
+// =============================================================================
+model EquivalenceGroup {
+  id          Int      @id @default(autoincrement())
+  trainingId  Int
+  training    Training @relation(fields: [trainingId], references: [id]) // RESTRICT (kot ostali otroci treninga)
+  title       String?
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  questions Question[]
+
+  @@index([trainingId])
+  // [APP] vsa vprašanja skupine morajo deliti isti trainingId
+  // [APP] prazne/singleton skupine se počistijo (stara shema jih je puščala: 5/17)
+}
+
+// =============================================================================
+// ANSWER OPTION
+// =============================================================================
+model AnswerOption {
+  id         Int      @id @default(autoincrement())
+  questionId Int
+  question   Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  text       String
+  isCorrect  Boolean  @default(false)
+  orderIndex Int
+
+  participantAnswers ParticipantAnswer[]
+
+  @@unique([questionId, orderIndex])
+  @@index([questionId])
+}
+
+// =============================================================================
+// ASSESSMENT  (+ pre/post pairing kot samopovezava)
+// =============================================================================
+model Assessment {
+  id               Int              @id @default(autoincrement())
+  title            String
+  description      String?
+  trainingId       Int
+  training         Training         @relation(fields: [trainingId], references: [id])
+  type             AssessmentType
+  status           AssessmentStatus @default(DRAFT)
+  timeLimitMinutes Int?
+
+  // Pre/Post pairing — konvencija: POST_TEST.pairedAssessmentId = pripadajoči PRE_TEST.id
+  pairedAssessmentId Int?        @unique // @unique => 1:1 (en pre ima največ en post)
+  pairedAssessment   Assessment? @relation("AssessmentPairing", fields: [pairedAssessmentId], references: [id], onDelete: SetNull)
+  pairedBy           Assessment? @relation("AssessmentPairing") // obratna stran (pre <- post)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  questions AssessmentQuestion[]
+  attempts  AssessmentAttempt[]
+
+  @@index([status, trainingId]) // "PUBLISHED assessmenti tega treninga"
+  // [APP] paired par: isti trainingId + komplementaren type (post <-> pre)
+}
+
+// =============================================================================
+// ASSESSMENT QUESTION  (M:N vez Assessment <-> Question)
+// =============================================================================
+model AssessmentQuestion {
+  id           Int        @id @default(autoincrement())
+  assessmentId Int
+  assessment   Assessment @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+  questionId   Int
+  question     Question   @relation(fields: [questionId], references: [id])
+  orderIndex   Int
+  points       Float      @default(1)
+
+  @@unique([assessmentId, orderIndex])
+  @@unique([assessmentId, questionId])
+  @@index([questionId])
+  // [APP] question.topic.trainingId == assessment.trainingId (prepreči cross-training uhajanje)
+  // [APP] samo Question.status=APPROVED sme v assessment
+}
+
+// =============================================================================
+// ASSESSMENT ATTEMPT
+// =============================================================================
+model AssessmentAttempt {
+  id           Int           @id @default(autoincrement())
+  assessmentId Int
+  assessment   Assessment    @relation(fields: [assessmentId], references: [id])
+  userId       Int // [CHANGED] bilo Int? / SetNull -> zdaj NOT NULL / Restrict
+  user         User          @relation(fields: [userId], references: [id])
+  startedAt    DateTime      @default(now())
+  submittedAt  DateTime?
+  score        Float?
+  maxScore     Float?
+  status       AttemptStatus @default(IN_PROGRESS)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  answers ParticipantAnswer[]
+
+  @@unique([assessmentId, userId]) // en poskus na test na uporabnika
+  @@index([userId])
+  @@index([status])
+  // [APP] /start dovoljen samo če: assessment.status=PUBLISHED IN user ima
+  //       UserTraining(role=PARTICIPANT) za assessment.trainingId
+}
+
+// =============================================================================
+// PARTICIPANT ANSWER
+// =============================================================================
+model ParticipantAnswer {
+  id                Int               @id @default(autoincrement())
+  attemptId         Int
+  attempt           AssessmentAttempt @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  questionId        Int
+  question          Question          @relation(fields: [questionId], references: [id])
+  selectedOptionId  Int?
+  selectedOption    AnswerOption?     @relation(fields: [selectedOptionId], references: [id], onDelete: SetNull)
+  answerText        String?           @db.Text // OPEN/CODE
+  isCorrect         Boolean?
+  pointsAwarded     Float?
+  needsManualReview Boolean           @default(false)
+
+  gradedById Int? // kdo je ročno ocenil (OPEN/CODE); NULL za MC/še neocenjeno
+  gradedBy   User?     @relation("AnswerGradedBy", fields: [gradedById], references: [id], onDelete: SetNull)
+  gradedAt   DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([attemptId, questionId])
+  @@index([questionId])
+  @@index([selectedOptionId])
+  @@index([gradedById])
+}
+
+// =============================================================================
+// AI MODEL
+// =============================================================================
 model AiModel {
   id           Int             @id @default(autoincrement())
   provider     AiProvider
@@ -96,6 +307,9 @@ model AiModel {
   @@unique([provider, modelName])
 }
 
+// =============================================================================
+// AI INTERACTION  (advisory; reviewedById odpade, reviewStatus+reviewedAt ostaneta)
+// =============================================================================
 model AiInteraction {
   id                  Int            @id @default(autoincrement())
   aiModelId           Int
@@ -111,133 +325,32 @@ model AiInteraction {
   generatedQuestionId Int?
   generatedQuestion   Question?      @relation("AiInteractionGeneratedQuestion", fields: [generatedQuestionId], references: [id], onDelete: SetNull)
   reviewStatus        AiReviewStatus @default(PENDING)
-  reviewedById        Int?
-  reviewedBy          User?          @relation("AiInteractionReviewedBy", fields: [reviewedById], references: [id])
-  reviewedAt          DateTime?
+  reviewedAt          DateTime? // OHRANJENO; reviewedById odpade (pregledovalec == naročnik)
   createdAt           DateTime       @default(now())
   updatedAt           DateTime       @updatedAt
 
   @@index([aiModelId])
   @@index([requestedById])
-  @@index([reviewedById])
   @@index([sourceQuestionId])
   @@index([generatedQuestionId])
   @@index([action])
   @@index([reviewStatus])
+  // [REMOVED] reviewedById / reviewedBy  (+ njegov @@index)
 }
 
-model Assessment {
-  id               Int                  @id @default(autoincrement())
-  title            String
-  description      String?
-  trainingId       Int
-  training         Training             @relation(fields: [trainingId], references: [id])
-  type             AssessmentType
-  status           AssessmentStatus     @default(DRAFT)
-  timeLimitMinutes Int?
-  createdAt        DateTime             @default(now())
-  updatedAt        DateTime             @updatedAt
-  questions        AssessmentQuestion[]
-  attempts         AssessmentAttempt[]
+// =============================================================================
+// ENUMS  (vse vrednosti OHRANJENE — frontend tipi jih pričakujejo, tudi neuporabljene)
+// =============================================================================
+enum UserRole {
+  ADMIN
+  INSTRUCTOR
+  PARTICIPANT
 }
 
-model AssessmentBlueprint {
-  id                  Int      @id @default(autoincrement())
-  title               String
-  description         String?
-  trainingId          Int
-  training            Training @relation(fields: [trainingId], references: [id])
-  targetQuestionCount Int
-  configJson          Json
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
-}
-
-model AssessmentQuestion {
-  id           Int        @id @default(autoincrement())
-  assessmentId Int
-  assessment   Assessment @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
-  questionId   Int
-  question     Question   @relation(fields: [questionId], references: [id])
-  orderIndex   Int
-  points       Float      @default(1)
-
-  @@unique([assessmentId, orderIndex])
-  @@unique([assessmentId, questionId])
-  @@index([questionId])
-}
-
-model AssessmentAttempt {
-  id           Int                 @id @default(autoincrement())
-  assessmentId Int
-  assessment   Assessment          @relation(fields: [assessmentId], references: [id])
-  userId       Int?
-  user         User?               @relation(fields: [userId], references: [id], onDelete: SetNull)
-  startedAt    DateTime            @default(now())
-  submittedAt  DateTime?
-  score        Float?
-  maxScore     Float?
-  status       AttemptStatus       @default(IN_PROGRESS)
-  answers      ParticipantAnswer[]
-  createdAt    DateTime            @default(now())
-  updatedAt    DateTime            @updatedAt
-
-  @@index([assessmentId])
-  @@index([userId])
-  @@index([status])
-}
-
-model ParticipantAnswer {
-  id                Int               @id @default(autoincrement())
-  attemptId         Int
-  attempt           AssessmentAttempt @relation(fields: [attemptId], references: [id], onDelete: Cascade)
-  questionId        Int
-  question          Question          @relation(fields: [questionId], references: [id])
-  selectedOptionId  Int?
-  selectedOption    AnswerOption?     @relation(fields: [selectedOptionId], references: [id])
-  answerText        String?
-  isCorrect         Boolean?
-  pointsAwarded     Float?
-  needsManualReview Boolean           @default(false)
-  createdAt         DateTime          @default(now())
-  updatedAt         DateTime          @updatedAt
-
-  @@unique([attemptId, questionId])
-  @@index([questionId])
-  @@index([selectedOptionId])
-}
-
-model AnswerOption {
-  id         Int      @id @default(autoincrement())
-  questionId Int
-  question   Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
-  text       String
-  isCorrect  Boolean  @default(false)
-  orderIndex Int
-
-  participantAnswers ParticipantAnswer[]
-
-  @@unique([questionId, orderIndex])
-  @@index([questionId])
-}
-
-model EquivalentQuestionGroup {
-  id          Int        @id @default(autoincrement())
-  name        String
-  description String?
-  createdAt   DateTime   @default(now())
-  updatedAt   DateTime   @updatedAt
-  questions   Question[]
-}
-
-model LearningObjective {
-  id          Int     @id @default(autoincrement())
-  title       String
-  description String?
-  topicId     Int
-  topic       Topic   @relation(fields: [topicId], references: [id])
-
-  questions Question[]
+enum TrainingRole {
+  // per-training vloga v UserTraining (ADMIN je izključno globalen, zato ni tu)
+  INSTRUCTOR
+  PARTICIPANT
 }
 
 enum QuestionType {
@@ -293,11 +406,5 @@ enum AssessmentStatus {
 enum AttemptStatus {
   IN_PROGRESS
   SUBMITTED
-  GRADED
-}
-
-enum UserRole {
-  ADMIN
-  INSTRUCTOR
-  PARTICIPANT
+  GRADED // dosegljiv prek zaključka ročnega ocenjevanja
 }

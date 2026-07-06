@@ -1,4 +1,5 @@
 const prisma = require("../prisma/client");
+const { isTrainingOwner } = require("../middleware/scopeMiddleware");
 
 const attemptResponseInclude = {
   assessment: {
@@ -43,16 +44,29 @@ const serializeAttempt = (attempt) => ({
     : attempt.answers,
 });
 
-const canAccessAttempt = (attempt, user) => {
+// Matrika vlog (handoff_dev2_dev3): lastnik poskusa vedno; INSTRUCTOR samo za
+// poskuse na assessmentih SVOJIH treningov (UserTraining ownership); ADMIN ni
+// content-collaborator in tujih poskusov ne vidi.
+const canAccessAttempt = async (attempt, user) => {
   if (!attempt || !user) {
     return false;
   }
 
-  if (user.role === "ADMIN" || user.role === "INSTRUCTOR") {
+  if (attempt.userId === user.id) {
     return true;
   }
 
-  return attempt.userId === user.id;
+  if (user.role !== "INSTRUCTOR") {
+    return false;
+  }
+
+  const trainingId = attempt.assessment?.trainingId;
+
+  if (!trainingId) {
+    return false;
+  }
+
+  return isTrainingOwner(user.id, trainingId);
 };
 
 const startAttempt = async (req, res) => {
@@ -68,27 +82,27 @@ const startAttempt = async (req, res) => {
       return res.status(401).json({ error: "Authenticated user is required" });
     }
 
-    const [assessment, participant] = await Promise.all([
-      prisma.assessment.findUnique({
-        where: { id: assessmentId },
-      }),
-      participantId
-        ? prisma.user.findUnique({
-            where: { id: participantId },
-          })
-        : Promise.resolve(null),
-    ]);
+    const assessment = req.enrolledAssessment;
 
-    if (!assessment) {
+    if (!assessment || assessment.id !== assessmentId) {
       return res.status(404).json({ error: "Assessment not found" });
     }
 
-    if (assessment.status !== "PUBLISHED") {
-      return res.status(403).json({ error: "This assessment is not available." });
-    }
+    // En poskus na assessment na uporabnika (odločitev D). findFirst namesto
+    // findUnique: compound @@unique([assessmentId, userId]) je v FAZI 0 namenoma
+    // izpuščen (dedup pride s cutoverom), zato selector assessmentId_userId v
+    // klientu ne obstaja; findFirst deluje zdaj in ostane pravilen po cutoveru.
+    const existingAttempt = await prisma.assessmentAttempt.findFirst({
+      where: {
+        assessmentId,
+        userId: participantId,
+      },
+    });
 
-    if (participantId && !participant) {
-      return res.status(404).json({ error: "Participant not found" });
+    if (existingAttempt) {
+      return res.status(409).json({
+        error: "You already have an attempt for this assessment",
+      });
     }
 
     const attempt = await prisma.assessmentAttempt.create({
@@ -104,6 +118,35 @@ const startAttempt = async (req, res) => {
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
+};
+
+// Skupna logika zaključka poskusa (invarianta NOTES §5.6): če po zapisu
+// odgovorov NOBEN odgovor poskusa ne čaka ročne ocene (needsManualReview),
+// je poskus v celoti ocenjen -> status=GRADED + score iz vsote pointsAwarded.
+// Kliče se iz submitAttempt (MC-only poskusi so GRADED takoj ob oddaji) in iz
+// gradeAnswer (mešani poskusi po zadnji ročni oceni). Vrne Prisma data
+// fragment za assessmentAttempt.update ({} = še čaka ročno oceno).
+const finalizeAttemptIfFullyGraded = async (tx, attemptId) => {
+  const pendingCount = await tx.participantAnswer.count({
+    where: { attemptId, needsManualReview: true },
+  });
+
+  if (pendingCount > 0) {
+    return {};
+  }
+
+  const gradedAnswers = await tx.participantAnswer.findMany({
+    where: { attemptId },
+    select: { pointsAwarded: true },
+  });
+
+  return {
+    status: "GRADED",
+    score: gradedAnswers.reduce(
+      (total, entry) => total + (entry.pointsAwarded ?? 0),
+      0
+    ),
+  };
 };
 
 const submitAttempt = async (req, res) => {
@@ -143,7 +186,7 @@ const submitAttempt = async (req, res) => {
       return res.status(404).json({ error: "Attempt not found" });
     }
 
-    if (!canAccessAttempt(attempt, req.user)) {
+    if (!(await canAccessAttempt(attempt, req.user))) {
       return res.status(403).json({ error: "Forbidden" });
     }
 
@@ -254,6 +297,10 @@ const submitAttempt = async (req, res) => {
         });
       }
 
+      // SUBMITTED = čaka ročno oceno; MC-only poskus je ob oddaji že v celoti
+      // samodejno ocenjen, zato ga finalize takoj prepiše v GRADED.
+      const finalizeData = await finalizeAttemptIfFullyGraded(tx, attemptId);
+
       return tx.assessmentAttempt.update({
         where: { id: attemptId },
         data: {
@@ -261,7 +308,112 @@ const submitAttempt = async (req, res) => {
           submittedAt: new Date(),
           score,
           maxScore,
+          ...finalizeData,
         },
+        include: attemptResponseInclude,
+      });
+    });
+
+    res.json(serializeAttempt(updatedAttempt));
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+// PATCH /assessment-attempts/:attemptId/answers/:answerId/grade
+// Ročno ocenjevanje OPEN/CODE odgovorov (odločitev C, invarianta NOTES §5.6).
+// Samo INSTRUCTOR-lastnik pripadajočega traininga (tuj/neobstoječ resource -> 404).
+// Ko po oceni noben odgovor poskusa ne čaka pregleda, se poskus zaključi:
+// status=GRADED + preračun score iz vsote pointsAwarded.
+const gradeAnswer = async (req, res) => {
+  try {
+    const attemptId = parseId(req.params.attemptId);
+    const answerId = parseId(req.params.answerId);
+    const { isCorrect, pointsAwarded } = req.body ?? {};
+
+    if (!attemptId || !answerId) {
+      return res
+        .status(400)
+        .json({ error: "attemptId and answerId must be positive integers" });
+    }
+
+    if (typeof isCorrect !== "boolean") {
+      return res.status(400).json({ error: "isCorrect must be a boolean" });
+    }
+
+    const answer = await prisma.participantAnswer.findUnique({
+      where: { id: answerId },
+      include: {
+        question: { select: { type: true } },
+        attempt: {
+          include: {
+            assessment: {
+              select: {
+                trainingId: true,
+                questions: { select: { questionId: true, points: true } },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!answer || answer.attemptId !== attemptId) {
+      return res.status(404).json({ error: "Attempt answer not found" });
+    }
+
+    const owner = await isTrainingOwner(req.user.id, answer.attempt.assessment.trainingId);
+
+    if (!owner) {
+      // 404-namesto-403 konvencija: tujega resource-a ne razkrivamo.
+      return res.status(404).json({ error: "Attempt answer not found" });
+    }
+
+    if (answer.attempt.status === "IN_PROGRESS") {
+      return res.status(400).json({ error: "Attempt has not been submitted yet" });
+    }
+
+    if (answer.question.type === "MULTIPLE_CHOICE") {
+      return res
+        .status(400)
+        .json({ error: "MULTIPLE_CHOICE answers are graded automatically" });
+    }
+
+    const questionPoints = Number(
+      answer.attempt.assessment.questions.find(
+        (item) => item.questionId === answer.questionId
+      )?.points ?? 1
+    );
+
+    let awarded;
+    if (pointsAwarded === undefined || pointsAwarded === null) {
+      awarded = isCorrect ? questionPoints : 0;
+    } else {
+      awarded = Number(pointsAwarded);
+      if (!Number.isFinite(awarded) || awarded < 0 || awarded > questionPoints) {
+        return res.status(400).json({
+          error: `pointsAwarded must be a number between 0 and ${questionPoints}`,
+        });
+      }
+    }
+
+    const updatedAttempt = await prisma.$transaction(async (tx) => {
+      await tx.participantAnswer.update({
+        where: { id: answerId },
+        data: {
+          isCorrect,
+          pointsAwarded: awarded,
+          needsManualReview: false,
+          gradedById: Number(req.user.id),
+          gradedAt: new Date(),
+        },
+      });
+
+      const attemptData = await finalizeAttemptIfFullyGraded(tx, attemptId);
+
+      return tx.assessmentAttempt.update({
+        where: { id: attemptId },
+        data: attemptData,
         include: attemptResponseInclude,
       });
     });
@@ -289,7 +441,7 @@ const getAttempt = async (req, res) => {
       return res.status(404).json({ error: "Attempt not found" });
     }
 
-    if (!canAccessAttempt(attempt, req.user)) {
+    if (!(await canAccessAttempt(attempt, req.user))) {
       return res.status(403).json({ error: "Forbidden" });
     }
 
@@ -302,5 +454,6 @@ const getAttempt = async (req, res) => {
 module.exports = {
   startAttempt,
   submitAttempt,
+  gradeAnswer,
   getAttempt,
 };

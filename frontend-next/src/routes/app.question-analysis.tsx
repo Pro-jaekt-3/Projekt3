@@ -36,7 +36,7 @@ type QuestionSearch = z.infer<typeof questionSearchSchema>;
 export const Route = createFileRoute("/app/question-analysis")({
   validateSearch: questionSearchSchema,
   beforeLoad: ({ context, location }) =>
-    ensureRole({ auth: context.auth, href: location.href }, ["admin", "instructor"]),
+    ensureRole({ auth: context.auth, href: location.href }, ["instructor"]),
   component: QuestionAnalysisPage,
 });
 
@@ -116,7 +116,7 @@ function QuestionList({
         icon={<FileText className="h-5 w-5" />}
         title="No answered questions yet"
         description={
-          filters.trainingId || filters.topicId || filters.learningObjectiveId || filters.difficulty
+          filters.trainingId || filters.topicId || filters.difficulty
             ? "No question has submitted answers for the current filters."
             : "Per-question analysis appears once participants submit answers."
         }
@@ -224,7 +224,6 @@ function QuestionHeaderCard({ data }: { data: QuestionOptionDistribution }) {
         </Badge>
         <Badge variant="outline">{difficultyLabel(data.difficulty)}</Badge>
         {data.topic && <span>· {data.topic.name}</span>}
-        {data.learningObjective && <span>· {data.learningObjective.title}</span>}
       </CardContent>
     </Card>
   );

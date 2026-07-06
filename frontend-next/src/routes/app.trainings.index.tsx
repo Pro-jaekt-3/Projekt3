@@ -20,11 +20,19 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useRole } from "@/lib/role-context";
 import { qk } from "@/lib/query-keys";
 import { trainingsService } from "@/services/trainings";
 import { questionsService } from "@/services/questions";
 import { assessmentsService } from "@/services/assessments";
+import { usersService } from "@/services/users";
 import { trainingToView } from "@/lib/training-view";
 import { ensureRole } from "@/lib/route-guards";
 
@@ -47,16 +55,32 @@ function TrainingsList() {
   const [createOpen, setCreateOpen] = useState(false);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
+  const [ownerUserId, setOwnerUserId] = useState("");
+
+  // ADMIN creates trainings too (role matrix: admin = provisioning) and may
+  // grant INSTRUCTOR ownership right away. GET /users is ADMIN-only.
+  const usersQuery = useQuery({
+    queryKey: qk.users.list(),
+    queryFn: usersService.list,
+    enabled: isAdmin,
+  });
+  const instructorCandidates = (usersQuery.data ?? []).filter((u) => u.role === "INSTRUCTOR");
 
   const createMutation = useMutation({
     mutationFn: () =>
-      trainingsService.create({ title: title.trim(), description: description.trim() || null }),
+      trainingsService.create({
+        title: title.trim(),
+        description: description.trim() || null,
+        ...(isAdmin && ownerUserId ? { ownerUserId: Number(ownerUserId) } : {}),
+      }),
     onSuccess: (created) => {
       queryClient.invalidateQueries({ queryKey: qk.trainings.all });
+      queryClient.invalidateQueries({ queryKey: qk.userTrainings.all });
       toast.success(`Training “${created.title}” created`);
       setCreateOpen(false);
       setTitle("");
       setDescription("");
+      setOwnerUserId("");
     },
     onError: (err) => toast.error(err instanceof Error ? err.message : "Failed to create training"),
   });
@@ -93,15 +117,13 @@ function TrainingsList() {
         title={isAdmin ? "All trainings" : "My trainings"}
         description={
           isAdmin
-            ? "All trainings across the system. Read-only oversight."
+            ? "All trainings across the system. Create trainings and grant instructor ownership."
             : "Open a training to enter its workspace: participants, curriculum, question bank, assessments and results."
         }
         actions={
-          !isAdmin && (
-            <Button size="sm" onClick={() => setCreateOpen(true)}>
-              <Plus className="mr-1.5 h-4 w-4" /> Create training
-            </Button>
-          )
+          <Button size="sm" onClick={() => setCreateOpen(true)}>
+            <Plus className="mr-1.5 h-4 w-4" /> Create training
+          </Button>
         }
       />
 
@@ -123,11 +145,9 @@ function TrainingsList() {
             title="No trainings yet"
             description="Create your first training to start building curriculum and assessments."
             action={
-              !isAdmin && (
-                <Button size="sm" onClick={() => setCreateOpen(true)}>
-                  <Plus className="mr-1.5 h-4 w-4" /> Create training
-                </Button>
-              )
+              <Button size="sm" onClick={() => setCreateOpen(true)}>
+                <Plus className="mr-1.5 h-4 w-4" /> Create training
+              </Button>
             }
           />
         </div>
@@ -232,6 +252,26 @@ function TrainingsList() {
                 placeholder="Optional summary"
               />
             </div>
+            {isAdmin && (
+              <div className="space-y-1.5">
+                <Label htmlFor="t-owner">Instructor owner</Label>
+                <Select value={ownerUserId} onValueChange={setOwnerUserId}>
+                  <SelectTrigger id="t-owner">
+                    <SelectValue placeholder="Assign later (no owner yet)" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {instructorCandidates.map((u) => (
+                      <SelectItem key={u.id} value={String(u.id)}>
+                        {u.name ?? u.email} ({u.email})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  Optional — you can grant ownership later from the training's Members tab.
+                </p>
+              </div>
+            )}
           </form>
           <DialogFooter>
             <Button

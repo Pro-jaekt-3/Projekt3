@@ -13,16 +13,15 @@ import type { QuestionType } from "@/types";
 //   PATCH /ai/interactions/:id/review -> ReviewInteractionResult (409 if already reviewed)
 //
 // Backend facts that shape this surface (backend/controllers/aiController.js):
-//   - /question-draft requires NON-EMPTY topic, learningObjective, questionType,
-//     difficulty as FREE TEXT (topic name + objective title, NOT ids). It returns a
+//   - /question-draft requires NON-EMPTY topic, questionType,
+//     difficulty as FREE TEXT (topic name, NOT ids). It returns a
 //     STRUCTURED `question` object (title/description/difficulty/type/answerOptions)
 //     parsed+validated server-side from the model's JSON output; there is no more
 //     free-text `suggestion` field. `resultText` carries the raw model output for
 //     transparency only.
 //   - /equivalent-question generates a NEW question equivalent to an EXISTING
-//     `sourceQuestionId`, inheriting its topic/learning objective by default. Same
-//     structured `question` shape as /question-draft, plus the inherited
-//     topicId/learningObjectiveId.
+//     `sourceQuestionId`, inheriting its topic by default. Same
+//     structured `question` shape as /question-draft, plus the inherited topicId.
 //   - /equivalence-suggestion COMPARES two EXISTING questions (questionAId !=
 //     questionBId). It does NOT generate a new question; `suggestion` is an advisory
 //     equivalence assessment (unchanged, still free text).
@@ -44,7 +43,6 @@ export type AiReviewStatus = "PENDING" | "ACCEPTED" | "REJECTED";
 
 export interface GenerateQuestionDraftInput {
   topic: string;
-  learningObjective: string;
   questionType: QuestionType;
   difficulty: string | number;
   instructions?: string;
@@ -93,7 +91,6 @@ export interface EquivalentQuestionResult {
   sourceQuestionId: number;
   question: DraftedQuestion & {
     topicId: number;
-    learningObjectiveId: number | null;
   };
   resultText?: string;
 }
@@ -138,7 +135,6 @@ export interface OllamaStatus {
 export interface ReviewInteractionResult {
   aiInteractionId: number;
   reviewStatus: Exclude<AiReviewStatus, "PENDING">;
-  reviewedById: number;
   reviewedAt: string;
   message: string;
 }

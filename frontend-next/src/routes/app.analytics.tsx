@@ -23,7 +23,6 @@ import type {
   AnalyticsSummary,
   PrePostComparison,
   TopicAnalytics,
-  LearningObjectiveAnalytics,
   DifficultyAnalytics,
 } from "@/services/analytics";
 import { ensureRole } from "@/lib/route-guards";
@@ -36,7 +35,7 @@ import {
 export const Route = createFileRoute("/app/analytics")({
   validateSearch: analyticsSearchSchema,
   beforeLoad: ({ context, location }) =>
-    ensureRole({ auth: context.auth, href: location.href }, ["admin", "instructor"]),
+    ensureRole({ auth: context.auth, href: location.href }, ["instructor"]),
   component: AnalyticsDashboard,
 });
 
@@ -62,16 +61,12 @@ function AnalyticsDashboard() {
     queryKey: qk.analytics.list(["by-topic", filters]),
     queryFn: () => analyticsService.byTopic(filters),
   });
-  const byObjective = useQuery({
-    queryKey: qk.analytics.list(["by-learning-objective", filters]),
-    queryFn: () => analyticsService.byLearningObjective(filters),
-  });
   const byDifficulty = useQuery({
     queryKey: qk.analytics.list(["by-difficulty", filters]),
     queryFn: () => analyticsService.byDifficulty(filters),
   });
 
-  const queries = [summary, prePost, byTopic, byObjective, byDifficulty];
+  const queries = [summary, prePost, byTopic, byDifficulty];
   const isLoading = queries.some((q) => q.isLoading);
   const failed = queries.find((q) => q.isError);
 
@@ -125,7 +120,6 @@ function AnalyticsDashboard() {
             summary={summary.data}
             prePost={prePost.data}
             topics={byTopic.data ?? []}
-            objectives={byObjective.data ?? []}
             difficulties={byDifficulty.data ?? []}
             filtersActive={hasAnyAnalyticsFilter(search)}
           />
@@ -139,14 +133,12 @@ function DashboardBody({
   summary,
   prePost,
   topics,
-  objectives,
   difficulties,
   filtersActive,
 }: {
   summary: AnalyticsSummary | undefined;
   prePost: PrePostComparison | undefined;
   topics: TopicAnalytics[];
-  objectives: LearningObjectiveAnalytics[];
   difficulties: DifficultyAnalytics[];
   filtersActive: boolean;
 }) {
@@ -162,7 +154,6 @@ function DashboardBody({
   const everythingEmpty =
     (!summary || summary.answerCount === 0) &&
     topics.length === 0 &&
-    objectives.length === 0 &&
     difficulties.length === 0 &&
     !hasPrePost;
 
@@ -302,25 +293,25 @@ function DashboardBody({
 
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">By learning objective</CardTitle>
+            <CardTitle className="text-base">Topic details</CardTitle>
           </CardHeader>
-          {objectives.length ? (
+          {topics.length ? (
             <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Objective</TableHead>
+                    <TableHead>Topic</TableHead>
                     <TableHead className="text-right">Attempts</TableHead>
                     <TableHead className="text-right">Correct</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {objectives.map((o) => (
-                    <TableRow key={o.learningObjectiveId}>
-                      <TableCell className="font-medium">{o.learningObjectiveTitle}</TableCell>
-                      <TableCell className="text-right tabular-nums">{o.attemptCount}</TableCell>
+                  {topics.map((topic) => (
+                    <TableRow key={topic.topicId}>
+                      <TableCell className="font-medium">{topic.topicTitle}</TableCell>
+                      <TableCell className="text-right tabular-nums">{topic.attemptCount}</TableCell>
                       <TableCell className="text-right tabular-nums font-medium">
-                        {pct(o.percentage)}
+                        {pct(topic.percentage)}
                       </TableCell>
                     </TableRow>
                   ))}
@@ -329,7 +320,7 @@ function DashboardBody({
             </div>
           ) : (
             <CardContent>
-              <SectionEmpty label="No learning-objective data for these filters." />
+              <SectionEmpty label="No topic data for these filters." />
             </CardContent>
           )}
         </Card>

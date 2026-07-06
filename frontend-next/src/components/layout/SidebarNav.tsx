@@ -13,6 +13,7 @@ import {
   CheckSquare,
   Sparkles,
   Inbox,
+  QrCode,
 } from "lucide-react";
 import { useRole, type Role } from "@/lib/role-context";
 import { cn } from "@/lib/utils";
@@ -48,6 +49,7 @@ const NAV: Record<Role, NavItem[]> = {
   ],
   participant: [
     { to: "/app/dashboard", label: "Dashboard", icon: LayoutDashboard },
+    { to: "/app/join", label: "Join Training", icon: QrCode },
     { to: "/app/my-assessments", label: "My Assessments", icon: FileText },
     { to: "/app/my-results", label: "My Results", icon: CheckSquare },
   ],

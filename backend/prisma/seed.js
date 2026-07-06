@@ -1,4 +1,7 @@
 const { PrismaClient } = require("@prisma/client");
+const {
+  generateEnrollmentToken,
+} = require("../controllers/userTrainingController");
 
 const prisma = new PrismaClient();
 
@@ -23,39 +26,6 @@ async function main() {
     });
   };
 
-  const findOrCreateLearningObjective = async (
-    title,
-    description,
-    topicId
-  ) => {
-    const existingLearningObjective =
-      await prisma.learningObjective.findFirst({
-        where: {
-          title,
-        },
-      });
-
-    if (existingLearningObjective) {
-      return prisma.learningObjective.update({
-        where: {
-          id: existingLearningObjective.id,
-        },
-        data: {
-          description,
-          topicId,
-        },
-      });
-    }
-
-    return prisma.learningObjective.create({
-      data: {
-        title,
-        description,
-        topicId,
-      },
-    });
-  };
-
   const findOrCreateQuestion = async ({
     title,
     description,
@@ -63,11 +33,9 @@ async function main() {
     type,
     status,
     topicId,
-    learningObjectiveId,
     createdById,
-    reviewedById,
     reviewedAt,
-    equivalentGroupId,
+    equivalenceGroupId,
   }) => {
     const existingQuestion = await prisma.question.findFirst({
       where: {
@@ -81,11 +49,9 @@ async function main() {
       type,
       status,
       topicId,
-      learningObjectiveId,
       createdById,
-      reviewedById,
       reviewedAt,
-      equivalentGroupId,
+      equivalenceGroupId,
     };
 
     if (existingQuestion) {
@@ -128,33 +94,56 @@ async function main() {
     }
   };
 
-  const findOrCreateEquivalentQuestionGroup = async (
-    name,
-    description
+  const findOrCreateEquivalenceGroup = async (
+    title,
+    description,
+    trainingId
   ) => {
-    const existingGroup =
-      await prisma.equivalentQuestionGroup.findFirst({
-        where: {
-          name,
-        },
-      });
+    const existingGroup = await prisma.equivalenceGroup.findFirst({
+      where: { title, trainingId },
+    });
 
     if (existingGroup) {
-      return prisma.equivalentQuestionGroup.update({
-        where: {
-          id: existingGroup.id,
-        },
-        data: {
-          description,
-        },
+      return prisma.equivalenceGroup.update({
+        where: { id: existingGroup.id },
+        data: { description },
       });
     }
 
-    return prisma.equivalentQuestionGroup.create({
-      data: {
-        name,
-        description,
+    return prisma.equivalenceGroup.create({
+      data: { title, description, trainingId },
+    });
+  };
+
+  // Vpis/lastništvo (UserTraining): idempotenten prek @@unique([userId, trainingId]).
+  const upsertUserTraining = async (userId, trainingId, role) =>
+    prisma.userTraining.upsert({
+      where: {
+        userId_trainingId: {
+          userId,
+          trainingId,
+        },
       },
+      update: {
+        role,
+      },
+      create: {
+        userId,
+        trainingId,
+        role,
+      },
+    });
+
+  // enrollmentToken nastavi samo, če manjka — obstoječi token ostane, da je
+  // seed ponovljiv (QR/link za enrollment se ob ponovnem seedu ne razveljavi).
+  const ensureEnrollmentToken = async (training) => {
+    if (training.enrollmentToken) {
+      return training;
+    }
+
+    return prisma.training.update({
+      where: { id: training.id },
+      data: { enrollmentToken: generateEnrollmentToken() },
     });
   };
 
@@ -165,6 +154,7 @@ async function main() {
     type,
     status,
     timeLimitMinutes,
+    pairedAssessmentId = null,
   }) => {
     const existingAssessment = await prisma.assessment.findFirst({
       where: {
@@ -179,6 +169,7 @@ async function main() {
       type,
       status,
       timeLimitMinutes,
+      pairedAssessmentId,
     };
 
     if (existingAssessment) {
@@ -191,44 +182,6 @@ async function main() {
     }
 
     return prisma.assessment.create({
-      data: {
-        title,
-        ...data,
-      },
-    });
-  };
-
-  const findOrCreateAssessmentBlueprint = async ({
-    title,
-    description,
-    trainingId,
-    targetQuestionCount,
-    configJson,
-  }) => {
-    const existingBlueprint = await prisma.assessmentBlueprint.findFirst({
-      where: {
-        title,
-        trainingId,
-      },
-    });
-
-    const data = {
-      description,
-      trainingId,
-      targetQuestionCount,
-      configJson,
-    };
-
-    if (existingBlueprint) {
-      return prisma.assessmentBlueprint.update({
-        where: {
-          id: existingBlueprint.id,
-        },
-        data,
-      });
-    }
-
-    return prisma.assessmentBlueprint.create({
       data: {
         title,
         ...data,
@@ -316,7 +269,6 @@ async function main() {
     sourceQuestionId,
     generatedQuestionId,
     reviewStatus,
-    reviewedById,
     reviewedAt,
   }) => {
     const existingInteraction = await prisma.aiInteraction.findFirst({
@@ -338,7 +290,6 @@ async function main() {
       sourceQuestionId,
       generatedQuestionId,
       reviewStatus,
-      reviewedById,
       reviewedAt,
     };
 
@@ -424,6 +375,16 @@ async function main() {
     });
   }
 
+  // Vsak seedan training dobi enrollmentToken (če ga še nima), da je enrollment
+  // po tokenu (QR/link) testabilen takoj po seedu.
+  training = await ensureEnrollmentToken(training);
+
+  // USER-TRAINING (lastništvo + enrollment): brez teh vrstic instruktor po seedu
+  // nima lastništva (prazni seznami/404 prek scopeMiddleware), participant pa ni
+  // vpisan (POST /assessment-attempts/start -> 404 na requireEnrollment).
+  await upsertUserTraining(instructor.id, training.id, "INSTRUCTOR");
+  await upsertUserTraining(participant.id, training.id, "PARTICIPANT");
+
   // TOPICS
   const uml = await findOrCreateTopic("UML", training.id);
 
@@ -434,25 +395,13 @@ async function main() {
     training.id
   );
 
-  // LEARNING OBJECTIVES
-  const lo1 = await findOrCreateLearningObjective(
-    "Understand UML diagrams",
-    "Student understands UML class diagrams.",
-    uml.id
-  );
-
-  const lo2 = await findOrCreateLearningObjective(
-    "Write SQL queries",
-    "Student can write basic SQL queries.",
-    sql.id
-  );
-
   // QUESTIONS
   const reviewedAt = new Date("2026-05-28T00:00:00.000Z");
 
-  const sqlSelectGroup = await findOrCreateEquivalentQuestionGroup(
+  const sqlSelectGroup = await findOrCreateEquivalenceGroup(
     "SQL SELECT osnovne variante",
-    "Primerljive variante vprasanj za preverjanje osnovnega razumevanja stavka SELECT."
+    "Primerljive variante vprasanj za preverjanje osnovnega razumevanja stavka SELECT.",
+    training.id
   );
 
   await findOrCreateQuestion({
@@ -462,9 +411,7 @@ async function main() {
     type: "OPEN",
     status: "APPROVED",
     topicId: uml.id,
-    learningObjectiveId: lo1.id,
     createdById: instructor.id,
-    reviewedById: admin.id,
     reviewedAt,
   });
 
@@ -475,9 +422,7 @@ async function main() {
     type: "OPEN",
     status: "APPROVED",
     topicId: uml.id,
-    learningObjectiveId: lo1.id,
     createdById: instructor.id,
-    reviewedById: admin.id,
     reviewedAt,
   });
 
@@ -488,11 +433,9 @@ async function main() {
     type: "CODE",
     status: "APPROVED",
     topicId: sql.id,
-    learningObjectiveId: lo2.id,
     createdById: instructor.id,
-    reviewedById: admin.id,
     reviewedAt,
-    equivalentGroupId: sqlSelectGroup.id,
+    equivalenceGroupId: sqlSelectGroup.id,
   });
 
   const primaryKeyQuestion = await findOrCreateQuestion({
@@ -502,9 +445,7 @@ async function main() {
     type: "OPEN",
     status: "APPROVED",
     topicId: sql.id,
-    learningObjectiveId: lo2.id,
     createdById: instructor.id,
-    reviewedById: admin.id,
     reviewedAt,
   });
 
@@ -516,7 +457,6 @@ async function main() {
     status: "APPROVED",
     topicId: networking.id,
     createdById: instructor.id,
-    reviewedById: admin.id,
     reviewedAt,
   });
 
@@ -527,11 +467,9 @@ async function main() {
     type: "MULTIPLE_CHOICE",
     status: "APPROVED",
     topicId: sql.id,
-    learningObjectiveId: lo2.id,
     createdById: instructor.id,
-    reviewedById: admin.id,
     reviewedAt,
-    equivalentGroupId: sqlSelectGroup.id,
+    equivalenceGroupId: sqlSelectGroup.id,
   });
 
   await upsertAnswerOptions(sqlMultipleChoice.id, [
@@ -564,11 +502,9 @@ async function main() {
     type: "CODE",
     status: "APPROVED",
     topicId: sql.id,
-    learningObjectiveId: lo2.id,
     createdById: instructor.id,
-    reviewedById: admin.id,
     reviewedAt,
-    equivalentGroupId: sqlSelectGroup.id,
+    equivalenceGroupId: sqlSelectGroup.id,
   });
 
   const umlMultipleChoice = await findOrCreateQuestion({
@@ -580,9 +516,7 @@ async function main() {
     type: "MULTIPLE_CHOICE",
     status: "APPROVED",
     topicId: uml.id,
-    learningObjectiveId: lo1.id,
     createdById: instructor.id,
-    reviewedById: admin.id,
     reviewedAt,
   });
 
@@ -656,7 +590,6 @@ async function main() {
     sourceQuestionId: null,
     generatedQuestionId: null,
     reviewStatus: "PENDING",
-    reviewedById: null,
     reviewedAt: null,
   });
 
@@ -677,7 +610,6 @@ async function main() {
     sourceQuestionId: sqlSelectQuestion.id,
     generatedQuestionId: null,
     reviewStatus: "ACCEPTED",
-    reviewedById: admin.id,
     reviewedAt: new Date("2026-05-30T10:00:00.000Z"),
   });
 
@@ -701,7 +633,6 @@ async function main() {
     sourceQuestionId: sqlSelectQuestion.id,
     generatedQuestionId: null,
     reviewStatus: "PENDING",
-    reviewedById: null,
     reviewedAt: null,
   });
 
@@ -712,45 +643,6 @@ async function main() {
     status: "PUBLISHED",
     timeLimitMinutes: 30,
     trainingId: training.id,
-  });
-
-  await findOrCreateAssessmentBlueprint({
-    title: "Blueprint predtest - Osnove informatike",
-    description:
-      "Demo blueprint za generiranje preverjanja po tematikah, ucnih ciljih in tezavnosti.",
-    trainingId: training.id,
-    targetQuestionCount: 5,
-    configJson: {
-      topics: [
-        {
-          topicName: "SQL",
-          topicId: sql.id,
-          questionCount: 3,
-        },
-        {
-          topicName: "UML",
-          topicId: uml.id,
-          questionCount: 2,
-        },
-      ],
-      learningObjectives: [
-        {
-          title: "Write SQL queries",
-          learningObjectiveId: lo2.id,
-          questionCount: 3,
-        },
-        {
-          title: "Understand UML diagrams",
-          learningObjectiveId: lo1.id,
-          questionCount: 2,
-        },
-      ],
-      difficulty: {
-        easy: 2,
-        medium: 2,
-        hard: 1,
-      },
-    },
   });
 
   const demoAssessmentQuestions = [
@@ -909,12 +801,87 @@ async function main() {
     })),
   });
 
+  // PRE/POST PAIRING DEMO: POST_TEST istega traininga, POST.pairedAssessmentId=PRE.id
+  // (konvencija iz schema-v2-NOTES). PUBLISHED + samo MC vprašanja, da lahko
+  // participant takoj testira /start -> submit -> samodejni GRADED (PRE ima že
+  // seedan poskus, zato je zaradi pravila en-poskus POST edini prosti /start).
+  const demoPostAssessment = await findOrCreateAssessment({
+    title: "Demo posttest - Osnove informatike",
+    description: "Demo POST_TEST, paran na demo predtest za testiranje pairinga.",
+    type: "POST_TEST",
+    status: "PUBLISHED",
+    timeLimitMinutes: 30,
+    trainingId: training.id,
+    pairedAssessmentId: demoAssessment.id,
+  });
+
+  const demoPostAssessmentQuestions = [
+    {
+      questionId: sqlMultipleChoice.id,
+      orderIndex: 1,
+      points: 1,
+    },
+    {
+      questionId: umlMultipleChoice.id,
+      orderIndex: 2,
+      points: 1,
+    },
+  ];
+
+  await prisma.assessmentQuestion.deleteMany({
+    where: {
+      assessmentId: demoPostAssessment.id,
+    },
+  });
+
+  await prisma.assessmentQuestion.createMany({
+    data: demoPostAssessmentQuestions
+      .filter((question) => approvedQuestionIds.has(question.questionId))
+      .map((question) => ({
+        assessmentId: demoPostAssessment.id,
+        questionId: question.questionId,
+        orderIndex: question.orderIndex,
+        points: question.points,
+      })),
+  });
+
+  // VALIDACIJA MC OPCIJ: vsak seedan MULTIPLE_CHOICE mora imeti >=2 AnswerOption
+  // in natanko eno isCorrect=true, sicer je za participanta nerešljiv (bug:
+  // MC brez opcij v demo predtestu). Seed pade glasno, da delno seedano stanje
+  // ne obvelja kot uspeh.
+  const multipleChoiceQuestions = await prisma.question.findMany({
+    where: { type: "MULTIPLE_CHOICE" },
+    include: { answerOptions: true },
+  });
+
+  const invalidMultipleChoice = multipleChoiceQuestions.filter((question) => {
+    const correctCount = question.answerOptions.filter(
+      (option) => option.isCorrect
+    ).length;
+    return question.answerOptions.length < 2 || correctCount !== 1;
+  });
+
+  if (invalidMultipleChoice.length > 0) {
+    const details = invalidMultipleChoice
+      .map(
+        (question) =>
+          `id=${question.id} "${question.title}" (options=${question.answerOptions.length}, correct=${question.answerOptions.filter((option) => option.isCorrect).length})`
+      )
+      .join("; ");
+    throw new Error(
+      `Seed validation failed: MULTIPLE_CHOICE questions without valid answer options: ${details}`
+    );
+  }
+
   console.log("Seed data inserted.");
 }
 
 main()
   .catch((e) => {
     console.error(e);
+    // Brez tega seed ob napaki konča z exit code 0 in delni seed (npr. MC brez
+    // AnswerOption) navzven izgleda kot uspešen.
+    process.exitCode = 1;
   })
   .finally(async () => {
     await prisma.$disconnect();

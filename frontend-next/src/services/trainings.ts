@@ -12,6 +12,11 @@ import type { Training } from "@/types";
 export interface CreateTrainingInput {
   title: string;
   description?: string | null;
+  /**
+   * ADMIN only: grant INSTRUCTOR ownership to this user at creation. Ignored
+   * for INSTRUCTOR callers (they always become the owner themselves).
+   */
+  ownerUserId?: number;
 }
 
 export interface UpdateTrainingInput {

@@ -23,8 +23,10 @@ export function entityKeys<TName extends string>(name: TName) {
 
 export const qk = {
   trainings: entityKeys("trainings"),
+  // UserTraining memberships: list(trainingId) = members of one training,
+  // list("mine") = the caller's own memberships (GET /trainings/mine).
+  userTrainings: entityKeys("user-trainings"),
   topics: entityKeys("topics"),
-  learningObjectives: entityKeys("learning-objectives"),
   questions: entityKeys("questions"),
   assessments: entityKeys("assessments"),
   assessmentAttempts: entityKeys("assessment-attempts"),

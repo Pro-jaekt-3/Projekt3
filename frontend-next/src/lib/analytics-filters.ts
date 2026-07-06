@@ -18,7 +18,6 @@ export const DIFFICULTY_OPTIONS = [
 export const analyticsSearchSchema = z.object({
   trainingId: z.coerce.number().int().positive().optional().catch(undefined),
   topicId: z.coerce.number().int().positive().optional().catch(undefined),
-  learningObjectiveId: z.coerce.number().int().positive().optional().catch(undefined),
   difficulty: z.coerce.number().int().min(1).max(3).optional().catch(undefined),
 });
 
@@ -27,7 +26,6 @@ export type AnalyticsSearch = z.infer<typeof analyticsSearchSchema>;
 export const EMPTY_ANALYTICS_SEARCH: AnalyticsSearch = {
   trainingId: undefined,
   topicId: undefined,
-  learningObjectiveId: undefined,
   difficulty: undefined,
 };
 
@@ -36,12 +34,10 @@ export const EMPTY_ANALYTICS_SEARCH: AnalyticsSearch = {
 export const searchToFilters = (search: AnalyticsSearch): AnalyticsFilters => ({
   trainingId: search.trainingId,
   topicId: search.topicId,
-  learningObjectiveId: search.learningObjectiveId,
   difficulty: search.difficulty,
 });
 
 export const hasAnyAnalyticsFilter = (search: AnalyticsSearch): boolean =>
   search.trainingId !== undefined ||
   search.topicId !== undefined ||
-  search.learningObjectiveId !== undefined ||
   search.difficulty !== undefined;

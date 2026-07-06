@@ -1,0 +1,51 @@
+# PREDAJA — Dev 2 & Dev 3 (po zaključenem Dev 1)
+
+Beri skupaj s svojim briefom (`brief-dev2.md` / `brief-dev3.md`) + 4 reference
+(`schema-v2.prisma`, `schema-v2-NOTES.md`, `pre-db-design.md`, `migration-plan.md`).
+
+## Stanje temelja
+- Faza 0 (additivna shema + purge + backfill) zmergana v `feat/db-v2-phase0`.
+- Dev 1 (lastništvo/dostop) zaključen in commitan v `feat/db-v2-dev1`.
+- **Vsak nov branch izhaja iz `feat/db-v2-dev1`** (ne main, ne phase0), da imaš scoping modul:
+  `git checkout feat/db-v2-dev1 && git pull && git checkout -b feat/db-v2-dev2`  (oz. `-dev3`).
+- Pravila: brez commitov/pusha; na koncu izpiši predlagane git ukaze; ne DROP-aj sheme
+  (destruktivno = poznejši cutover); ne dotikaj se tujih controllerjev.
+
+## Deljeni scoping modul (Dev 1 vmesnik — UPORABI, ne podvajaj)
+`const { requireOwnership, requireEnrollment, assertEnrollment, scopedListWhere,
+isTrainingOwner, USER_ROLES, TRAINING_ROLES, RESOURCE_TYPES } = require("../middleware/scopeMiddleware");`
+- `requireOwnership(type,{param})` — route middleware ZA requireRole; type ∈ training|topic|question|assessment|equivalenceGroup; tuj/neobstoječ → 404; ADMIN dovoljen le za "training".
+- `requireEnrollment` — za /assessment-attempts/start; PUBLISHED + UserTraining(PARTICIPANT); ob uspehu `req.enrolledAssessment`.
+- `assertEnrollment(userId, assessmentId)` — ista logika kot čista funkcija za klic v controllerju.
+- `scopedListWhere(user, type)` — Prisma where fragment za findMany (INSTRUCTOR svoje; ADMIN `{}` le za "training", sicer `null` → seznam prepovedan/403).
+
+## DEV 2 — Question bank (lastnik `types/models.ts`, publish-first)
+Scope: odstranitev LearningObjective, `EquivalentQuestionGroup→EquivalenceGroup` (scope+cleanup),
+odstranitev `reviewedById` (reviewedAt ostane). Podrobnosti v `brief-dev2.md`.
+Zaščiti route (Dev 1 se jih ni dotaknil):
+- `GET/PUT/DELETE /questions/:id`, `PATCH /questions/:id/status` → `requireRole("INSTRUCTOR")` + `requireOwnership("question")`
+- `GET /questions` → `scopedListWhere(req.user,"question")` v controllerju
+- `POST /questions` → v controllerju `isTrainingOwner` za `topic.trainingId` (404 za tuj)
+- equivalence route → `requireOwnership("equivalenceGroup")` / `scopedListWhere(...,"equivalenceGroup")`
+- **Umakni ADMIN iz `requireRole`** na question/equiv vsebinskih route (matrika: ADMIN ni content-collaborator).
+Ne odstranjuj enum vrednosti. Objavi `types/models.ts` zgodaj.
+
+## DEV 3 — Assessment / attempts / grading / pairing / analitika
+Scope: pairing (`pairedAssessmentId`), enrollment guard na /start, grading endpoint +
+SUBMITTED→GRADED + preračun score, by-LO → by-topic analitika, en-poskus (D). Podrobnosti v `brief-dev3.md`.
+Čakaš na Dev 2 objavljen `types/models.ts` (equiv rename, LO removal).
+Zaščiti route:
+- `POST /assessment-attempts/start` → `requireEnrollment` (ali `assertEnrollment` v controllerju)
+- `GET/PUT/DELETE /assessments/:id`, `PATCH /:id/status`, `GET /:id/results`, `POST /generate` → `requireOwnership("assessment")`
+- `GET /assessments` → `scopedListWhere(...,"assessment")` za INSTRUCTOR; participant veja filtrira na vpisane treninge prek UserTraining
+- analitika → `requireRole("INSTRUCTOR")` + scope (ADMIN nima instructor analitike)
+- **Umakni ADMIN iz `requireRole`** na assessment/analytics vsebinskih route.
+
+## Vrstni red
+Dev 2 lahko starta takoj (uvozi scoping modul). Dev 3 starta, ko je Dev 2 objavil `types/models.ts`.
+Oba se vračata v `feat/db-v2-dev1` (ali v phase0 integracijski branch — uskladi z vodjo).
+Destruktivni DROP-i pridejo šele v skupnem cutoveru, ne v teh vejah.
+
+## Odprta (od Dev 1, nekritično)
+QR knjižnica (predlog qrcode.react); admin UI skrivanje content tabov; /enroll dovoli katerikoli
+vlogi postati PARTICIPANT; seed demo-userji brez lastništva (cutover cleanup).

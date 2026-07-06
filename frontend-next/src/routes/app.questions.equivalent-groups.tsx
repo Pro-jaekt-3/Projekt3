@@ -39,9 +39,10 @@ import { LoadingState, ErrorState } from "@/components/common/Spinner";
 
 import { ensureRole } from "@/lib/route-guards";
 import { qk } from "@/lib/query-keys";
-import { equivalentGroupsService, equivalentGroupsKeys } from "@/services/equivalentGroups";
+import { equivalenceGroupsService, equivalenceGroupsKeys } from "@/services/equivalenceGroups";
 import { questionsService } from "@/services/questions";
-import type { EquivalentQuestionGroup } from "@/types";
+import { trainingsService } from "@/services/trainings";
+import type { EquivalenceGroup } from "@/types";
 
 export const Route = createFileRoute("/app/questions/equivalent-groups")({
   beforeLoad: ({ context, location }) =>
@@ -53,51 +54,58 @@ function EquivalentGroupsPage() {
   const queryClient = useQueryClient();
 
   const groupsQuery = useQuery({
-    queryKey: equivalentGroupsKeys.list(),
-    queryFn: equivalentGroupsService.list,
+    queryKey: equivalenceGroupsKeys.list(),
+    queryFn: equivalenceGroupsService.list,
   });
   const questionsQuery = useQuery({
     queryKey: qk.questions.list(),
     queryFn: questionsService.list,
   });
+  const trainingsQuery = useQuery({
+    queryKey: qk.trainings.list(),
+    queryFn: trainingsService.list,
+  });
 
   const [createOpen, setCreateOpen] = useState(false);
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
+  const [trainingId, setTrainingId] = useState("");
 
-  const [editTarget, setEditTarget] = useState<EquivalentQuestionGroup | null>(null);
+  const [editTarget, setEditTarget] = useState<EquivalenceGroup | null>(null);
   const [editName, setEditName] = useState("");
   const [editDescription, setEditDescription] = useState("");
 
-  const [deleteTarget, setDeleteTarget] = useState<EquivalentQuestionGroup | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<EquivalenceGroup | null>(null);
 
   // Per-group pending "question to add" selection, keyed by group id.
   const [pendingQuestion, setPendingQuestion] = useState<Record<number, string>>({});
 
   const createMutation = useMutation({
     mutationFn: () =>
-      equivalentGroupsService.create({
-        name: name.trim(),
+      equivalenceGroupsService.create({
+        title: name.trim() || null,
         description: description.trim() || null,
+        trainingId: Number(trainingId),
       }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: equivalentGroupsKeys.all });
-      toast.success("Equivalent group created");
+      queryClient.invalidateQueries({ queryKey: equivalenceGroupsKeys.all });
+      toast.success("Equivalence group created");
       setCreateOpen(false);
       setName("");
       setDescription("");
+      setTrainingId("");
     },
     onError: (err) => toast.error(err instanceof Error ? err.message : "Failed to create group"),
   });
 
   const editMutation = useMutation({
     mutationFn: () =>
-      equivalentGroupsService.update(editTarget!.id, {
-        name: editName.trim(),
+      equivalenceGroupsService.update(editTarget!.id, {
+        title: editName.trim() || null,
         description: editDescription.trim() || null,
       }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: equivalentGroupsKeys.all });
+      queryClient.invalidateQueries({ queryKey: equivalenceGroupsKeys.all });
       toast.success("Group updated");
       setEditTarget(null);
     },
@@ -105,9 +113,9 @@ function EquivalentGroupsPage() {
   });
 
   const deleteMutation = useMutation({
-    mutationFn: (groupId: number) => equivalentGroupsService.remove(groupId),
+    mutationFn: (groupId: number) => equivalenceGroupsService.remove(groupId),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: equivalentGroupsKeys.all });
+      queryClient.invalidateQueries({ queryKey: equivalenceGroupsKeys.all });
       queryClient.invalidateQueries({ queryKey: qk.questions.all });
       toast.success("Group deleted");
       setDeleteTarget(null);
@@ -117,9 +125,9 @@ function EquivalentGroupsPage() {
 
   const addQuestionMutation = useMutation({
     mutationFn: ({ groupId, questionId }: { groupId: number; questionId: number }) =>
-      equivalentGroupsService.addQuestion(groupId, questionId),
+      equivalenceGroupsService.addQuestion(groupId, questionId),
     onSuccess: (_question, variables) => {
-      queryClient.invalidateQueries({ queryKey: equivalentGroupsKeys.all });
+      queryClient.invalidateQueries({ queryKey: equivalenceGroupsKeys.all });
       queryClient.invalidateQueries({ queryKey: qk.questions.all });
       setPendingQuestion((p) => ({ ...p, [variables.groupId]: "" }));
       toast.success("Question added to group");
@@ -129,9 +137,9 @@ function EquivalentGroupsPage() {
 
   const removeQuestionMutation = useMutation({
     mutationFn: ({ groupId, questionId }: { groupId: number; questionId: number }) =>
-      equivalentGroupsService.removeQuestion(groupId, questionId),
+      equivalenceGroupsService.removeQuestion(groupId, questionId),
     onSuccess: (_result, variables) => {
-      queryClient.invalidateQueries({ queryKey: equivalentGroupsKeys.all });
+      queryClient.invalidateQueries({ queryKey: equivalenceGroupsKeys.all });
       queryClient.invalidateQueries({ queryKey: qk.questions.all });
       setPendingQuestion((p) => ({ ...p, [variables.groupId]: "" }));
       toast.success("Question removed from group");
@@ -139,9 +147,9 @@ function EquivalentGroupsPage() {
     onError: (err) => toast.error(err instanceof Error ? err.message : "Failed to remove question"),
   });
 
-  const openEdit = (group: EquivalentQuestionGroup) => {
+  const openEdit = (group: EquivalenceGroup) => {
     setEditTarget(group);
-    setEditName(group.name);
+    setEditName(group.title ?? "");
     setEditDescription(group.description ?? "");
   };
 
@@ -149,7 +157,7 @@ function EquivalentGroupsPage() {
   // A question can belong to at most one group — only offer questions not
   // already assigned anywhere as "add to this group" candidates.
   const unassignedQuestions = (questionsQuery.data ?? []).filter(
-    (q) => q.equivalentGroupId === null,
+    (q) => q.equivalenceGroupId === null,
   );
 
   return (
@@ -160,7 +168,7 @@ function EquivalentGroupsPage() {
             Question bank
           </Link>
         }
-        title="Equivalent question groups"
+        title="Equivalence groups"
         description="Group questions that test the same learning objective at the same difficulty, so post-tests can swap in a fresh variant instead of repeating an identical question."
         actions={
           <Button size="sm" onClick={() => setCreateOpen(true)}>
@@ -171,14 +179,14 @@ function EquivalentGroupsPage() {
 
       <div className="space-y-4 p-4 sm:p-6 lg:p-8">
         {groupsQuery.isLoading || questionsQuery.isLoading ? (
-          <LoadingState label="Loading equivalent groups…" />
+          <LoadingState label="Loading equivalence groups…" />
         ) : groupsQuery.isError || questionsQuery.isError ? (
           <ErrorState
             message={
               groupsQuery.isError
                 ? groupsQuery.error instanceof Error
                   ? groupsQuery.error.message
-                  : "Failed to load equivalent groups"
+                  : "Failed to load equivalence groups"
                 : questionsQuery.error instanceof Error
                   ? questionsQuery.error.message
                   : "Failed to load questions"
@@ -191,7 +199,7 @@ function EquivalentGroupsPage() {
         ) : groups.length === 0 ? (
           <EmptyState
             icon={<Layers className="h-5 w-5" />}
-            title="No equivalent groups yet"
+            title="No equivalence groups yet"
             description="Create a group and add questions that are interchangeable variants of each other."
             action={
               <Button size="sm" onClick={() => setCreateOpen(true)}>
@@ -207,7 +215,7 @@ function EquivalentGroupsPage() {
                 <Card key={group.id}>
                   <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-3">
                     <div className="min-w-0">
-                      <CardTitle className="text-sm">{group.name}</CardTitle>
+                      <CardTitle className="text-sm">{group.title ?? "(untitled)"}</CardTitle>
                       {group.description && (
                         <CardDescription className="mt-1">{group.description}</CardDescription>
                       )}
@@ -308,7 +316,7 @@ function EquivalentGroupsPage() {
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Create equivalent group</DialogTitle>
+            <DialogTitle>Create equivalence group</DialogTitle>
             <DialogDescription>
               Group questions that are interchangeable variants of each other.
             </DialogDescription>
@@ -318,15 +326,30 @@ function EquivalentGroupsPage() {
             className="space-y-3"
             onSubmit={(e) => {
               e.preventDefault();
-              if (!name.trim()) {
-                toast.error("Group name is required");
+              if (!trainingId) {
+                toast.error("Training is required");
                 return;
               }
               createMutation.mutate();
             }}
           >
             <div className="space-y-1.5">
-              <Label htmlFor="group-name">Name</Label>
+              <Label htmlFor="group-training">Training</Label>
+              <Select value={trainingId} onValueChange={setTrainingId}>
+                <SelectTrigger id="group-training">
+                  <SelectValue placeholder="Select a training…" />
+                </SelectTrigger>
+                <SelectContent>
+                  {(trainingsQuery.data ?? []).map((t) => (
+                    <SelectItem key={t.id} value={String(t.id)}>
+                      {t.title}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="group-name">Title <span className="text-muted-foreground">(optional)</span></Label>
               <Input
                 id="group-name"
                 value={name}
@@ -364,23 +387,19 @@ function EquivalentGroupsPage() {
       <Dialog open={!!editTarget} onOpenChange={(open) => !open && setEditTarget(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Edit equivalent group</DialogTitle>
-            <DialogDescription>Update the group name and description.</DialogDescription>
+            <DialogTitle>Edit equivalence group</DialogTitle>
+            <DialogDescription>Update the group title and description.</DialogDescription>
           </DialogHeader>
           <form
             id="edit-group-form"
             className="space-y-3"
             onSubmit={(e) => {
               e.preventDefault();
-              if (!editName.trim()) {
-                toast.error("Group name is required");
-                return;
-              }
               editMutation.mutate();
             }}
           >
             <div className="space-y-1.5">
-              <Label htmlFor="edit-group-name">Name</Label>
+              <Label htmlFor="edit-group-name">Title <span className="text-muted-foreground">(optional)</span></Label>
               <Input
                 id="edit-group-name"
                 value={editName}
@@ -418,7 +437,7 @@ function EquivalentGroupsPage() {
           <AlertDialogHeader>
             <AlertDialogTitle>Delete this group?</AlertDialogTitle>
             <AlertDialogDescription>
-              This permanently deletes “{deleteTarget?.name}”.{" "}
+              This permanently deletes "{deleteTarget?.title ?? "(untitled)"}".{" "}
               {(deleteTarget?.questions?.length ?? 0) > 0
                 ? `Its ${deleteTarget?.questions?.length} question(s) will be detached, not deleted.`
                 : "It has no questions attached."}

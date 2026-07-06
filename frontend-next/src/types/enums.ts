@@ -3,6 +3,9 @@
 
 export type UserRole = "ADMIN" | "INSTRUCTOR" | "PARTICIPANT";
 
+/** Per-training role on UserTraining (schema-v2): INSTRUCTOR = ownership, PARTICIPANT = enrollment. */
+export type TrainingRole = "INSTRUCTOR" | "PARTICIPANT";
+
 export type QuestionType = "OPEN" | "MULTIPLE_CHOICE" | "CODE";
 
 export type QuestionStatus =

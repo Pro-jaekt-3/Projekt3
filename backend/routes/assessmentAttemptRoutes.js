@@ -1,12 +1,43 @@
 const express = require("express");
 const router = express.Router();
 
-const { startAttempt, submitAttempt, getAttempt } = require("../controllers/assessmentAttemptController");
+const {
+  startAttempt,
+  submitAttempt,
+  gradeAnswer,
+  getAttempt,
+} = require("../controllers/assessmentAttemptController");
 const { firebaseAuthMiddleware } = require("../middleware/firebaseAuthMiddleware");
 const { requireRole } = require("../middleware/roleMiddleware");
+const { requireEnrollment } = require("../middleware/scopeMiddleware");
 
-router.post("/start", firebaseAuthMiddleware, requireRole("ADMIN", "INSTRUCTOR", "PARTICIPANT"), startAttempt);
-router.post("/:id/submit", firebaseAuthMiddleware, requireRole("ADMIN", "INSTRUCTOR", "PARTICIPANT"), submitAttempt);
-router.get("/:id", firebaseAuthMiddleware, requireRole("ADMIN", "INSTRUCTOR", "PARTICIPANT"), getAttempt);
+// ADMIN je umaknjen z vseh poti (matrika vlog, handoff_dev2_dev3): reševanje je
+// participant workflow, ocenjevanje/pregled pa instructor workflow — dostop do
+// tujih poskusov dodatno omejuje canAccessAttempt/isTrainingOwner v controllerju.
+router.post(
+  "/start",
+  firebaseAuthMiddleware,
+  requireRole("INSTRUCTOR", "PARTICIPANT"),
+  requireEnrollment,
+  startAttempt
+);
+router.patch(
+  "/:attemptId/answers/:answerId/grade",
+  firebaseAuthMiddleware,
+  requireRole("INSTRUCTOR"),
+  gradeAnswer
+);
+router.post(
+  "/:id/submit",
+  firebaseAuthMiddleware,
+  requireRole("INSTRUCTOR", "PARTICIPANT"),
+  submitAttempt
+);
+router.get(
+  "/:id",
+  firebaseAuthMiddleware,
+  requireRole("INSTRUCTOR", "PARTICIPANT"),
+  getAttempt
+);
 
 module.exports = router;

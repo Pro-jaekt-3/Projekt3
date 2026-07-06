@@ -1,4 +1,5 @@
 const prisma = require("../prisma/client");
+const { instructorTrainingIds } = require("../middleware/scopeMiddleware");
 
 const roundToTwo = (value) => Math.round((value + Number.EPSILON) * 100) / 100;
 
@@ -49,11 +50,25 @@ const parseDifficulty = (value) => {
 const parseAnalyticsFilters = (query = {}) => ({
   trainingId: parsePositiveInt(query.trainingId),
   topicId: parsePositiveInt(query.topicId),
-  learningObjectiveId: parsePositiveInt(query.learningObjectiveId),
   difficulty: parseDifficulty(query.difficulty),
   questionId: parsePositiveInt(query.questionId),
   participantId: parsePositiveInt(query.participantId ?? query.userId),
   assessmentId: parsePositiveInt(query.assessmentId),
+});
+
+const resolveScopedTrainingIds = async (user, requestedTrainingId = null) => {
+  const ownedTrainingIds = await instructorTrainingIds(user.id);
+
+  if (requestedTrainingId) {
+    return ownedTrainingIds.includes(requestedTrainingId) ? [requestedTrainingId] : [];
+  }
+
+  return ownedTrainingIds;
+};
+
+const withScopedAnalyticsFilters = async (req, filters = {}) => ({
+  ...filters,
+  trainingIds: await resolveScopedTrainingIds(req.user, filters.trainingId ?? null),
 });
 
 // Builds a Prisma `where` for ParticipantAnswer limited to SUBMITTED attempts,
@@ -68,8 +83,16 @@ const buildSubmittedAnswerWhere = (filters = {}) => {
   if (filters.participantId) {
     attempt.userId = filters.participantId;
   }
-  if (filters.trainingId) {
-    attempt.assessment = { trainingId: filters.trainingId };
+  if (Array.isArray(filters.trainingIds)) {
+    attempt.assessment = {
+      ...(attempt.assessment ?? {}),
+      trainingId: { in: filters.trainingIds },
+    };
+  } else if (filters.trainingId) {
+    attempt.assessment = {
+      ...(attempt.assessment ?? {}),
+      trainingId: filters.trainingId,
+    };
   }
 
   const where = { attempt };
@@ -81,9 +104,6 @@ const buildSubmittedAnswerWhere = (filters = {}) => {
   const question = {};
   if (filters.topicId) {
     question.topicId = filters.topicId;
-  }
-  if (filters.learningObjectiveId) {
-    question.learningObjectiveId = filters.learningObjectiveId;
   }
   if (filters.difficulty) {
     question.difficulty = filters.difficulty;
@@ -133,12 +153,6 @@ const getSubmittedAnswersWithPoints = async (filters = {}) => {
             select: {
               id: true,
               name: true,
-            },
-          },
-          learningObjective: {
-            select: {
-              id: true,
-              title: true,
             },
           },
         },
@@ -247,7 +261,8 @@ const buildMcCorrectnessBreakdown = (answers, getGroupKey, getInitialEntry) => {
 
 const getAnalyticsByTopic = async (req, res) => {
   try {
-    const answers = await getSubmittedAnswersWithPoints(parseAnalyticsFilters(req.query));
+    const filters = await withScopedAnalyticsFilters(req, parseAnalyticsFilters(req.query));
+    const answers = await getSubmittedAnswersWithPoints(filters);
 
     const result = buildGroupedAnalytics(
       answers,
@@ -264,28 +279,10 @@ const getAnalyticsByTopic = async (req, res) => {
   }
 };
 
-const getAnalyticsByLearningObjective = async (req, res) => {
-  try {
-    const answers = await getSubmittedAnswersWithPoints(parseAnalyticsFilters(req.query));
-
-    const result = buildGroupedAnalytics(
-      answers,
-      (answer) => answer.question.learningObjective?.id,
-      (answer) => ({
-        learningObjectiveId: answer.question.learningObjective.id,
-        learningObjectiveTitle: answer.question.learningObjective.title,
-      })
-    ).sort((a, b) => a.learningObjectiveTitle.localeCompare(b.learningObjectiveTitle));
-
-    res.json(result);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-};
-
 const getAnalyticsByDifficulty = async (req, res) => {
   try {
-    const answers = await getSubmittedAnswersWithPoints(parseAnalyticsFilters(req.query));
+    const filters = await withScopedAnalyticsFilters(req, parseAnalyticsFilters(req.query));
+    const answers = await getSubmittedAnswersWithPoints(filters);
 
     const result = buildGroupedAnalytics(
       answers,
@@ -313,6 +310,7 @@ const getAnalyticsByDifficulty = async (req, res) => {
 //  - preAssessmentId / postAssessmentId: only those specific assessments
 const computePairedPrePost = async ({
   trainingId,
+  trainingIds,
   preAssessmentId,
   postAssessmentId,
 } = {}) => {
@@ -322,7 +320,9 @@ const computePairedPrePost = async ({
     },
   };
 
-  if (Number.isInteger(trainingId) && trainingId > 0) {
+  if (Array.isArray(trainingIds)) {
+    assessmentFilter.trainingId = { in: trainingIds };
+  } else if (Number.isInteger(trainingId) && trainingId > 0) {
     assessmentFilter.trainingId = trainingId;
   }
 
@@ -425,9 +425,10 @@ const computePrePostComparison = async (filters = {}) => {
 
 const getPrePostComparison = async (req, res) => {
   try {
-    const source = { ...req.query };
+    const source = await withScopedAnalyticsFilters(req, { ...req.query });
     const result = await computePrePostComparison({
       trainingId: parsePositiveInt(source.trainingId),
+      trainingIds: source.trainingIds,
       preAssessmentId: parsePositiveInt(source.preAssessmentId),
       postAssessmentId: parsePositiveInt(source.postAssessmentId),
     });
@@ -443,7 +444,8 @@ const getWorstQuestions = async (req, res) => {
     const limit =
       Number.isInteger(parsedLimit) && parsedLimit > 0 ? parsedLimit : 10;
 
-    const answers = await getSubmittedAnswersWithPoints(parseAnalyticsFilters(req.query));
+    const filters = await withScopedAnalyticsFilters(req, parseAnalyticsFilters(req.query));
+    const answers = await getSubmittedAnswersWithPoints(filters);
     const grouped = new Map();
 
     for (const answer of answers) {
@@ -491,7 +493,8 @@ const getQuestionAnalytics = async (req, res) => {
     const limit = Number.isInteger(parsedLimit) && parsedLimit > 0 ? parsedLimit : null;
     const sort = req.query.sort;
 
-    const answers = await getSubmittedAnswersWithPoints(parseAnalyticsFilters(req.query));
+    const filters = await withScopedAnalyticsFilters(req, parseAnalyticsFilters(req.query));
+    const answers = await getSubmittedAnswersWithPoints(filters);
     const grouped = new Map();
 
     for (const answer of answers) {
@@ -549,13 +552,13 @@ const getQuestionAnalytics = async (req, res) => {
 };
 
 // ---------------------------------------------------------------------------
-// Phase 3 advanced analytics (all INSTRUCTOR+ADMIN, all backward-compatible).
+// Phase 3 advanced analytics (INSTRUCTOR only, all backward-compatible).
 // ---------------------------------------------------------------------------
 
 // Overall summary that honors the shared filters (drill-down item 1 + 7).
 const getAnalyticsSummary = async (req, res) => {
   try {
-    const filters = parseAnalyticsFilters(req.query);
+    const filters = await withScopedAnalyticsFilters(req, parseAnalyticsFilters(req.query));
     const answers = await getSubmittedAnswersWithPoints(filters);
 
     let score = 0;
@@ -602,7 +605,7 @@ const getAnalyticsSummary = async (req, res) => {
 const STRONG_AREA_THRESHOLD = 70;
 const WEAK_AREA_THRESHOLD = 50;
 
-// Per-user profile (item 2). INSTRUCTOR+ADMIN only, so identity is included.
+// Per-user profile (item 2). INSTRUCTOR only; identity is included inside owned-training scope.
 const getParticipantProfile = async (req, res) => {
   try {
     const userId = parsePositiveInt(req.params.userId);
@@ -611,8 +614,20 @@ const getParticipantProfile = async (req, res) => {
       return res.status(400).json({ error: "Invalid participant id" });
     }
 
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
+    const trainingIds = await resolveScopedTrainingIds(req.user);
+
+    const user = await prisma.user.findFirst({
+      where: {
+        id: userId,
+        assessmentAttempts: {
+          some: {
+            submittedAt: { not: null },
+            assessment: {
+              trainingId: { in: trainingIds },
+            },
+          },
+        },
+      },
       select: { id: true, email: true, name: true, role: true },
     });
 
@@ -621,7 +636,13 @@ const getParticipantProfile = async (req, res) => {
     }
 
     const attempts = await prisma.assessmentAttempt.findMany({
-      where: { userId, submittedAt: { not: null } },
+      where: {
+        userId,
+        submittedAt: { not: null },
+        assessment: {
+          trainingId: { in: trainingIds },
+        },
+      },
       select: {
         id: true,
         score: true,
@@ -672,7 +693,10 @@ const getParticipantProfile = async (req, res) => {
     const hasBoth = prePct !== null && postPct !== null;
 
     // Strong/weak areas (MULTIPLE_CHOICE only).
-    const mcAnswers = await getSubmittedAnswersWithPoints({ participantId: userId });
+    const mcAnswers = await getSubmittedAnswersWithPoints({
+      participantId: userId,
+      trainingIds,
+    });
 
     const topicPerformance = buildMcCorrectnessBreakdown(
       mcAnswers,
@@ -685,19 +709,6 @@ const getParticipantProfile = async (req, res) => {
       (a, b) => b.correctPercentage - a.correctPercentage || a.topicTitle.localeCompare(b.topicTitle)
     );
 
-    const learningObjectivePerformance = buildMcCorrectnessBreakdown(
-      mcAnswers,
-      (answer) => answer.question.learningObjective?.id,
-      (answer) => ({
-        learningObjectiveId: answer.question.learningObjective.id,
-        learningObjectiveTitle: answer.question.learningObjective.title,
-      })
-    ).sort(
-      (a, b) =>
-        b.correctPercentage - a.correctPercentage ||
-        a.learningObjectiveTitle.localeCompare(b.learningObjectiveTitle)
-    );
-
     res.json({
       user,
       prePost: {
@@ -708,18 +719,11 @@ const getParticipantProfile = async (req, res) => {
       },
       assessments,
       topicPerformance,
-      learningObjectivePerformance,
       strongAreas: {
         topics: topicPerformance.filter((t) => t.correctPercentage >= STRONG_AREA_THRESHOLD),
-        learningObjectives: learningObjectivePerformance.filter(
-          (o) => o.correctPercentage >= STRONG_AREA_THRESHOLD
-        ),
       },
       weakAreas: {
         topics: topicPerformance.filter((t) => t.correctPercentage < WEAK_AREA_THRESHOLD),
-        learningObjectives: learningObjectivePerformance.filter(
-          (o) => o.correctPercentage < WEAK_AREA_THRESHOLD
-        ),
       },
       note: "Strong/weak areas and prePost use SUBMITTED attempts; correctness is computed over MULTIPLE_CHOICE answers only (OPEN/CODE are not auto-graded).",
     });
@@ -728,14 +732,19 @@ const getParticipantProfile = async (req, res) => {
   }
 };
 
-// Per-user improvement list for the progress table (item 3). INSTRUCTOR+ADMIN
-// only; identity is intentionally included (this is NOT the anonymized leaderboard).
+// Per-user improvement list for the progress table (item 3). INSTRUCTOR only;
+// identity is intentionally included (this is NOT the anonymized leaderboard).
 const getParticipantImprovements = async (req, res) => {
   try {
-    const filters = {
+    const rawFilters = {
       trainingId: parsePositiveInt(req.query.trainingId),
       preAssessmentId: parsePositiveInt(req.query.preAssessmentId),
       postAssessmentId: parsePositiveInt(req.query.postAssessmentId),
+    };
+
+    const filters = {
+      ...rawFilters,
+      trainingIds: await resolveScopedTrainingIds(req.user, rawFilters.trainingId),
     };
 
     const { pairs, pairedUserCount } = await computePairedPrePost(filters);
@@ -773,7 +782,7 @@ const getParticipantImprovements = async (req, res) => {
 };
 
 // Leaderboard (item 4). PRIVACY: anonymized by default. Names/emails are revealed
-// ONLY when reveal=true AND the caller is INSTRUCTOR/ADMIN (re-checked here).
+// ONLY when reveal=true AND the caller is INSTRUCTOR (re-checked here).
 // No PII is ever accepted via the query string.
 const getLeaderboard = async (req, res) => {
   try {
@@ -782,19 +791,21 @@ const getLeaderboard = async (req, res) => {
     const parsedLimit = Number(req.query.limit);
     const limit =
       Number.isInteger(parsedLimit) && parsedLimit > 0 ? Math.min(parsedLimit, 200) : 20;
+    const trainingIds = await resolveScopedTrainingIds(req.user, trainingId);
 
     const revealRequested = req.query.reveal === "true" || req.query.reveal === "1";
     const callerRole = req.user?.role;
-    const callerCanReveal = callerRole === "ADMIN" || callerRole === "INSTRUCTOR";
+    const callerCanReveal = callerRole === "INSTRUCTOR";
     const revealed = revealRequested && callerCanReveal;
 
     const where = { submittedAt: { not: null }, userId: { not: null } };
     if (assessmentId) {
       where.assessmentId = assessmentId;
     }
-    if (trainingId) {
-      where.assessment = { trainingId };
-    }
+    where.assessment = {
+      ...(where.assessment ?? {}),
+      trainingId: Array.isArray(trainingIds) ? { in: trainingIds } : trainingId,
+    };
 
     const select = {
       id: true,
@@ -897,6 +908,7 @@ const getTrends = async (req, res) => {
     const granularity = ["day", "week", "month"].includes(requestedGranularity)
       ? requestedGranularity
       : "day";
+    const trainingIds = await resolveScopedTrainingIds(req.user, trainingId);
 
     const where = { submittedAt: { not: null } };
     if (assessmentId) {
@@ -905,9 +917,10 @@ const getTrends = async (req, res) => {
     if (participantId) {
       where.userId = participantId;
     }
-    if (trainingId) {
-      where.assessment = { trainingId };
-    }
+    where.assessment = {
+      ...(where.assessment ?? {}),
+      trainingId: { in: trainingIds },
+    };
 
     const attempts = await prisma.assessmentAttempt.findMany({
       where,
@@ -989,13 +1002,18 @@ const getQuestionOptionDistribution = async (req, res) => {
 
     const trainingId = parsePositiveInt(req.query.trainingId);
     const assessmentId = parsePositiveInt(req.query.assessmentId);
+    const trainingIds = await resolveScopedTrainingIds(req.user, trainingId);
 
-    const question = await prisma.question.findUnique({
-      where: { id: questionId },
+    const question = await prisma.question.findFirst({
+      where: {
+        id: questionId,
+        topic: {
+          trainingId: { in: trainingIds },
+        },
+      },
       include: {
         answerOptions: { orderBy: { orderIndex: "asc" } },
         topic: { select: { id: true, name: true } },
-        learningObjective: { select: { id: true, title: true } },
       },
     });
 
@@ -1004,7 +1022,7 @@ const getQuestionOptionDistribution = async (req, res) => {
     }
 
     const answers = await prisma.participantAnswer.findMany({
-      where: buildSubmittedAnswerWhere({ questionId, trainingId, assessmentId }),
+      where: buildSubmittedAnswerWhere({ questionId, assessmentId, trainingIds }),
       select: { selectedOptionId: true, isCorrect: true },
     });
 
@@ -1041,7 +1059,6 @@ const getQuestionOptionDistribution = async (req, res) => {
       questionType: question.type,
       difficulty: question.difficulty,
       topic: question.topic,
-      learningObjective: question.learningObjective,
       filters: { trainingId, assessmentId },
       totalSubmittedAnswers: total,
       answeredCount,
@@ -1062,7 +1079,6 @@ const getQuestionOptionDistribution = async (req, res) => {
 
 module.exports = {
   getAnalyticsByTopic,
-  getAnalyticsByLearningObjective,
   getAnalyticsByDifficulty,
   getPrePostComparison,
   computePrePostComparison,
