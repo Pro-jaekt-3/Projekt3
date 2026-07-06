@@ -339,9 +339,6 @@ const computePairedPrePost = async ({
       submittedAt: {
         not: null,
       },
-      userId: {
-        not: null,
-      },
       assessment: assessmentFilter,
     },
     select: {
@@ -798,7 +795,7 @@ const getLeaderboard = async (req, res) => {
     const callerCanReveal = callerRole === "INSTRUCTOR";
     const revealed = revealRequested && callerCanReveal;
 
-    const where = { submittedAt: { not: null }, userId: { not: null } };
+    const where = { submittedAt: { not: null } };
     if (assessmentId) {
       where.assessmentId = assessmentId;
     }

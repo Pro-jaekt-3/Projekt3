@@ -7,7 +7,11 @@ const attemptResponseInclude = {
       questions: {
         orderBy: { orderIndex: "asc" },
         include: {
-          question: true,
+          question: {
+            include: {
+              answerOptions: { orderBy: { orderIndex: "asc" } },
+            },
+          },
         },
       },
     },
