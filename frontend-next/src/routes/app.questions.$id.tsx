@@ -745,7 +745,7 @@ function AIAssistantPanel({
     mutationFn: async (status: "ACCEPTED" | "REJECTED") => {
       await aiAuthoringService.reviewInteraction(equiv!.interactionId, status);
       // Accepting links B into A's existing group via existing DEV A grouping
-      // (Question.equivalentGroupId, onDelete SetNull).
+      // (Question.equivalenceGroupId, onDelete SetNull).
       if (status === "ACCEPTED" && existingGroupId !== null && equiv) {
         await equivalenceGroupsService.addQuestion(existingGroupId, equiv.questionBId);
       }
