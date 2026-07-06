@@ -1,5 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
+import { useEffect, useState } from "react";
 import { BarChart3, Users, Trophy, TrendingUp, HelpCircle } from "lucide-react";
 import { PageHeader } from "@/components/common/PageHeader";
 import { Button } from "@/components/ui/button";
@@ -15,7 +16,25 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid } from "recharts";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  ResponsiveContainer,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  Tooltip,
+  CartesianGrid,
+  PieChart,
+  Pie,
+  Cell,
+} from "recharts";
 import { FilterBar } from "@/components/analytics/FilterBar";
 import { qk } from "@/lib/query-keys";
 import { analyticsService } from "@/services/analytics";
@@ -24,6 +43,7 @@ import type {
   PrePostComparison,
   TopicAnalytics,
   DifficultyAnalytics,
+  QuestionAnalytics,
 } from "@/services/analytics";
 import { ensureRole } from "@/lib/route-guards";
 import {
@@ -65,8 +85,12 @@ function AnalyticsDashboard() {
     queryKey: qk.analytics.list(["by-difficulty", filters]),
     queryFn: () => analyticsService.byDifficulty(filters),
   });
+  const questions = useQuery({
+    queryKey: qk.analytics.list(["questions", "success-rate", filters]),
+    queryFn: () => analyticsService.questions({ filters }),
+  });
 
-  const queries = [summary, prePost, byTopic, byDifficulty];
+  const queries = [summary, prePost, byTopic, byDifficulty, questions];
   const isLoading = queries.some((q) => q.isLoading);
   const failed = queries.find((q) => q.isError);
 
@@ -121,6 +145,7 @@ function AnalyticsDashboard() {
             prePost={prePost.data}
             topics={byTopic.data ?? []}
             difficulties={byDifficulty.data ?? []}
+            questions={questions.data ?? []}
             filtersActive={hasAnyAnalyticsFilter(search)}
           />
         )}
@@ -134,14 +159,32 @@ function DashboardBody({
   prePost,
   topics,
   difficulties,
+  questions,
   filtersActive,
 }: {
   summary: AnalyticsSummary | undefined;
   prePost: PrePostComparison | undefined;
   topics: TopicAnalytics[];
   difficulties: DifficultyAnalytics[];
+  questions: QuestionAnalytics[];
   filtersActive: boolean;
 }) {
+  const [selectedQuestionId, setSelectedQuestionId] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (questions.length === 0) {
+      setSelectedQuestionId(null);
+      return;
+    }
+
+    if (
+      selectedQuestionId === null ||
+      !questions.some((question) => question.questionId === selectedQuestionId)
+    ) {
+      setSelectedQuestionId(questions[0].questionId);
+    }
+  }, [questions, selectedQuestionId]);
+
   const pairedCount = prePost?.pairedUserCount ?? 0;
   const hasPrePost = pairedCount > 0;
   const prePostChart = prePost
@@ -155,7 +198,13 @@ function DashboardBody({
     (!summary || summary.answerCount === 0) &&
     topics.length === 0 &&
     difficulties.length === 0 &&
+    questions.length === 0 &&
     !hasPrePost;
+
+  const selectedQuestion =
+    selectedQuestionId !== null
+      ? questions.find((question) => question.questionId === selectedQuestionId) ?? null
+      : null;
 
   if (everythingEmpty) {
     return (
@@ -325,6 +374,142 @@ function DashboardBody({
           )}
         </Card>
       </div>
+
+      <Card>
+        <CardHeader className="gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <CardTitle className="text-base">Per-question success drill-down</CardTitle>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Select one question to inspect how many submitted answers were marked correct versus not yet correct.
+            </p>
+          </div>
+          <div className="w-full sm:w-80">
+            <Select
+              value={selectedQuestionId !== null ? String(selectedQuestionId) : undefined}
+              onValueChange={(value) => setSelectedQuestionId(Number(value))}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Select a question" />
+              </SelectTrigger>
+              <SelectContent>
+                {questions.map((question) => (
+                  <SelectItem key={question.questionId} value={String(question.questionId)}>
+                    {question.questionText}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {selectedQuestion ? (
+            <QuestionSuccessDrilldown question={selectedQuestion} />
+          ) : (
+            <SectionEmpty label="No answered questions are available for drill-down." />
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+const SUCCESS_COLORS = {
+  correct: "var(--chart-3)",
+  other: "var(--chart-1)",
+} as const;
+
+function QuestionSuccessDrilldown({ question }: { question: QuestionAnalytics }) {
+  const otherCount = Math.max(0, question.answerCount - question.correctCount);
+  const pieData = [
+    { name: "Correct", value: question.correctCount, fill: SUCCESS_COLORS.correct },
+    { name: "Not yet correct", value: otherCount, fill: SUCCESS_COLORS.other },
+  ].filter((slice) => slice.value > 0);
+
+  return (
+    <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(18rem,22rem)]">
+      <div className="space-y-4">
+        <div>
+          <div className="text-xs uppercase tracking-wide text-muted-foreground">Selected question</div>
+          <h3 className="mt-1 text-sm font-semibold sm:text-base">{question.questionText}</h3>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <MetricCard label="Answers" value={question.answerCount} />
+          <MetricCard label="Correct" value={question.correctCount} />
+          <MetricCard label="Success rate" value={pct(question.correctPercentage)} />
+          <MetricCard label="Avg points" value={roundTo1(question.averagePoints)} />
+        </div>
+
+        <div className="h-64">
+          <ResponsiveContainer>
+            <PieChart>
+              <Pie
+                data={pieData}
+                dataKey="value"
+                nameKey="name"
+                innerRadius={56}
+                outerRadius={92}
+                paddingAngle={2}
+                label={({ name, percent }) =>
+                  typeof percent === "number" ? `${name} ${Math.round(percent * 100)}%` : name
+                }
+              >
+                {pieData.map((slice) => (
+                  <Cell key={slice.name} fill={slice.fill} />
+                ))}
+              </Pie>
+              <Tooltip formatter={(value: number | string) => [`${value} answer(s)`, "Count"]} />
+            </PieChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+
+      <div className="space-y-4">
+        <div className="rounded-md border bg-surface p-4">
+          <div className="text-xs uppercase tracking-wide text-muted-foreground">Interpretation</div>
+          <div className="mt-2 space-y-2 text-sm text-muted-foreground">
+            <p>
+              <span className="font-medium text-foreground">Correct</span> means answers with
+              <code className="mx-1">isCorrect === true</code>.
+            </p>
+            <p>
+              <span className="font-medium text-foreground">Not yet correct</span> includes wrong answers and any
+              answers that have not been marked correct yet.
+            </p>
+            <p className="text-xs">
+              For OPEN and CODE questions, pending manual review stays outside the correct slice until grading is completed.
+            </p>
+          </div>
+        </div>
+
+        <div className="overflow-x-auto">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Slice</TableHead>
+                <TableHead className="text-right">Answers</TableHead>
+                <TableHead className="text-right">Share</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              <TableRow>
+                <TableCell className="font-medium">Correct</TableCell>
+                <TableCell className="text-right tabular-nums">{question.correctCount}</TableCell>
+                <TableCell className="text-right tabular-nums font-medium">
+                  {pct(question.correctPercentage)}
+                </TableCell>
+              </TableRow>
+              <TableRow>
+                <TableCell className="font-medium">Not yet correct</TableCell>
+                <TableCell className="text-right tabular-nums">{otherCount}</TableCell>
+                <TableCell className="text-right tabular-nums font-medium">
+                  {pct(roundTo1(Math.max(0, 100 - question.correctPercentage)))}
+                </TableCell>
+              </TableRow>
+            </TableBody>
+          </Table>
+        </div>
+      </div>
     </div>
   );
 }
@@ -335,4 +520,8 @@ function SectionEmpty({ label }: { label: string }) {
       {label}
     </div>
   );
+}
+
+function roundTo1(value: number) {
+  return Math.round(value * 10) / 10;
 }
