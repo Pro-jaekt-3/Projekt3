@@ -1,73 +1,73 @@
 # PROJEKT3
 
-PROJEKT3 is an assessment platform for informatics and computer science education. It supports training ownership and enrollment, question banks, assessment authoring, participant solving, grading, analytics, and optional local-model features.
+PROJEKT3 je platforma za preverjanje znanja pri izobraževanju iz informatike in računalništva. Podpira lastništvo usposabljanj in vpisovanje, banke vprašanj, pripravo preverjanj, reševanje s strani udeležencev, ocenjevanje, analitiko ter izbirne funkcije z lokalnimi AI-modeli.
 
-The repository is split into two active apps:
+Repozitorij je razdeljen na dve aktivni aplikaciji:
 
-- `frontend-next/` — TanStack Router SPA, React 19, TypeScript, Tailwind v4
+- `frontend-next/` — SPA s TanStack Routerjem, React 19, TypeScript, Tailwind v4
 - `backend/` — Express, Prisma, MySQL, Firebase Admin
 
-There is no root app runner. Install and run the frontend and backend separately.
+Korenskega zaganjalnika ni. Frontend in backend namestite in zaganjajte ločeno.
 
-## What The App Currently Does
+## Kaj aplikacija trenutno omogoča
 
-### Instructor
+### Inštruktor
 
-- Manage trainings, participants, topics, and enrollment tokens
-- Create and edit questions
-- Group equivalent questions
-- Build assessments and post-tests
-- Publish, archive, and review assessments
-- Grade open/code answers manually
-- View results, participant progress, trends, leaderboard, and question analysis
-- Use model-backed drafting, AI review, and AI insights
+- Upravljanje usposabljanj, udeležencev, tem in žetonov za vpis
+- Ustvarjanje in urejanje vprašanj
+- Združevanje enakovrednih vprašanj v skupine
+- Sestavljanje preverjanj in naknadnih testov (post-testov)
+- Objava, arhiviranje in pregled preverjanj
+- Ročno ocenjevanje odprtih in programerskih odgovorov
+- Pregled rezultatov, napredka udeležencev, trendov, lestvice in analize vprašanj
+- Uporaba osnutkov s pomočjo modelov, AI-pregleda in AI-vpogledov
 
-### Participant
+### Udeleženec
 
-- Join trainings
-- View available assessments
-- Start and solve assessments
-- Submit answers once
-- View personal results
+- Pridružitev usposabljanjem
+- Pregled razpoložljivih preverjanj
+- Začetek in reševanje preverjanj
+- Enkratna oddaja odgovorov
+- Pregled lastnih rezultatov
 
-### Admin
+### Administrator
 
-- Manage users and roles
-- Provision trainings
-- Manage AI models
-- Access system-level analytics
+- Upravljanje uporabnikov in vlog
+- Ustvarjanje usposabljanj
+- Upravljanje AI-modelov
+- Dostop do analitike na ravni sistema
 
-## Repository Layout
+## Struktura repozitorija
 
 ```text
-backend/         Express API, Prisma schema, controllers, routes, tests
-frontend-next/   Active frontend SPA
+backend/         Express API, Prisma shema, kontrolerji, poti, testi
+frontend-next/   Aktivni frontend SPA
 lovable-reference/
 migration_docs/
 ```
 
-Key active frontend areas:
+Ključna aktivna področja frontenda:
 
-- `frontend-next/src/routes` — pages and route guards
-- `frontend-next/src/services` — API domain services
-- `frontend-next/src/lib` — auth, route guards, query keys, helpers
-- `frontend-next/src/types` — shared frontend models and enums
+- `frontend-next/src/routes` — strani in varovala poti
+- `frontend-next/src/services` — domenske API-storitve
+- `frontend-next/src/lib` — avtentikacija, varovala poti, ključi poizvedb, pomožne funkcije
+- `frontend-next/src/types` — skupni frontend modeli in enumeracije
 
-Key active backend areas:
+Ključna aktivna področja backenda:
 
-- `backend/routes` — HTTP route registration
-- `backend/controllers` — business logic
-- `backend/middleware` — auth, role, and ownership/enrollment scoping
-- `backend/prisma/schema.prisma` — active database schema
-- `backend/__tests__` — API/controller/middleware tests
+- `backend/routes` — registracija HTTP-poti
+- `backend/controllers` — poslovna logika
+- `backend/middleware` — avtentikacija, vloge ter omejevanje po lastništvu/vpisu
+- `backend/prisma/schema.prisma` — aktivna shema baze podatkov
+- `backend/__tests__` — testi API-ja, kontrolerjev in vmesne programske opreme
 
-Documentation assets in `docs/`:
+Dokumentacijska gradiva v mapi `docs/`:
 
-- `docs/DIAGRAMS.md` — Mermaid ER, use-case, sequence, lifecycle, and deployment diagrams
-- `docs/arhitekturni_projekt3.png` — exported architecture image
-- `docs/DPU_2.jpg` — exported diagram/image asset
+- `docs/DIAGRAMS.md` — Mermaid ER, primeri uporabe, sekvenčni diagrami, življenjski cikli in diagram namestitve
+- `docs/arhitekturni_projekt3.png` — izvožena slika arhitekture
+- `docs/DPU_2.jpg` — izvožen diagram/slikovno gradivo
 
-## Stack
+## Tehnologije
 
 ### Frontend
 
@@ -88,25 +88,25 @@ Documentation assets in `docs/`:
 - MySQL
 - Firebase Admin SDK
 
-## Requirements
+## Zahteve
 
-- Node.js 20+ recommended
+- Priporočen Node.js 20+
 - npm
 - MySQL
-- Firebase project for auth
-- Optional: Ollama for local AI model support
+- Firebase projekt za avtentikacijo
+- Izbirno: Ollama za podporo lokalnim AI-modelom
 
-## Environment Setup
+## Nastavitev okolja
 
 ### Frontend
 
-Copy:
+Kopirajte:
 
 ```bash
 cp frontend-next/.env.example frontend-next/.env
 ```
 
-Required frontend env values:
+Obvezne frontend okoljske spremenljivke:
 
 - `VITE_API_URL`
 - `VITE_FIREBASE_API_KEY`
@@ -117,11 +117,11 @@ Required frontend env values:
 - `VITE_FIREBASE_APP_ID`
 - `VITE_FIREBASE_MEASUREMENT_ID`
 
-Optional frontend env:
+Izbirna frontend spremenljivka:
 
 - `VITE_DEV_ROLE_OVERRIDE`
 
-`VITE_DEV_ROLE_OVERRIDE` enables a dev-only role preview on the login page. Use one of:
+`VITE_DEV_ROLE_OVERRIDE` omogoči predogled vloge na prijavni strani (samo za razvoj). Uporabite eno od vrednosti:
 
 - `admin`
 - `instructor`
@@ -129,31 +129,31 @@ Optional frontend env:
 
 ### Backend
 
-Copy:
+Kopirajte:
 
 ```bash
 cp backend/.env.example backend/.env
 ```
 
-Required backend env values:
+Obvezne backend okoljske spremenljivke:
 
 - `DATABASE_URL`
-- Firebase Admin credentials expected by the middleware setup in your local `.env`
+- Firebase Admin poverilnice, ki jih pričakuje nastavitev vmesne programske opreme v vaši lokalni datoteki `.env`
 
-AI-related backend env values:
+Okoljske spremenljivke, povezane z AI:
 
 - `AI_DEFAULT_PROVIDER`
 - `AI_DEFAULT_MODEL`
 - `OLLAMA_BASE_URL`
 - `OLLAMA_TIMEOUT_MS`
 
-## Database Setup
+## Nastavitev baze podatkov
 
-The active Prisma schema is:
+Aktivna Prisma shema je:
 
 - `backend/prisma/schema.prisma`
 
-If you are bootstrapping a local database from scratch, the practical flow is:
+Če lokalno bazo vzpostavljate od začetka, je praktičen postopek:
 
 ```bash
 cd backend
@@ -161,12 +161,12 @@ npx prisma db push
 node prisma/seed.js
 ```
 
-If you are working with the migration/cutover materials, see:
+Če delate z gradivi za migracijo/prehod, glejte:
 
 - `backend/prisma/phase0/README.md`
 - `migration_docs/`
 
-## Install
+## Namestitev
 
 ### Backend
 
@@ -182,55 +182,55 @@ cd frontend-next
 npm install
 ```
 
-## Run Locally
+## Lokalni zagon
 
-Start the backend first:
+Najprej zaženite backend:
 
 ```bash
 cd backend
 npm run dev
 ```
 
-The API runs on:
+API teče na:
 
 - `http://localhost:3000`
 
-Then start the frontend:
+Nato zaženite frontend:
 
 ```bash
 cd frontend-next
 npm run dev
 ```
 
-The frontend runs on:
+Frontend teče na:
 
 - `http://localhost:8080`
 
-## Authentication And Roles
+## Avtentikacija in vloge
 
-The frontend uses Firebase authentication and then calls:
+Frontend uporablja Firebase avtentikacijo in nato pokliče:
 
 - `GET /auth/me`
 
-to resolve the authoritative backend role.
+za pridobitev avtoritativne vloge iz backenda.
 
-Frontend route guards are handled in:
+Varovala poti na frontendu so v:
 
 - `frontend-next/src/lib/route-guards.ts`
 
-The UI role navigation is defined in:
+Navigacija po vlogah v uporabniškem vmesniku je definirana v:
 
 - `frontend-next/src/components/layout/SidebarNav.tsx`
 
-Role mapping in the current system:
+Vloge v trenutnem sistemu:
 
 - `ADMIN`
 - `INSTRUCTOR`
 - `PARTICIPANT`
 
-## Backend API Domains
+## Domene backend API-ja
 
-Registered top-level API groups:
+Registrirane vrhnje API-skupine:
 
 - `/auth`
 - `/users`
@@ -243,49 +243,49 @@ Registered top-level API groups:
 - `/analytics`
 - `/ai`
 
-## Diagrams And Docs
+## Diagrami in dokumentacija
 
-The current docs folder is small but useful for orientation:
+Trenutna mapa z dokumentacijo je majhna, a koristna za orientacijo:
 
-- [docs/DIAGRAMS.md](/Users/gajkorosec/Library/CloudStorage/OneDrive-Personal/Namizje/Sola/FAKS/3L_IPT/2._Sem/Zakljucni_Projekt/Projekt3/docs/DIAGRAMS.md)
-  - Entity-relationship overview
-  - Role/use-case overview
-  - Assessment solving sequence
-  - Question lifecycle
-  - Deployment topology
-- [arhitekturni_projekt3.png](/Users/gajkorosec/Library/CloudStorage/OneDrive-Personal/Namizje/Sola/FAKS/3L_IPT/2._Sem/Zakljucni_Projekt/Projekt3/docs/arhitekturni_projekt3.png)
-- [DPU_2.jpg](/Users/gajkorosec/Library/CloudStorage/OneDrive-Personal/Namizje/Sola/FAKS/3L_IPT/2._Sem/Zakljucni_Projekt/Projekt3/docs/DPU_2.jpg)
+- [docs/DIAGRAMS.md](docs/DIAGRAMS.md)
+  - Pregled entitetno-relacijskega modela
+  - Pregled vlog in primerov uporabe
+  - Sekvenčni diagram reševanja preverjanja
+  - Življenjski cikel vprašanja
+  - Topologija namestitve
+- [arhitekturni_projekt3.png](docs/arhitekturni_projekt3.png)
+- [DPU_2.jpg](docs/DPU_2.jpg)
 
-Use `docs/DIAGRAMS.md` as a conceptual reference, but treat the live code and config as authoritative when they differ. In particular:
+`docs/DIAGRAMS.md` uporabljajte kot konceptualno referenco, ob razhajanjih pa kot avtoritativna vira upoštevajte živo kodo in konfiguracijo. Posebej velja:
 
-- the active schema is `backend/prisma/schema.prisma`
-- runtime ports and scripts come from `frontend-next/package.json`, `backend/package.json`, and the env files
-- some diagram content still includes legacy FAZA-0 entities or older example runtime values
+- aktivna shema je `backend/prisma/schema.prisma`
+- vrata in skripte za zagon izhajajo iz `frontend-next/package.json`, `backend/package.json` in okoljskih datotek
+- del vsebine diagramov še vedno vključuje zastarele entitete FAZA-0 ali starejše primere nastavitev
 
-## Ollama Notes
+## Opombe glede Ollame
 
-The app supports local Ollama-backed models through the AI model management UI.
+Aplikacija podpira lokalne modele prek Ollame v vmesniku za upravljanje AI-modelov.
 
-Important practical note:
+Pomembna praktična opomba:
 
-- on some machines, `http://localhost:11434` and `http://127.0.0.1:11434` do not resolve to the same Ollama runtime
+- na nekaterih računalnikih se `http://localhost:11434` in `http://127.0.0.1:11434` ne razrešita v isto Ollama okolje
 
-If the app says a model is not installed even though `ollama list` shows it, verify the model against:
+Če aplikacija javi, da model ni nameščen, čeprav ga `ollama list` prikazuje, preverite model z:
 
 ```bash
 curl http://127.0.0.1:11434/api/tags
 curl http://localhost:11434/api/tags
 ```
 
-If needed, set the model Base URL in the UI or set:
+Po potrebi nastavite osnovni URL modela v vmesniku ali nastavite:
 
 ```env
 OLLAMA_BASE_URL=http://127.0.0.1:11434
 ```
 
-in `backend/.env`.
+v datoteki `backend/.env`.
 
-## Testing
+## Testiranje
 
 ### Backend
 
@@ -294,11 +294,11 @@ cd backend
 npm test
 ```
 
-Existing backend tests include:
+Obstoječi backend testi pokrivajo:
 
-- controllers
-- scope middleware
-- integration API coverage
+- kontrolerje
+- vmesno programsko opremo za omejevanje dostopa
+- integracijsko pokritost API-ja
 
 ### Frontend
 
@@ -307,7 +307,7 @@ cd frontend-next
 npm test
 ```
 
-Useful validation commands:
+Koristni ukazi za preverjanje:
 
 ```bash
 cd frontend-next
@@ -315,18 +315,18 @@ npx tsc --noEmit
 npm run build
 ```
 
-## Current Known Caveats
+## Znane omejitve
 
-- Some older in-app copy still says "prototype" or "static demo data" even though major parts of the app are now wired to real services.
-- `docs/DIAGRAMS.md` is useful, but parts of it are conceptual and some sections still include legacy entities or older example runtime values.
-- There is no root package runner; frontend and backend must be managed separately.
+- Nekatera starejša besedila v aplikaciji še vedno omenjajo »prototip« ali »statične demo podatke«, čeprav so večji deli aplikacije že povezani z resničnimi storitvami.
+- `docs/DIAGRAMS.md` je koristen, vendar so deli konceptualni in nekateri razdelki še vedno vključujejo zastarele entitete ali starejše primere nastavitev.
+- Korenskega paketnega zaganjalnika ni; frontend in backend je treba upravljati ločeno.
 
-## Source Of Truth
+## Vir resnice
 
-For the current implementation, prefer the live code and active schema over older planning notes:
+Za trenutno implementacijo imajo živa koda in aktivna shema prednost pred starejšimi načrtovalnimi zapiski:
 
-- frontend routes: `frontend-next/src/routes`
-- frontend services: `frontend-next/src/services`
-- backend routes/controllers: `backend/routes`, `backend/controllers`
-- active schema: `backend/prisma/schema.prisma`
-- env and runtime config: `frontend-next/.env.example`, `backend/.env.example`, package scripts
+- frontend poti: `frontend-next/src/routes`
+- frontend storitve: `frontend-next/src/services`
+- backend poti/kontrolerji: `backend/routes`, `backend/controllers`
+- aktivna shema: `backend/prisma/schema.prisma`
+- okoljska in zagonska konfiguracija: `frontend-next/.env.example`, `backend/.env.example`, skripte paketov
