@@ -3,6 +3,7 @@
 PROJEKT3 je platforma za preverjanje znanja na področju informatike in računalništva. Podpira lastništvo in včlanjevanje v treninge, banko vprašanj, pripravo assessmentov, reševanje za udeležence, ocenjevanje, analitiko in izbirne funkcionalnosti z lokalnimi modeli.
 
 Repozitorij je razdeljen na dve aktivni aplikaciji:
+Repozitorij je razdeljen na dve aktivni aplikaciji:
 
 - `frontend-next/` — SPA aplikacija s TanStack Routerjem, React 19, TypeScript, Tailwind v4
 - `backend/` — Express, Prisma, MySQL, Firebase Admin
@@ -19,7 +20,9 @@ Trenutna gostovana postavitev:
 Za lokalni razvoj frontend in backend še vedno tečeta ločeno na tvojem računalniku.
 
 ## Kaj aplikacija trenutno omogoča
+## Kaj aplikacija trenutno omogoča
 
+### Inštruktor
 ### Inštruktor
 
 - upravljanje treningov, udeležencev, tem in vpisnih žetonov
@@ -55,6 +58,7 @@ lovable-reference/
 migration_docs/
 ```
 
+Ključna aktivna področja frontenda:
 Ključna aktivna področja frontenda:
 
 - `frontend-next/src/routes` — strani in varovala na nivoju rut
@@ -98,6 +102,7 @@ Dokumentacijske datoteke v `docs/`:
 - Firebase Admin SDK
 
 ## Zahteve
+## Zahteve
 
 - priporočljivo Node.js 20+
 - npm
@@ -105,6 +110,7 @@ Dokumentacijske datoteke v `docs/`:
 - Firebase projekt za avtentikacijo
 - po želji Ollama za podporo lokalnim modelom
 
+## Nastavitev okolja
 ## Nastavitev okolja
 
 ### Frontend
@@ -164,6 +170,7 @@ Backend env vrednosti, povezane z modeli:
 ## Nastavitev podatkovne baze
 
 Aktivna Prisma shema je:
+Aktivna Prisma shema je:
 
 - `backend/prisma/schema.prisma`
 
@@ -181,6 +188,7 @@ node prisma/seed.js
 - `migration_docs/`
 
 ## Namestitev
+## Namestitev
 
 ### Backend
 
@@ -197,6 +205,7 @@ npm install
 ```
 
 ## Lokalni zagon
+## Lokalni zagon
 
 Najprej zaženi backend:
 
@@ -205,6 +214,7 @@ cd backend
 npm run dev
 ```
 
+API teče na:
 API teče na:
 
 - `http://localhost:3000`
@@ -216,6 +226,7 @@ cd frontend-next
 npm run dev
 ```
 
+Frontend teče na:
 Frontend teče na:
 
 - `http://localhost:8080`
