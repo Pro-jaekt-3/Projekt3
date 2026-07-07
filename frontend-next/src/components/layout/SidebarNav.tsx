@@ -7,7 +7,6 @@ import {
   Brain,
   BarChart3,
   LineChart,
-  BookOpen,
   Library,
   FileText,
   CheckSquare,
@@ -97,17 +96,6 @@ export function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
             </Link>
           );
         })}
-      </div>
-      <div className="mt-auto px-3 pb-4 pt-6">
-        <div className="rounded-md border bg-surface p-3">
-          <div className="flex items-start gap-2">
-            <BookOpen className="mt-0.5 h-4 w-4 text-muted-foreground" />
-            <div className="text-xs text-muted-foreground">
-              <div className="font-medium text-foreground">Prototype mode</div>
-              Static demo data only.
-            </div>
-          </div>
-        </div>
       </div>
     </nav>
   );
