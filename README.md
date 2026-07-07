@@ -3,7 +3,6 @@
 PROJEKT3 je platforma za preverjanje znanja na področju informatike in računalništva. Podpira lastništvo in včlanjevanje v treninge, banko vprašanj, pripravo assessmentov, reševanje za udeležence, ocenjevanje, analitiko in izbirne funkcionalnosti z lokalnimi modeli.
 
 Repozitorij je razdeljen na dve aktivni aplikaciji:
-Repozitorij je razdeljen na dve aktivni aplikaciji:
 
 - `frontend-next/` — SPA aplikacija s TanStack Routerjem, React 19, TypeScript, Tailwind v4
 - `backend/` — Express, Prisma, MySQL, Firebase Admin
@@ -20,9 +19,7 @@ Trenutna gostovana postavitev:
 Za lokalni razvoj frontend in backend še vedno tečeta ločeno na tvojem računalniku.
 
 ## Kaj aplikacija trenutno omogoča
-## Kaj aplikacija trenutno omogoča
 
-### Inštruktor
 ### Inštruktor
 
 - upravljanje treningov, udeležencev, tem in vpisnih žetonov
@@ -58,7 +55,6 @@ lovable-reference/
 migration_docs/
 ```
 
-Ključna aktivna področja frontenda:
 Ključna aktivna področja frontenda:
 
 - `frontend-next/src/routes` — strani in varovala na nivoju rut
@@ -102,7 +98,6 @@ Dokumentacijske datoteke v `docs/`:
 - Firebase Admin SDK
 
 ## Zahteve
-## Zahteve
 
 - priporočljivo Node.js 20+
 - npm
@@ -110,7 +105,6 @@ Dokumentacijske datoteke v `docs/`:
 - Firebase projekt za avtentikacijo
 - po želji Ollama za podporo lokalnim modelom
 
-## Nastavitev okolja
 ## Nastavitev okolja
 
 ### Frontend
@@ -170,7 +164,6 @@ Backend env vrednosti, povezane z modeli:
 ## Nastavitev podatkovne baze
 
 Aktivna Prisma shema je:
-Aktivna Prisma shema je:
 
 - `backend/prisma/schema.prisma`
 
@@ -188,7 +181,6 @@ node prisma/seed.js
 - `migration_docs/`
 
 ## Namestitev
-## Namestitev
 
 ### Backend
 
@@ -204,7 +196,6 @@ cd frontend-next
 npm install
 ```
 
-## Lokalni zagon
 ## Lokalni zagon
 
 Najprej zaženi backend:
@@ -226,7 +217,6 @@ cd frontend-next
 npm run dev
 ```
 
-Frontend teče na:
 Frontend teče na:
 
 - `http://localhost:8080`
@@ -276,14 +266,14 @@ Registrirane vrhnje API skupine:
 
 Trenutna mapa `docs` je majhna, vendar uporabna za orientacijo:
 
-- [docs/DIAGRAMS.md](/Users/gajkorosec/Library/CloudStorage/OneDrive-Personal/Namizje/Sola/FAKS/3L_IPT/2._Sem/Zakljucni_Projekt/Projekt3/docs/DIAGRAMS.md)
+- [docs/DIAGRAMS.md](docs/DIAGRAMS.md)
   - pregled entitet in relacij
   - pregled vlog in use-case scenarijev
   - sekvenca reševanja assessmenta
   - življenjski cikel vprašanja
   - pregled deployment topologije
-- [arhitekturni_projekt3.png](/Users/gajkorosec/Library/CloudStorage/OneDrive-Personal/Namizje/Sola/FAKS/3L_IPT/2._Sem/Zakljucni_Projekt/Projekt3/docs/arhitekturni_projekt3.png)
-- [DPU_2.jpg](/Users/gajkorosec/Library/CloudStorage/OneDrive-Personal/Namizje/Sola/FAKS/3L_IPT/2._Sem/Zakljucni_Projekt/Projekt3/docs/DPU_2.jpg)
+- ![Arhitektura](docs/arhitekturni_projekt3.png)
+- ![DPU](docs/DPU_2.jpg)
 
 `docs/DIAGRAMS.md` uporabljaj kot konceptualno referenco, vendar kot primarni vir pri neskladjih upoštevaj živo kodo in konfiguracijo. Posebej velja:
 
