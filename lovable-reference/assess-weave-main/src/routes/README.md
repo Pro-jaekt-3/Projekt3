@@ -1,21 +1,21 @@
-# Routes
+# Rute
 
-TanStack Start uses **file-based routing**. Every `.tsx` file in this directory
-is a route. Do **not** create `src/pages/`, `src/routes/_app/index.tsx`, or
-`app/layout.tsx` — those are Next.js / Remix conventions. The only root layout
-is `src/routes/__root.tsx`.
+TanStack Start uporablja **file-based routing**. Vsaka datoteka `.tsx` v tej mapi
+predstavlja ruto. Ne ustvarjaj `src/pages/`, `src/routes/_app/index.tsx` ali
+`app/layout.tsx`, ker so to konvencije iz Next.js / Remix. Edini korenski layout
+je `src/routes/__root.tsx`.
 
-## Conventions
+## Konvencije
 
-| File | URL |
+| Datoteka | URL |
 | --- | --- |
 | `index.tsx` | `/` |
 | `about.tsx` | `/about` |
 | `users/index.tsx` | `/users` |
-| `users/$id.tsx` | `/users/:id` (dynamic — bare `$`, no curly braces) |
-| `posts/{-$category}.tsx` | `/posts/:category?` (optional segment) |
-| `files/$.tsx` | `/files/*` (splat — read via `_splat` param, never `*`) |
-| `_layout.tsx` | layout route (renders children via `<Outlet />`) |
-| `__root.tsx` | app shell — wraps every page; preserve `<Outlet />` |
+| `users/$id.tsx` | `/users/:id` (dinamično — goli `$`, brez zavitih oklepajev) |
+| `posts/{-$category}.tsx` | `/posts/:category?` (neobvezen segment) |
+| `files/$.tsx` | `/files/*` (splat — bere se prek parametra `_splat`, nikoli `*`) |
+| `_layout.tsx` | layout ruta (otroke izriše prek `<Outlet />`) |
+| `__root.tsx` | app shell — ovije vsako stran; ohrani `<Outlet />` |
 
-`routeTree.gen.ts` is auto-generated. Don't edit it by hand.
+`routeTree.gen.ts` se generira samodejno. Ne urejaj ga ročno.

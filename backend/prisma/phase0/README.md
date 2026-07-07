@@ -2,16 +2,16 @@
 
 Te skripte **reproducirajo podatkovno stanje FAZE 0**, ki je bilo uveljavljeno nad bazo `projekt3`
 (dopolnjujejo additivno migracijo `../migrations/20260704112500_additive_v2_phase0/`). So **idempotentne**:
-prvi zagon nad baseline stanjem izvede posege, vsak nadaljnji zagon nad že-uveljavljenim stanjem je
+prvi zagon nad izhodiščnim stanjem izvede posege, vsak nadaljnji zagon nad že-uveljavljenim stanjem je
 **NO-OP** (0 sprememb, brez napake, brez podvojitev).
 
 > **Niso Prisma migracije.** So ločene, ročno pognane data-skripte. Sheme in migracij ne spreminjajo
 > (drift ostane prazen). V produkciji jih poženeš enkrat; v repo so zato, da je poseg reproducibilen
 > in ne le zabeležen v izpisu.
 
-## Baseline / varnostna mreža
+## Izhodiščno stanje / varnostna mreža
 
-Baseline (stanje **pred** purge) je poln dump:
+Izhodiščno stanje (stanje **pred** purge) je poln dump:
 
 ```
 backups/phase0-20260704-1121.sql
@@ -22,7 +22,7 @@ backups/phase0-20260704-1121.sql
 
 ## Vrstni red zagona (obvezen)
 
-FK-odvisnosti in idempotentni guardi zahtevajo ta vrstni red:
+FK-odvisnosti in idempotentna varovala zahtevajo ta vrstni red:
 
 | # | Datoteka | Kaj naredi |
 |---|----------|-----------|
@@ -56,7 +56,7 @@ npx prisma db execute --schema prisma/schema.prisma --file prisma/phase0/04_drop
 
 ## Predpostavke
 
-- Obstaja **vsaj en preživeli** user (`firebaseUid IS NOT NULL`) — na tem baseline je to `id=4` (jurij).
+- Obstaja **vsaj en preživeli** user (`firebaseUid IS NOT NULL`) — v tem izhodiščnem stanju je to `id=4` (jurij).
   Če preživelega ni, `01_purge.sql` **ne poganjaj** (anti-join brez keep-nabora bi izbrisal vse).
 - Odločitve, vgrajene v skripte: ohrani ADMIN userje; jurij je INSTRUCTOR treningov 3 in 5;
   `LearningObjective` se podatkovno izprazni (struktura pade šele v cutoveru).
