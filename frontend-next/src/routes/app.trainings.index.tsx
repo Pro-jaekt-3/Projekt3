@@ -90,35 +90,30 @@ function TrainingsList() {
     queryFn: questionsService.list,
   });
 
-  const approvedByTraining = new Map<number, number>();
-  const approvedWithEquivGroupByTraining = new Map<number, number>();
-  for (const q of questionsQuery.data ?? []) {
-    if (q.topic?.trainingId === undefined || q.status !== "APPROVED") continue;
-    const tid = q.topic.trainingId as number;
-    approvedByTraining.set(tid, (approvedByTraining.get(tid) ?? 0) + 1);
-    if (q.equivalenceGroupId !== null && q.equivalenceGroupId !== undefined) {
-      approvedWithEquivGroupByTraining.set(
-        tid,
-        (approvedWithEquivGroupByTraining.get(tid) ?? 0) + 1,
-      );
-    }
-  }
+  const approvedQuestions = (questionsQuery.data ?? []).filter(
+    (q) => q.topic?.trainingId !== undefined && q.status === "APPROVED",
+  );
+  const approvedByTraining = countBy(approvedQuestions, (q) => q.topic?.trainingId as number);
+  const approvedWithEquivGroupByTraining = countBy(
+    approvedQuestions.filter(
+      (q) => q.equivalenceGroupId !== null && q.equivalenceGroupId !== undefined,
+    ),
+    (q) => q.topic?.trainingId as number,
+  );
 
   const assessmentsQuery = useQuery({
     queryKey: qk.assessments.list(),
     queryFn: assessmentsService.list,
   });
 
-  const assessmentsByTraining = new Map<number, number>();
-  for (const a of assessmentsQuery.data ?? []) {
-    const tid = Number(a.trainingId);
-    assessmentsByTraining.set(tid, (assessmentsByTraining.get(tid) ?? 0) + 1);
-  }
+  const assessmentsByTraining = countBy(assessmentsQuery.data ?? [], (a) => Number(a.trainingId));
 
   const trainings = trainingsQuery.data?.map(trainingToView) ?? [];
 
   // GET /trainings includes _count.members (PARTICIPANT-role only) — not yet part of
   // the shared Training type, so read it defensively off the raw API response.
+  // This plucks an existing per-training value rather than counting occurrences,
+  // so it doesn't fit the countBy shape above.
   const participantsByTraining = new Map<number, number>();
   for (const t of trainingsQuery.data ?? []) {
     const count = (t as unknown as { _count?: { members?: number } })._count?.members ?? 0;
@@ -330,4 +325,13 @@ function Stat({
       <div className="mt-0.5 text-sm font-semibold tabular-nums">{value}</div>
     </div>
   );
+}
+
+function countBy<T>(items: T[], keyFn: (item: T) => number): Map<number, number> {
+  const map = new Map<number, number>();
+  for (const item of items) {
+    const key = keyFn(item);
+    map.set(key, (map.get(key) ?? 0) + 1);
+  }
+  return map;
 }

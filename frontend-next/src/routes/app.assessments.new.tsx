@@ -44,6 +44,20 @@ const STEPS = [
   { id: 4, title: "Preview & Draft" },
 ];
 
+const WIZARD_PAGE_HEADER = {
+  breadcrumbs: (
+    <>
+      <Link to="/app/assessments" className="hover:underline">
+        Assessments
+      </Link>
+      <span className="mx-1">/</span>
+      <span>New assessment</span>
+    </>
+  ),
+  title: "Create assessment",
+  description: "Define basics, blueprint, questions, assignment and review before publishing.",
+};
+
 function CreateAssessmentWizard() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -245,13 +259,18 @@ function CreateAssessmentWizard() {
   const back = () => setStep((s) => Math.max(1, s - 1));
   const next = () => setStep((s) => Math.min(4, s + 1));
 
+  // Post-tests must go through the dedicated wizard (pairing + equivalence
+  // selection); this wizard only ever creates DRAFT Pre-test/Quiz assessments.
+  const blockPostTestSubmission = () => {
+    if (form.type !== "Post-test") return false;
+    const message = "Post-tests are created using a dedicated wizard.";
+    setSubmitError(message);
+    toast.error(message);
+    return true;
+  };
+
   const createDraft = () => {
-    if (form.type === "Post-test") {
-      const message = "Post-tests are created using a dedicated wizard.";
-      setSubmitError(message);
-      toast.error(message);
-      return;
-    }
+    if (blockPostTestSubmission()) return;
     const uniqueQuestionIds = Array.from(new Set(form.selectedQuestionIds));
     const validationError = validateDraft({
       title: form.title,
@@ -273,12 +292,7 @@ function CreateAssessmentWizard() {
     createMutation.mutate();
   };
   const generateDraft = () => {
-    if (form.type === "Post-test") {
-      const message = "Post-tests are created using a dedicated wizard.";
-      setSubmitError(message);
-      toast.error(message);
-      return;
-    }
+    if (blockPostTestSubmission()) return;
     const validationError = validateGeneratedDraft({
       title: form.title,
       trainingId: form.trainingId,
@@ -306,19 +320,7 @@ function CreateAssessmentWizard() {
   if (loading) {
     return (
       <>
-        <PageHeader
-          breadcrumbs={
-            <>
-              <Link to="/app/assessments" className="hover:underline">
-                Assessments
-              </Link>
-              <span className="mx-1">/</span>
-              <span>New assessment</span>
-            </>
-          }
-          title="Create assessment"
-          description="Define basics, blueprint, questions, assignment and review before publishing."
-        />
+        <PageHeader {...WIZARD_PAGE_HEADER} />
         <LoadingState label="Loading assessment builder…" />
       </>
     );
@@ -327,19 +329,7 @@ function CreateAssessmentWizard() {
   if (dataError) {
     return (
       <>
-        <PageHeader
-          breadcrumbs={
-            <>
-              <Link to="/app/assessments" className="hover:underline">
-                Assessments
-              </Link>
-              <span className="mx-1">/</span>
-              <span>New assessment</span>
-            </>
-          }
-          title="Create assessment"
-          description="Define basics, blueprint, questions, assignment and review before publishing."
-        />
+        <PageHeader {...WIZARD_PAGE_HEADER} />
         <ErrorState
           message={dataError instanceof Error ? dataError.message : "Failed to load assessment data"}
           onRetry={() => {
@@ -355,19 +345,7 @@ function CreateAssessmentWizard() {
   if (trainings.length === 0) {
     return (
       <>
-        <PageHeader
-          breadcrumbs={
-            <>
-              <Link to="/app/assessments" className="hover:underline">
-                Assessments
-              </Link>
-              <span className="mx-1">/</span>
-              <span>New assessment</span>
-            </>
-          }
-          title="Create assessment"
-          description="Define basics, blueprint, questions, assignment and review before publishing."
-        />
+        <PageHeader {...WIZARD_PAGE_HEADER} />
         <div className="p-4 sm:p-6 lg:p-8">
           <EmptyState
             icon={<Save className="h-5 w-5" />}
@@ -387,17 +365,7 @@ function CreateAssessmentWizard() {
   return (
     <>
       <PageHeader
-        breadcrumbs={
-          <>
-            <Link to="/app/assessments" className="hover:underline">
-              Assessments
-            </Link>
-            <span className="mx-1">/</span>
-            <span>New assessment</span>
-          </>
-        }
-        title="Create assessment"
-        description="Define basics, blueprint, questions, assignment and review before publishing."
+        {...WIZARD_PAGE_HEADER}
         actions={
           <>
             <Button variant="ghost" size="sm" onClick={() => navigate({ to: "/app/assessments" })}>
