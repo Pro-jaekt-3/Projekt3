@@ -1,4 +1,9 @@
 import { describe, it, expect, vi } from "vitest";
+
+vi.mock("@/lib/firebase", () => ({
+  auth: {},
+}));
+
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
