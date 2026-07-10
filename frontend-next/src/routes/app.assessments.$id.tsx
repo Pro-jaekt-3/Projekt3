@@ -77,7 +77,7 @@ import { assessmentsService } from "@/services/assessments";
 import { topicsService } from "@/services/topics";
 import { questionsService } from "@/services/questions";
 import { ensureRole } from "@/lib/route-guards";
-import { cn } from "@/lib/utils";
+import { cn, errText } from "@/lib/utils";
 import type {
   Assessment,
   AssessmentQuestion,
@@ -116,6 +116,18 @@ const QUESTION_STATUS_LABEL: Record<string, string> = {
   ARCHIVED: "Archived",
 };
 
+function formatTimeLimitInput(value: number | null | undefined): string {
+  return value !== null && value !== undefined ? String(value) : "";
+}
+
+function makeMutationErrorHandler(setError: (message: string) => void) {
+  return (error: unknown) => {
+    const message = errText(error);
+    setError(message);
+    toast.error(message);
+  };
+}
+
 function AssessmentDetail() {
   const { id } = Route.useParams();
   const navigate = useNavigate();
@@ -153,11 +165,7 @@ function AssessmentDetail() {
     setTitle(assessment.title);
     setDescription(assessment.description ?? "");
     setType(assessment.type);
-    setTimeLimitMinutes(
-      assessment.timeLimitMinutes !== null && assessment.timeLimitMinutes !== undefined
-        ? String(assessment.timeLimitMinutes)
-        : "",
-    );
+    setTimeLimitMinutes(formatTimeLimitInput(assessment.timeLimitMinutes));
     setEditError(null);
   }, [assessmentQuery.data?.id]);
 
@@ -177,11 +185,7 @@ function AssessmentDetail() {
       toast.success(`Saved “${updated.title}”`);
       setEditOpen(false);
     },
-    onError: (error) => {
-      const message = errText(error);
-      setEditError(message);
-      toast.error(message);
-    },
+    onError: makeMutationErrorHandler(setEditError),
   });
 
   const questionsMutation = useMutation({
@@ -194,11 +198,7 @@ function AssessmentDetail() {
       toast.success(`Updated questions for “${updated.title}”`);
       setQuestionsOpen(false);
     },
-    onError: (error) => {
-      const message = errText(error);
-      setQuestionsError(message);
-      toast.error(message);
-    },
+    onError: makeMutationErrorHandler(setQuestionsError),
   });
 
   const statusMutation = useMutation({
@@ -218,17 +218,9 @@ function AssessmentDetail() {
       setTitle(updated.title);
       setDescription(updated.description ?? "");
       setType(updated.type);
-      setTimeLimitMinutes(
-        updated.timeLimitMinutes !== null && updated.timeLimitMinutes !== undefined
-          ? String(updated.timeLimitMinutes)
-          : "",
-      );
+      setTimeLimitMinutes(formatTimeLimitInput(updated.timeLimitMinutes));
     },
-    onError: (error) => {
-      const message = errText(error);
-      setActionError(message);
-      toast.error(message);
-    },
+    onError: makeMutationErrorHandler(setActionError),
   });
 
   const deleteMutation = useMutation({
@@ -240,11 +232,7 @@ function AssessmentDetail() {
       setDeleteOpen(false);
       navigate({ to: "/app/assessments" });
     },
-    onError: (error) => {
-      const message = errText(error);
-      setActionError(message);
-      toast.error(message);
-    },
+    onError: makeMutationErrorHandler(setActionError),
   });
 
   const matchRoute = useMatchRoute();
@@ -1085,10 +1073,6 @@ function formatDateTime(value: string) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
   return date.toLocaleString();
-}
-
-function errText(error: unknown) {
-  return error instanceof Error ? error.message : "Request failed";
 }
 
 function statusActionsFor(status: AssessmentStatus) {

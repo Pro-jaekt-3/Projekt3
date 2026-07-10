@@ -29,7 +29,7 @@ import { StatusBadge } from "@/components/common/StatusBadge";
 import { getAttemptId, rememberAttemptId } from "@/lib/attempt-storage";
 import { qk } from "@/lib/query-keys";
 import { sanitizeQuestionForSolving, type SolvingQuestion } from "@/lib/sanitize";
-import { cn } from "@/lib/utils";
+import { cn, errText } from "@/lib/utils";
 import {
   assessmentAttemptsService,
   type SubmitAssessmentAttemptAnswerInput,
@@ -625,8 +625,4 @@ function buildSubmitAnswers(
   }
 
   return payload;
-}
-
-function errText(error: unknown) {
-  return error instanceof Error ? error.message : "Request failed";
 }

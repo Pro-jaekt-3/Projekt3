@@ -8,6 +8,10 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
+export function errText(error: unknown): string {
+  return error instanceof Error ? error.message : "Request failed";
+}
+
 export function getInitials(name: string): string {
   return name
     .split(" ")

@@ -41,7 +41,7 @@ import { assessmentsService } from "@/services/assessments";
 import { topicsService } from "@/services/topics";
 import { questionsService } from "@/services/questions";
 import { qk } from "@/lib/query-keys";
-import { cn } from "@/lib/utils";
+import { cn, errText } from "@/lib/utils";
 import { ensureRole } from "@/lib/route-guards";
 import type { Assessment, AssessmentStatus, Question, Topic } from "@/types";
 
@@ -1068,8 +1068,4 @@ function buildGenerationSignature({
     difficulty,
     count,
   });
-}
-
-function errText(error: unknown) {
-  return error instanceof Error ? error.message : "Request failed";
 }
