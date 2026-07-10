@@ -3,13 +3,14 @@ import { useState } from "react";
 import { Sparkles, Shield, GraduationCap, UserCircle2 } from "lucide-react";
 import { z } from "zod";
 import { toast } from "sonner";
-import { sendPasswordResetEmail, signInWithEmailAndPassword, signInWithPopup } from "firebase/auth";
+import { signInWithEmailAndPassword, signInWithPopup } from "firebase/auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { auth, googleProvider } from "@/lib/firebase";
 import { useRole, isDevRoleOverrideEnabled, type Role } from "@/lib/role-context";
+import { sendPasswordReset } from "@/lib/utils";
 
 const searchSchema = z.object({
   redirect: z.string().optional(),
@@ -89,12 +90,7 @@ function LoginPage() {
       toast.error("Please enter your email first");
       return;
     }
-    try {
-      await sendPasswordResetEmail(auth, email.trim());
-      toast.success("Password reset email sent");
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to send password reset email.");
-    }
+    await sendPasswordReset(email.trim());
   };
 
   // DEV-only fallback: preview any role without a real Firebase account.

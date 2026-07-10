@@ -16,6 +16,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { getInitials } from "@/lib/utils";
 
 interface Props {
   onOpenSidebar?: () => void;
@@ -33,11 +34,7 @@ export function TopBar({ onOpenSidebar, pageTitle }: Props) {
     navigate({ to: "/login" });
   };
 
-  const initials = user.name
-    .split(" ")
-    .map((p) => p[0])
-    .slice(0, 2)
-    .join("");
+  const initials = getInitials(user.name);
 
   return (
     <header className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b bg-background/95 px-3 backdrop-blur sm:px-4 lg:px-6">

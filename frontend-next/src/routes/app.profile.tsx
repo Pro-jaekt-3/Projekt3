@@ -1,7 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
-import { sendPasswordResetEmail } from "firebase/auth";
-import { toast } from "sonner";
 import { KeyRound } from "lucide-react";
 import { PageHeader } from "@/components/common/PageHeader";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -9,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { StatusBadge } from "@/components/common/StatusBadge";
 import { useRole } from "@/lib/role-context";
-import { auth } from "@/lib/firebase";
+import { getInitials, sendPasswordReset } from "@/lib/utils";
 import { ensureRole } from "@/lib/route-guards";
 
 export const Route = createFileRoute("/app/profile")({
@@ -31,24 +29,12 @@ function ProfilePage() {
   const { user, role } = useRole();
   const [isSendingReset, setIsSendingReset] = useState(false);
 
-  const initials = user.name
-    .split(" ")
-    .map((p) => p[0])
-    .slice(0, 2)
-    .join("");
+  const initials = getInitials(user.name);
 
   const handleChangePassword = async () => {
     setIsSendingReset(true);
-    try {
-      await sendPasswordResetEmail(auth, user.email);
-      toast.success("Password reset email sent");
-    } catch (error) {
-      toast.error(
-        error instanceof Error ? error.message : "Failed to send password reset email.",
-      );
-    } finally {
-      setIsSendingReset(false);
-    }
+    await sendPasswordReset(user.email);
+    setIsSendingReset(false);
   };
 
   return (
