@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useQueries, useQuery } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import {
   Users,
   GraduationCap,
@@ -34,8 +34,7 @@ import { usersService } from "@/services/users";
 import { aiService } from "@/services/ai";
 import { analyticsService } from "@/services/analytics";
 import { assessmentsService } from "@/services/assessments";
-import { assessmentAttemptsService } from "@/services/assessmentAttempts";
-import { getAttemptId } from "@/lib/attempt-storage";
+import { useAttemptFanOut } from "@/hooks/useAttemptFanOut";
 import type { AssessmentAttempt } from "@/types";
 
 export const Route = createFileRoute("/app/dashboard")({
@@ -355,19 +354,7 @@ function ParticipantDashboard() {
     assessmentsService.listAvailable,
   );
 
-  const attemptQueries = useQueries({
-    queries: (assessmentsQuery.data ?? []).map((assessment) => {
-      const rememberedAttemptId = getAttemptId(assessment.id);
-      return {
-        queryKey: qk.assessmentAttempts.detail(
-          rememberedAttemptId ?? `missing-${assessment.id}`,
-        ),
-        queryFn: () => assessmentAttemptsService.get(rememberedAttemptId!),
-        enabled: rememberedAttemptId !== null,
-        retry: false,
-      };
-    }),
-  });
+  const attemptQueries = useAttemptFanOut(assessmentsQuery.data);
 
   const cards = (assessmentsQuery.data ?? []).map((assessment, index) => ({
     assessment,

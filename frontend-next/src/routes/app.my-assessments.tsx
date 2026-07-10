@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
-import { useQueries, useQuery } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { ArrowRight, ClipboardList, Filter } from "lucide-react";
 import { PageHeader } from "@/components/common/PageHeader";
 import { EmptyState } from "@/components/common/EmptyState";
@@ -16,10 +16,9 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { StatusBadge } from "@/components/common/StatusBadge";
-import { getAttemptId } from "@/lib/attempt-storage";
 import { qk } from "@/lib/query-keys";
 import { assessmentsService } from "@/services/assessments";
-import { assessmentAttemptsService } from "@/services/assessmentAttempts";
+import { useAttemptFanOut } from "@/hooks/useAttemptFanOut";
 import type { Assessment, AssessmentAttempt, AssessmentType } from "@/types";
 
 export const Route = createFileRoute("/app/my-assessments")({
@@ -47,19 +46,7 @@ function MyAssessments() {
     queryFn: assessmentsService.listAvailable,
   });
 
-  const attempts = useQueries({
-    queries: (assessmentsQuery.data ?? []).map((assessment) => {
-      const rememberedAttemptId = getAttemptId(assessment.id);
-      return {
-        queryKey: qk.assessmentAttempts.detail(
-          rememberedAttemptId ?? `missing-${assessment.id}`,
-        ),
-        queryFn: () => assessmentAttemptsService.get(rememberedAttemptId!),
-        enabled: rememberedAttemptId !== null,
-        retry: false,
-      };
-    }),
-  });
+  const attempts = useAttemptFanOut(assessmentsQuery.data);
 
   const cards = (assessmentsQuery.data ?? []).map((assessment, index) => ({
     assessment,
