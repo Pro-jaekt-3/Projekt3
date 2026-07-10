@@ -132,6 +132,7 @@ function AssessmentDetail() {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [type, setType] = useState<AssessmentType>("QUIZ");
+  const [timeLimitMinutes, setTimeLimitMinutes] = useState("");
   const [showPublishedBanner, setShowPublishedBanner] = useState(Boolean(published));
 
   const assessmentQuery = useQuery({
@@ -152,6 +153,11 @@ function AssessmentDetail() {
     setTitle(assessment.title);
     setDescription(assessment.description ?? "");
     setType(assessment.type);
+    setTimeLimitMinutes(
+      assessment.timeLimitMinutes !== null && assessment.timeLimitMinutes !== undefined
+        ? String(assessment.timeLimitMinutes)
+        : "",
+    );
     setEditError(null);
   }, [assessmentQuery.data?.id]);
 
@@ -161,6 +167,7 @@ function AssessmentDetail() {
         title: title.trim(),
         description: description.trim() || null,
         type,
+        timeLimitMinutes: timeLimitMinutes.trim() ? Number(timeLimitMinutes) : null,
       }),
     onSuccess: (updated) => {
       queryClient.invalidateQueries({ queryKey: qk.assessments.detail(id) });
@@ -211,6 +218,11 @@ function AssessmentDetail() {
       setTitle(updated.title);
       setDescription(updated.description ?? "");
       setType(updated.type);
+      setTimeLimitMinutes(
+        updated.timeLimitMinutes !== null && updated.timeLimitMinutes !== undefined
+          ? String(updated.timeLimitMinutes)
+          : "",
+      );
     },
     onError: (error) => {
       const message = errText(error);
@@ -548,12 +560,14 @@ function AssessmentDetail() {
         title={title}
         description={description}
         type={type}
+        timeLimitMinutes={timeLimitMinutes}
         editError={editError}
         canEdit={canEdit}
         isPending={editMutation.isPending}
         onTitleChange={setTitle}
         onDescriptionChange={setDescription}
         onTypeChange={setType}
+        onTimeLimitMinutesChange={setTimeLimitMinutes}
         onSubmit={() => {
           if (!title.trim()) {
             setEditError("Title is required");
@@ -650,12 +664,14 @@ function EditAssessmentDialog({
   title,
   description,
   type,
+  timeLimitMinutes,
   editError,
   canEdit,
   isPending,
   onTitleChange,
   onDescriptionChange,
   onTypeChange,
+  onTimeLimitMinutesChange,
   onSubmit,
 }: {
   open: boolean;
@@ -663,12 +679,14 @@ function EditAssessmentDialog({
   title: string;
   description: string;
   type: AssessmentType;
+  timeLimitMinutes: string;
   editError: string | null;
   canEdit: boolean;
   isPending: boolean;
   onTitleChange: (value: string) => void;
   onDescriptionChange: (value: string) => void;
   onTypeChange: (value: AssessmentType) => void;
+  onTimeLimitMinutesChange: (value: string) => void;
   onSubmit: () => void;
 }) {
   return (
@@ -724,6 +742,20 @@ function EditAssessmentDialog({
                 <SelectItem value="QUIZ">Quiz</SelectItem>
               </SelectContent>
             </Select>
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="assessment-time-limit">Time limit (minutes, optional)</Label>
+            <Input
+              id="assessment-time-limit"
+              type="number"
+              min={1}
+              max={300}
+              className="max-w-[160px]"
+              placeholder="No limit"
+              value={timeLimitMinutes}
+              onChange={(event) => onTimeLimitMinutesChange(event.target.value)}
+              disabled={!canEdit || isPending}
+            />
           </div>
           {editError && (
             <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">

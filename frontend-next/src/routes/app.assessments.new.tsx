@@ -63,6 +63,12 @@ function CreateAssessmentWizard() {
     queryKey: qk.questions.list(),
     queryFn: questionsService.list,
   });
+  // Only needed to point the "Post-test" redirect at an existing pre-test — not part
+  // of the wizard's core data, so it does not participate in the blocking loading/error state.
+  const assessmentsQuery = useQuery({
+    queryKey: qk.assessments.list(),
+    queryFn: assessmentsService.list,
+  });
 
   const [form, setForm] = useState<AssessmentFormState>({
     title: "Databases — Pre-test (new)",
@@ -75,11 +81,14 @@ function CreateAssessmentWizard() {
     difficulty: { easy: 40, medium: 40, hard: 20 },
     questionCount: 8,
     selectedQuestionIds: [] as string[],
+    timeLimitMinutes: "",
   });
 
   const trainings = trainingsQuery.data ?? [];
   const topics = topicsQuery.data ?? [];
   const questions = questionsQuery.data ?? [];
+  const firstPreTestId =
+    (assessmentsQuery.data ?? []).find((a) => a.type === "PRE_TEST")?.id ?? null;
   const selectedTrainingId = Number(form.trainingId);
 
   const training = trainings.find((item) => item.id === selectedTrainingId) ?? null;
@@ -179,6 +188,9 @@ function CreateAssessmentWizard() {
         trainingId: selectedTrainingId,
         type: mapAssessmentType(form.type),
         questions: Array.from(new Set(form.selectedQuestionIds)).map((id) => Number(id)),
+        timeLimitMinutes: form.timeLimitMinutes.trim()
+          ? Number(form.timeLimitMinutes)
+          : null,
       }),
     onSuccess: (created) => {
       queryClient.invalidateQueries({ queryKey: qk.assessments.all });
@@ -234,6 +246,12 @@ function CreateAssessmentWizard() {
   const next = () => setStep((s) => Math.min(4, s + 1));
 
   const createDraft = () => {
+    if (form.type === "Post-test") {
+      const message = "Post-test se ustvarja s posebnim čarovnikom.";
+      setSubmitError(message);
+      toast.error(message);
+      return;
+    }
     const uniqueQuestionIds = Array.from(new Set(form.selectedQuestionIds));
     const validationError = validateDraft({
       title: form.title,
@@ -255,6 +273,12 @@ function CreateAssessmentWizard() {
     createMutation.mutate();
   };
   const generateDraft = () => {
+    if (form.type === "Post-test") {
+      const message = "Post-test se ustvarja s posebnim čarovnikom.";
+      setSubmitError(message);
+      toast.error(message);
+      return;
+    }
     const validationError = validateGeneratedDraft({
       title: form.title,
       trainingId: form.trainingId,
@@ -391,7 +415,14 @@ function CreateAssessmentWizard() {
 
         <div className="mt-6 grid gap-6 lg:grid-cols-[1fr_300px]">
           <div className="min-w-0">
-            {step === 1 && <Step1 form={form} setForm={setForm} trainings={trainings} />}
+            {step === 1 && (
+              <Step1
+                form={form}
+                setForm={setForm}
+                trainings={trainings}
+                firstPreTestId={firstPreTestId}
+              />
+            )}
             {step === 2 && (
               <Step2
                 form={form}
@@ -424,7 +455,7 @@ function CreateAssessmentWizard() {
                 <ChevronLeft className="mr-1.5 h-4 w-4" /> Back
               </Button>
               {step < 4 ? (
-                <Button onClick={next}>
+                <Button onClick={next} disabled={form.type === "Post-test"}>
                   Continue <ChevronRight className="ml-1.5 h-4 w-4" />
                 </Button>
               ) : (
@@ -501,23 +532,26 @@ function SumRow({ label, value }: { label: string; value: React.ReactNode }) {
 type AssessmentFormState = {
   title: string;
   description: string;
-  type: "Pre-test" | "Post-test" | "Regular test" | "Practice";
+  type: "Pre-test" | "Post-test" | "Quiz";
   trainingId: string;
   topicIds: string[];
   generationDifficulty: "any" | "easy" | "medium" | "hard";
   difficulty: { easy: number; medium: number; hard: number };
   questionCount: number;
   selectedQuestionIds: string[];
+  timeLimitMinutes: string;
 };
 
 function Step1({
   form,
   setForm,
   trainings,
+  firstPreTestId,
 }: {
   form: AssessmentFormState;
   setForm: React.Dispatch<React.SetStateAction<AssessmentFormState>>;
   trainings: Training[];
+  firstPreTestId: number | null;
 }) {
   return (
     <Card>
@@ -549,8 +583,7 @@ function Step1({
               <SelectContent>
                 <SelectItem value="Pre-test">Pre-test</SelectItem>
                 <SelectItem value="Post-test">Post-test</SelectItem>
-                <SelectItem value="Regular test">Regular test</SelectItem>
-                <SelectItem value="Practice">Practice</SelectItem>
+                <SelectItem value="Quiz">Quiz</SelectItem>
               </SelectContent>
             </Select>
           </Field>
@@ -572,6 +605,41 @@ function Step1({
             </Select>
           </Field>
         </div>
+        {form.type === "Post-test" && (
+          <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm dark:border-amber-900 dark:bg-amber-950/30">
+            <div className="flex items-start gap-2 text-amber-800 dark:text-amber-200">
+              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+              <div className="space-y-2">
+                <p>Post-test se ustvarja s posebnim čarovnikom.</p>
+                {firstPreTestId ? (
+                  <Button asChild size="sm" variant="outline">
+                    <Link
+                      to="/app/assessments/$id/post-test"
+                      params={{ id: String(firstPreTestId) }}
+                    >
+                      Open post-test wizard
+                    </Link>
+                  </Button>
+                ) : (
+                  <Button asChild size="sm" variant="outline">
+                    <Link to="/app/assessments">Open post-test wizard</Link>
+                  </Button>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+        <Field label="Time limit (minutes, optional)">
+          <Input
+            type="number"
+            min={1}
+            max={300}
+            className="max-w-[160px]"
+            placeholder="No limit"
+            value={form.timeLimitMinutes}
+            onChange={(e) => setForm({ ...form, timeLimitMinutes: e.target.value })}
+          />
+        </Field>
       </CardContent>
     </Card>
   );

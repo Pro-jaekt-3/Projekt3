@@ -16,7 +16,16 @@ const getTrainings = async (req, res) => {
       return res.status(403).json({ error: "Forbidden" });
     }
 
-    const trainings = await prisma.training.findMany({ where });
+    const trainings = await prisma.training.findMany({
+      where,
+      include: {
+        _count: {
+          select: {
+            members: { where: { role: "PARTICIPANT" } },
+          },
+        },
+      },
+    });
     res.json(trainings);
   } catch (error) {
     res.status(500).json({

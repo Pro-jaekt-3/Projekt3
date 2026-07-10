@@ -1,5 +1,5 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import {
   Clock,
@@ -61,6 +61,8 @@ function SolvePage() {
   const [navOpen, setNavOpen] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [now, setNow] = useState(() => Date.now());
+  const autoSubmittedRef = useRef(false);
 
   const attemptQuery = useQuery({
     queryKey: qk.assessmentAttempts.detail(rememberedAttemptId ?? `missing-${id}`),
@@ -103,6 +105,38 @@ function SolvePage() {
       toast.error(message);
     },
   });
+
+  useEffect(() => {
+    const attemptData = attemptQuery.data;
+    const timeLimitMinutes = attemptData?.assessment?.timeLimitMinutes;
+    const baseSeconds = timeLimitMinutes ? timeLimitMinutes * 60 : 0;
+
+    if (baseSeconds <= 0 || !attemptData || attemptData.status !== "IN_PROGRESS") {
+      return;
+    }
+
+    const startedAtMs = new Date(attemptData.startedAt).getTime();
+
+    const interval = setInterval(() => {
+      setNow(Date.now());
+
+      const elapsed = Math.max(0, Math.floor((Date.now() - startedAtMs) / 1000));
+      const remaining = Math.max(0, baseSeconds - elapsed);
+
+      if (remaining <= 0 && !autoSubmittedRef.current) {
+        autoSubmittedRef.current = true;
+        toast.error("Čas je potekel — test je bil samodejno oddan.");
+        submitMutation.mutate(attemptData.id);
+      }
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [
+    attemptQuery.data?.id,
+    attemptQuery.data?.status,
+    attemptQuery.data?.startedAt,
+    attemptQuery.data?.assessment?.timeLimitMinutes,
+  ]);
 
   if (rememberedAttemptId === null) {
     return (
@@ -206,7 +240,7 @@ function SolvePage() {
   const assessment = attempt.assessment;
   const secondsElapsed = Math.max(
     0,
-    Math.floor((Date.now() - new Date(attempt.startedAt).getTime()) / 1000),
+    Math.floor((now - new Date(attempt.startedAt).getTime()) / 1000),
   );
   const baseSeconds = assessment?.timeLimitMinutes ? assessment.timeLimitMinutes * 60 : 0;
   const seconds =

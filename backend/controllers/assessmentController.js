@@ -533,12 +533,11 @@ const buildPairedPostTestQuestions = async ({
   }
 
   const selectedQuestions = [];
-  const usedGroupIds = new Set();
   const usedQuestionIds = new Set();
 
   for (const question of preQuestions) {
     const groupId = question.equivalenceGroupId;
-    if (groupId === null || groupId === undefined || usedGroupIds.has(groupId)) {
+    if (groupId === null || groupId === undefined) {
       continue;
     }
 
@@ -550,7 +549,6 @@ const buildPairedPostTestQuestions = async ({
       continue;
     }
 
-    usedGroupIds.add(groupId);
     usedQuestionIds.add(candidate.id);
     selectedQuestions.push(candidate);
 
@@ -571,6 +569,7 @@ const createAssessment = async (req, res) => {
       type = "QUIZ",
       questions,
       pairedAssessmentId,
+      timeLimitMinutes,
     } = req.body;
 
     if (!title || !title.trim()) {
@@ -614,6 +613,7 @@ const createAssessment = async (req, res) => {
         trainingId: Number(trainingId),
         type,
         status: "DRAFT",
+        timeLimitMinutes: timeLimitMinutes !== undefined ? timeLimitMinutes : null,
         ...(pairingValidation.pairedAssessmentId !== undefined && {
           pairedAssessmentId: pairingValidation.pairedAssessmentId,
         }),
@@ -656,6 +656,7 @@ const generateAssessment = async (req, res) => {
       topicId,
       difficulty,
       count,
+      timeLimitMinutes,
     } = req.body;
 
     if (!title || !title.trim()) {
@@ -766,6 +767,7 @@ const generateAssessment = async (req, res) => {
         trainingId: Number(trainingId),
         type,
         status: "DRAFT",
+        timeLimitMinutes: timeLimitMinutes !== undefined ? timeLimitMinutes : null,
         ...(pairingValidation.pairedAssessmentId !== undefined && {
           pairedAssessmentId: pairingValidation.pairedAssessmentId,
         }),
@@ -797,7 +799,15 @@ const generateAssessment = async (req, res) => {
 const updateAssessment = async (req, res) => {
   try {
     const { id } = req.params;
-    const { title, description, trainingId, type, questions, pairedAssessmentId } = req.body;
+    const {
+      title,
+      description,
+      trainingId,
+      type,
+      questions,
+      pairedAssessmentId,
+      timeLimitMinutes,
+    } = req.body;
 
     const existing = await prisma.assessment.findUnique({
       where: { id: Number(id) },
@@ -900,6 +910,7 @@ const updateAssessment = async (req, res) => {
         ...(description !== undefined && { description }),
         ...(trainingId !== undefined && { trainingId: Number(trainingId) }),
         ...(type !== undefined && { type }),
+        ...(timeLimitMinutes !== undefined && { timeLimitMinutes }),
         ...(pairedAssessmentId !== undefined || existing.pairedAssessmentId !== null
           ? { pairedAssessmentId: pairingValidation.pairedAssessmentId ?? null }
           : {}),

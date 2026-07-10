@@ -91,10 +91,16 @@ function TrainingsList() {
   });
 
   const approvedByTraining = new Map<number, number>();
+  const approvedWithEquivGroupByTraining = new Map<number, number>();
   for (const q of questionsQuery.data ?? []) {
-    if (q.status === "APPROVED" && q.topic?.trainingId !== undefined) {
-      const tid = q.topic.trainingId as number;
-      approvedByTraining.set(tid, (approvedByTraining.get(tid) ?? 0) + 1);
+    if (q.topic?.trainingId === undefined || q.status !== "APPROVED") continue;
+    const tid = q.topic.trainingId as number;
+    approvedByTraining.set(tid, (approvedByTraining.get(tid) ?? 0) + 1);
+    if (q.equivalenceGroupId !== null && q.equivalenceGroupId !== undefined) {
+      approvedWithEquivGroupByTraining.set(
+        tid,
+        (approvedWithEquivGroupByTraining.get(tid) ?? 0) + 1,
+      );
     }
   }
 
@@ -110,6 +116,14 @@ function TrainingsList() {
   }
 
   const trainings = trainingsQuery.data?.map(trainingToView) ?? [];
+
+  // GET /trainings includes _count.members (PARTICIPANT-role only) — not yet part of
+  // the shared Training type, so read it defensively off the raw API response.
+  const participantsByTraining = new Map<number, number>();
+  for (const t of trainingsQuery.data ?? []) {
+    const count = (t as unknown as { _count?: { members?: number } })._count?.members ?? 0;
+    participantsByTraining.set(t.id, count);
+  }
 
   return (
     <>
@@ -153,7 +167,13 @@ function TrainingsList() {
         </div>
       ) : (
         <div className="grid gap-4 p-4 sm:p-6 lg:grid-cols-2 lg:p-8 xl:grid-cols-3">
-          {trainings.map((t) => (
+          {trainings.map((t) => {
+            const approvedCount = approvedByTraining.get(Number(t.id)) ?? 0;
+            const approvedWithEquivGroup = approvedWithEquivGroupByTraining.get(Number(t.id)) ?? 0;
+            const curriculumCoverage =
+              approvedCount === 0 ? 0 : Math.round((approvedWithEquivGroup / approvedCount) * 100);
+
+            return (
             <Card key={t.id} className="flex flex-col">
               <CardContent className="flex flex-1 flex-col gap-4 p-5">
                 <div>
@@ -171,7 +191,7 @@ function TrainingsList() {
                   <Stat
                     icon={<Users className="h-3.5 w-3.5" />}
                     label="Participants"
-                    value={t.participants}
+                    value={participantsByTraining.get(Number(t.id)) ?? 0}
                   />
                   <Stat
                     icon={<ClipboardList className="h-3.5 w-3.5" />}
@@ -187,13 +207,13 @@ function TrainingsList() {
 
                 <div>
                   <div className="mb-1 flex items-center justify-between text-xs">
-                    <span className="text-muted-foreground">Curriculum coverage</span>
-                    <span className="font-medium tabular-nums">{t.curriculumCoverage}%</span>
+                    <span className="text-muted-foreground">Post-test ready</span>
+                    <span className="font-medium tabular-nums">{curriculumCoverage}%</span>
                   </div>
                   <div className="h-1.5 overflow-hidden rounded-full bg-muted">
                     <div
                       className="h-full rounded-full bg-primary"
-                      style={{ width: `${t.curriculumCoverage}%` }}
+                      style={{ width: `${curriculumCoverage}%` }}
                     />
                   </div>
                 </div>
@@ -209,7 +229,8 @@ function TrainingsList() {
                 </div>
               </CardContent>
             </Card>
-          ))}
+            );
+          })}
         </div>
       )}
 

@@ -40,6 +40,7 @@ export interface CreateAssessmentInput {
   type?: AssessmentType;
   pairedAssessmentId?: number | null;
   questions: Array<number | AssessmentQuestionInput>;
+  timeLimitMinutes?: number | null;
 }
 
 export interface UpdateAssessmentInput {
@@ -49,6 +50,7 @@ export interface UpdateAssessmentInput {
   type?: AssessmentType;
   pairedAssessmentId?: number | null;
   questions?: Array<number | AssessmentQuestionInput>;
+  timeLimitMinutes?: number | null;
 }
 
 export interface GenerateAssessmentInput {

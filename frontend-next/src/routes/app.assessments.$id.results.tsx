@@ -702,11 +702,13 @@ function ResultsHeader({
         </>
       }
       actions={
-        <Button asChild size="sm">
-          <Link to="/app/assessments/$id/post-test" params={{ id }}>
-            <Sparkles className="mr-1.5 h-4 w-4" /> Create post-test
-          </Link>
-        </Button>
+        assessment.type === "PRE_TEST" && assessment.status === "PUBLISHED" ? (
+          <Button asChild size="sm">
+            <Link to="/app/assessments/$id/post-test" params={{ id }}>
+              <Sparkles className="mr-1.5 h-4 w-4" /> Create post-test
+            </Link>
+          </Button>
+        ) : undefined
       }
     />
   );
