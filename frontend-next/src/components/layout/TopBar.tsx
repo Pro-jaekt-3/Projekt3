@@ -1,4 +1,4 @@
-import { useNavigate } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import {
   LogOut,
   ChevronDown,
@@ -83,8 +83,10 @@ export function TopBar({ onOpenSidebar, pageTitle }: Props) {
 
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
-            <DropdownMenuItem>
-              <UserIcon className="mr-2 h-4 w-4" /> Profile
+            <DropdownMenuItem asChild>
+              <Link to="/app/profile">
+                <UserIcon className="mr-2 h-4 w-4" /> Profile
+              </Link>
             </DropdownMenuItem>
             <DropdownMenuItem onClick={onLogout}>
               <LogOut className="mr-2 h-4 w-4" /> Log out

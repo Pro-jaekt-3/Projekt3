@@ -1,4 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { useQueries, useQuery } from "@tanstack/react-query";
 import {
   Users,
   GraduationCap,
@@ -15,16 +16,7 @@ import { PageHeader } from "@/components/common/PageHeader";
 import { MetricCard } from "@/components/common/MetricCard";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/common/StatusBadge";
-import {
-  TRAININGS,
-  ASSESSMENTS,
-  USERS,
-  AI_MODELS,
-  RECENT_ACTIVITY,
-  MY_ASSESSMENTS,
-  QUESTIONS,
-  PROGRESS_OVER_TIME,
-} from "@/lib/mock-data";
+import { ASSESSMENTS, USERS, RECENT_ACTIVITY, QUESTIONS, PROGRESS_OVER_TIME } from "@/lib/mock-data";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import {
   ResponsiveContainer,
@@ -35,6 +27,16 @@ import {
   Tooltip,
   CartesianGrid,
 } from "recharts";
+import { qk } from "@/lib/query-keys";
+import { trainingsService } from "@/services/trainings";
+import { questionsService } from "@/services/questions";
+import { usersService } from "@/services/users";
+import { aiService } from "@/services/ai";
+import { analyticsService } from "@/services/analytics";
+import { assessmentsService } from "@/services/assessments";
+import { assessmentAttemptsService } from "@/services/assessmentAttempts";
+import { getAttemptId } from "@/lib/attempt-storage";
+import type { AssessmentAttempt } from "@/types";
 
 export const Route = createFileRoute("/app/dashboard")({
   component: DashboardRouter,
@@ -52,9 +54,24 @@ function DashboardRouter() {
 function InstructorDashboard() {
   const { user } = useRole();
   const aiDrafts = QUESTIONS.filter((q) => q.source === "ai" && q.status !== "Approved").length;
-  const needsReview = QUESTIONS.filter((q) => q.status === "Needs Review").length;
   const openAssessments = ASSESSMENTS.filter((a) => a.status === "Open").length;
   const draftAssessments = ASSESSMENTS.filter((a) => a.status === "Draft").length;
+
+  const trainingsQuery = useQuery({
+    queryKey: qk.trainings.list(),
+    queryFn: trainingsService.list,
+  });
+  const questionsQuery = useQuery({
+    queryKey: qk.questions.list(),
+    queryFn: questionsService.list,
+  });
+  const summaryQuery = useQuery({
+    queryKey: qk.analytics.list(["summary"]),
+    queryFn: () => analyticsService.summary(),
+  });
+
+  const needsReview =
+    questionsQuery.data?.filter((q) => q.status === "NEEDS_REVIEW").length ?? 0;
 
   return (
     <>
@@ -78,7 +95,7 @@ function InstructorDashboard() {
         <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
           <MetricCard
             label="Active trainings"
-            value={TRAININGS.length}
+            value={trainingsQuery.data?.length ?? 0}
             hint="across all subjects"
             icon={<GraduationCap className="h-4 w-4" />}
           />
@@ -96,8 +113,8 @@ function InstructorDashboard() {
           />
           <MetricCard
             label="Recent submissions"
-            value="14"
-            hint="last 24 hours"
+            value={summaryQuery.data?.attemptCount ?? 0}
+            hint="submitted attempts"
             icon={<Eye className="h-4 w-4" />}
           />
         </div>
@@ -202,8 +219,22 @@ function AdminDashboard() {
   const activeInstructors = USERS.filter(
     (u) => u.role === "instructor" && u.status === "Active",
   ).length;
-  const enabledModels = AI_MODELS.filter((m) => m.enabled).length;
   const openAssessments = ASSESSMENTS.filter((a) => a.status === "Open").length;
+
+  const usersQuery = useQuery({
+    queryKey: qk.users.list(),
+    queryFn: usersService.list,
+  });
+  const trainingsQuery = useQuery({
+    queryKey: qk.trainings.list(),
+    queryFn: trainingsService.list,
+  });
+  const aiModelsQuery = useQuery({
+    queryKey: qk.aiModels.list(),
+    queryFn: aiService.listModels,
+  });
+  const enabledModels = aiModelsQuery.data?.filter((m) => m.isActive).length ?? 0;
+
   return (
     <>
       <PageHeader
@@ -228,12 +259,12 @@ function AdminDashboard() {
         <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
           <MetricCard
             label="Total users"
-            value={USERS.length}
+            value={usersQuery.data?.length ?? 0}
             icon={<Users className="h-4 w-4" />}
           />
           <MetricCard
             label="Active trainings"
-            value={TRAININGS.length}
+            value={trainingsQuery.data?.length ?? 0}
             icon={<GraduationCap className="h-4 w-4" />}
           />
           <MetricCard
@@ -249,7 +280,7 @@ function AdminDashboard() {
           />
           <MetricCard
             label="AI models enabled"
-            value={`${enabledModels} / ${AI_MODELS.length}`}
+            value={`${enabledModels} / ${aiModelsQuery.data?.length ?? 0}`}
             icon={<Brain className="h-4 w-4" />}
           />
           <MetricCard label="Submissions (7d)" value="142" icon={<Eye className="h-4 w-4" />} />
@@ -325,9 +356,65 @@ function WarnRow({ tone, title, body }: { tone: "warning" | "info"; title: strin
 
 function ParticipantDashboard() {
   const { user } = useRole();
-  const next = MY_ASSESSMENTS.find((a) => a.status !== "Completed");
-  const completed = MY_ASSESSMENTS.filter((a) => a.status === "Completed");
-  const latest = completed[0];
+
+  // Real participant data (mirrors the pattern in app.my-assessments.tsx /
+  // app.my-results.tsx): fetch available assessments, then fan out to each
+  // remembered attempt id to learn the actual per-assessment state.
+  const assessmentsQuery = useQuery({
+    queryKey: qk.assessments.list({ scope: "available" }),
+    queryFn: assessmentsService.listAvailable,
+  });
+
+  const attemptQueries = useQueries({
+    queries: (assessmentsQuery.data ?? []).map((assessment) => {
+      const rememberedAttemptId = getAttemptId(assessment.id);
+      return {
+        queryKey: qk.assessmentAttempts.detail(
+          rememberedAttemptId ?? `missing-${assessment.id}`,
+        ),
+        queryFn: () => assessmentAttemptsService.get(rememberedAttemptId!),
+        enabled: rememberedAttemptId !== null,
+        retry: false,
+      };
+    }),
+  });
+
+  const cards = (assessmentsQuery.data ?? []).map((assessment, index) => ({
+    assessment,
+    attempt: attemptQueries[index]?.data,
+  }));
+
+  const todoCount = cards.filter(
+    ({ attempt }) => participantAssessmentState(attempt) === "To do",
+  ).length;
+  const inProgressCount = cards.filter(
+    ({ attempt }) => participantAssessmentState(attempt) === "In progress",
+  ).length;
+  const completedAttempts = cards
+    .map(({ attempt }) => attempt)
+    .filter((attempt): attempt is AssessmentAttempt => Boolean(attempt))
+    .filter((attempt) => attempt.status === "SUBMITTED" || attempt.status === "GRADED");
+
+  const scoredAttempts = completedAttempts
+    .filter(
+      (attempt): attempt is AssessmentAttempt & { score: number; maxScore: number } =>
+        typeof attempt.score === "number" &&
+        typeof attempt.maxScore === "number" &&
+        attempt.maxScore > 0,
+    )
+    .sort((left, right) => {
+      const leftTime = left.submittedAt ? new Date(left.submittedAt).getTime() : 0;
+      const rightTime = right.submittedAt ? new Date(right.submittedAt).getTime() : 0;
+      return rightTime - leftTime;
+    });
+  const latestScorePercentage =
+    scoredAttempts.length > 0
+      ? Math.round((scoredAttempts[0].score / scoredAttempts[0].maxScore) * 100)
+      : null;
+
+  const upNext = cards.filter(
+    ({ attempt }) => participantAssessmentState(attempt) !== "Completed",
+  );
 
   return (
     <>
@@ -335,7 +422,7 @@ function ParticipantDashboard() {
         title={`Hi, ${user.name.split(" ")[0]}`}
         description="Your assigned assessments and progress."
         actions={
-          next ? (
+          upNext.length > 0 ? (
             <Button asChild size="sm">
               <Link to="/app/my-assessments">Open my assessments</Link>
             </Button>
@@ -348,19 +435,12 @@ function ParticipantDashboard() {
       />
       <div className="space-y-6 p-4 sm:p-6 lg:p-8">
         <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
-          <MetricCard
-            label="To do"
-            value={MY_ASSESSMENTS.filter((a) => a.status === "To do").length}
-          />
-          <MetricCard
-            label="In progress"
-            value={MY_ASSESSMENTS.filter((a) => a.status === "In progress").length}
-          />
-          <MetricCard label="Completed" value={completed.length} />
+          <MetricCard label="To do" value={todoCount} />
+          <MetricCard label="In progress" value={inProgressCount} />
+          <MetricCard label="Completed" value={completedAttempts.length} />
           <MetricCard
             label="Latest score"
-            value={latest?.score ? `${latest.score}%` : "—"}
-            hint={latest?.title}
+            value={latestScorePercentage !== null ? `${latestScorePercentage}%` : "—"}
           />
         </div>
 
@@ -401,28 +481,45 @@ function ParticipantDashboard() {
               <CardTitle className="text-base">Up next</CardTitle>
             </CardHeader>
             <CardContent className="space-y-2">
-              {MY_ASSESSMENTS.filter((a) => a.status !== "Completed").map((a) => (
-                <Link
-                  key={a.id}
-                  to="/app/my-assessments"
-                  className="block rounded-md border bg-card p-3 hover:bg-muted/50"
-                >
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0">
-                      <div className="truncate text-sm font-medium">{a.title}</div>
-                      <div className="truncate text-xs text-muted-foreground">{a.training}</div>
+              {upNext.length === 0 ? (
+                <p className="text-sm text-muted-foreground">Nothing due — you're all caught up.</p>
+              ) : (
+                upNext.map(({ assessment, attempt }) => (
+                  <Link
+                    key={assessment.id}
+                    to="/app/my-assessments"
+                    className="block rounded-md border bg-card p-3 hover:bg-muted/50"
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <div className="truncate text-sm font-medium">{assessment.title}</div>
+                        <div className="truncate text-xs text-muted-foreground">
+                          {assessment.training?.title ?? "—"}
+                        </div>
+                      </div>
+                      <StatusBadge status={participantAssessmentState(attempt)} />
                     </div>
-                    <StatusBadge status={a.status} />
-                  </div>
-                  <div className="mt-2 text-xs text-muted-foreground">
-                    Due {a.due} · {a.timeLimit} min
-                  </div>
-                </Link>
-              ))}
+                    <div className="mt-2 text-xs text-muted-foreground">
+                      {assessment.timeLimitMinutes
+                        ? `${assessment.timeLimitMinutes} min`
+                        : "No time limit"}
+                    </div>
+                  </Link>
+                ))
+              )}
             </CardContent>
           </Card>
         </div>
       </div>
     </>
   );
+}
+
+function participantAssessmentState(
+  attempt?: Pick<AssessmentAttempt, "status">,
+): "To do" | "In progress" | "Completed" {
+  if (!attempt) return "To do";
+  if (attempt.status === "IN_PROGRESS") return "In progress";
+  if (attempt.status === "SUBMITTED" || attempt.status === "GRADED") return "Completed";
+  return "To do";
 }

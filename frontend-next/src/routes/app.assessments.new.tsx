@@ -247,7 +247,7 @@ function CreateAssessmentWizard() {
 
   const createDraft = () => {
     if (form.type === "Post-test") {
-      const message = "Post-test se ustvarja s posebnim čarovnikom.";
+      const message = "Post-tests are created using a dedicated wizard.";
       setSubmitError(message);
       toast.error(message);
       return;
@@ -274,7 +274,7 @@ function CreateAssessmentWizard() {
   };
   const generateDraft = () => {
     if (form.type === "Post-test") {
-      const message = "Post-test se ustvarja s posebnim čarovnikom.";
+      const message = "Post-tests are created using a dedicated wizard.";
       setSubmitError(message);
       toast.error(message);
       return;
@@ -610,7 +610,7 @@ function Step1({
             <div className="flex items-start gap-2 text-amber-800 dark:text-amber-200">
               <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
               <div className="space-y-2">
-                <p>Post-test se ustvarja s posebnim čarovnikom.</p>
+                <p>Post-tests are created using a dedicated wizard.</p>
                 {firstPreTestId ? (
                   <Button asChild size="sm" variant="outline">
                     <Link

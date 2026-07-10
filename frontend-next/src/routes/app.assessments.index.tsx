@@ -284,6 +284,24 @@ function AssessmentRow({
   assessment: Assessment;
   isAdmin: boolean;
 }) {
+  // GET /assessments includes _count.attempts (SUBMITTED/GRADED only) — not yet part
+  // of the shared Assessment type, so read it defensively off the raw API response.
+  const submittedCount =
+    (assessment as unknown as { _count?: { attempts?: number } })._count?.attempts ?? 0;
+
+  const attemptPercentages = (assessment.attempts ?? []).flatMap((attempt) => {
+    if (attempt.score === null || attempt.maxScore === null || attempt.maxScore === 0) {
+      return [];
+    }
+    return [(attempt.score / attempt.maxScore) * 100];
+  });
+  const avgScore =
+    attemptPercentages.length > 0
+      ? Math.round(
+          (attemptPercentages.reduce((sum, pct) => sum + pct, 0) / attemptPercentages.length) * 10,
+        ) / 10
+      : null;
+
   return (
     <TableRow>
       <TableCell>
@@ -307,8 +325,12 @@ function AssessmentRow({
           status={ASSESSMENT_STATUS_LABEL[assessment.status] ?? assessment.status}
         />
       </TableCell>
-      <TableCell className="hidden lg:table-cell text-right tabular-nums">—</TableCell>
-      <TableCell className="hidden lg:table-cell text-right tabular-nums">—</TableCell>
+      <TableCell className="hidden lg:table-cell text-right tabular-nums">
+        {submittedCount === 0 ? "—" : submittedCount}
+      </TableCell>
+      <TableCell className="hidden lg:table-cell text-right tabular-nums">
+        {submittedCount === 0 || avgScore === null ? "—" : `${avgScore}%`}
+      </TableCell>
       <TableCell className="text-right">
         <Button asChild size="sm" variant="outline">
           <Link to="/app/assessments/$id" params={{ id: String(assessment.id) }}>

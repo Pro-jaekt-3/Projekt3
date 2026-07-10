@@ -2,7 +2,8 @@ import { createFileRoute, Link, redirect, useNavigate, useSearch } from "@tansta
 import { useState } from "react";
 import { Sparkles, Shield, GraduationCap, UserCircle2 } from "lucide-react";
 import { z } from "zod";
-import { signInWithEmailAndPassword, signInWithPopup } from "firebase/auth";
+import { toast } from "sonner";
+import { sendPasswordResetEmail, signInWithEmailAndPassword, signInWithPopup } from "firebase/auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -83,6 +84,19 @@ function LoginPage() {
     }
   };
 
+  const handleForgotPassword = async () => {
+    if (!email.trim()) {
+      toast.error("Please enter your email first");
+      return;
+    }
+    try {
+      await sendPasswordResetEmail(auth, email.trim());
+      toast.success("Password reset email sent");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to send password reset email.");
+    }
+  };
+
   // DEV-only fallback: preview any role without a real Firebase account.
   const continueAs = (role: Role) => {
     login(role);
@@ -120,9 +134,13 @@ function LoginPage() {
             <div className="space-y-1.5">
               <div className="flex items-center justify-between">
                 <Label htmlFor="password">Password</Label>
-                <a href="#" className="text-xs text-primary hover:underline">
+                <button
+                  type="button"
+                  onClick={handleForgotPassword}
+                  className="text-xs text-primary hover:underline"
+                >
                   Forgot password?
-                </a>
+                </button>
               </div>
               <Input
                 id="password"

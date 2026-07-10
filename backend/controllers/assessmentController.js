@@ -98,7 +98,18 @@ const getAssessments = async (req, res) => {
 
     const assessments = await prisma.assessment.findMany({
       where,
-      include: assessmentDetailInclude,
+      include: {
+        ...assessmentDetailInclude,
+        _count: {
+          select: {
+            attempts: { where: { status: { in: ["SUBMITTED", "GRADED"] } } },
+          },
+        },
+        attempts: {
+          where: { status: { in: ["SUBMITTED", "GRADED"] } },
+          select: { score: true, maxScore: true },
+        },
+      },
     });
 
     res.json(assessments);
