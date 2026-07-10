@@ -42,6 +42,12 @@ export const Route = createFileRoute("/app/dashboard")({
   component: DashboardRouter,
 });
 
+// Shared shape for the plain "fetch a list" queries repeated across the three
+// role dashboards below (trainings/questions/users/AI models/summary).
+function useListQuery<T>(queryKey: readonly unknown[], queryFn: () => Promise<T>) {
+  return useQuery({ queryKey, queryFn });
+}
+
 function DashboardRouter() {
   const { role } = useRole();
   if (role === "admin") return <AdminDashboard />;
@@ -57,18 +63,11 @@ function InstructorDashboard() {
   const openAssessments = ASSESSMENTS.filter((a) => a.status === "Open").length;
   const draftAssessments = ASSESSMENTS.filter((a) => a.status === "Draft").length;
 
-  const trainingsQuery = useQuery({
-    queryKey: qk.trainings.list(),
-    queryFn: trainingsService.list,
-  });
-  const questionsQuery = useQuery({
-    queryKey: qk.questions.list(),
-    queryFn: questionsService.list,
-  });
-  const summaryQuery = useQuery({
-    queryKey: qk.analytics.list(["summary"]),
-    queryFn: () => analyticsService.summary(),
-  });
+  const trainingsQuery = useListQuery(qk.trainings.list(), trainingsService.list);
+  const questionsQuery = useListQuery(qk.questions.list(), questionsService.list);
+  const summaryQuery = useListQuery(qk.analytics.list(["summary"]), () =>
+    analyticsService.summary(),
+  );
 
   const needsReview =
     questionsQuery.data?.filter((q) => q.status === "NEEDS_REVIEW").length ?? 0;
@@ -221,18 +220,9 @@ function AdminDashboard() {
   ).length;
   const openAssessments = ASSESSMENTS.filter((a) => a.status === "Open").length;
 
-  const usersQuery = useQuery({
-    queryKey: qk.users.list(),
-    queryFn: usersService.list,
-  });
-  const trainingsQuery = useQuery({
-    queryKey: qk.trainings.list(),
-    queryFn: trainingsService.list,
-  });
-  const aiModelsQuery = useQuery({
-    queryKey: qk.aiModels.list(),
-    queryFn: aiService.listModels,
-  });
+  const usersQuery = useListQuery(qk.users.list(), usersService.list);
+  const trainingsQuery = useListQuery(qk.trainings.list(), trainingsService.list);
+  const aiModelsQuery = useListQuery(qk.aiModels.list(), aiService.listModels);
   const enabledModels = aiModelsQuery.data?.filter((m) => m.isActive).length ?? 0;
 
   return (
@@ -360,10 +350,10 @@ function ParticipantDashboard() {
   // Real participant data (mirrors the pattern in app.my-assessments.tsx /
   // app.my-results.tsx): fetch available assessments, then fan out to each
   // remembered attempt id to learn the actual per-assessment state.
-  const assessmentsQuery = useQuery({
-    queryKey: qk.assessments.list({ scope: "available" }),
-    queryFn: assessmentsService.listAvailable,
-  });
+  const assessmentsQuery = useListQuery(
+    qk.assessments.list({ scope: "available" }),
+    assessmentsService.listAvailable,
+  );
 
   const attemptQueries = useQueries({
     queries: (assessmentsQuery.data ?? []).map((assessment) => {

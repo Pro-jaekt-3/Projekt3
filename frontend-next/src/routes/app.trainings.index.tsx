@@ -42,6 +42,10 @@ export const Route = createFileRoute("/app/trainings/")({
   component: TrainingsList,
 });
 
+function getErrorMessage(error: unknown, fallback: string): string {
+  return error instanceof Error ? error.message : fallback;
+}
+
 function TrainingsList() {
   const { role } = useRole();
   const isAdmin = role === "admin";
@@ -82,7 +86,7 @@ function TrainingsList() {
       setDescription("");
       setOwnerUserId("");
     },
-    onError: (err) => toast.error(err instanceof Error ? err.message : "Failed to create training"),
+    onError: (err) => toast.error(getErrorMessage(err, "Failed to create training")),
   });
 
   const questionsQuery = useQuery({
@@ -140,11 +144,7 @@ function TrainingsList() {
         <LoadingState label="Loading trainings…" />
       ) : trainingsQuery.isError ? (
         <ErrorState
-          message={
-            trainingsQuery.error instanceof Error
-              ? trainingsQuery.error.message
-              : "Failed to load trainings"
-          }
+          message={getErrorMessage(trainingsQuery.error, "Failed to load trainings")}
           onRetry={() => trainingsQuery.refetch()}
         />
       ) : trainings.length === 0 ? (
