@@ -7,7 +7,6 @@ import {
   Copy,
   ExternalLink,
   Eye,
-  Play,
   AlertTriangle,
   Check,
   ClipboardList,
@@ -20,6 +19,7 @@ import {
   ListChecks,
 } from "lucide-react";
 import { toast } from "sonner";
+import QRCode from "react-qr-code";
 import { PageHeader } from "@/components/common/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -935,6 +935,7 @@ function AccessDrawer({
     typeof window !== "undefined" ? window.location.origin : "https://projekt3.app"
   }/assessment/${assessment.id}/access`;
   const statusMeta = STATUS_META[assessment.status];
+  const [qrFullscreen, setQrFullscreen] = useState(false);
   const copy = () => {
     if (typeof navigator !== "undefined") {
       navigator.clipboard?.writeText(link);
@@ -966,10 +967,7 @@ function AccessDrawer({
             <>
               <div className="rounded-md border bg-card p-4">
                 <div className="flex justify-center">
-                  <QrPlaceholder value={link} />
-                </div>
-                <div className="mt-3 text-center text-xs text-muted-foreground">
-                  QR respects assignment rules once the participant flow is wired.
+                  <QRCode value={link} size={176} />
                 </div>
               </div>
 
@@ -1006,11 +1004,13 @@ function AccessDrawer({
           </div>
 
           <div className="flex flex-wrap gap-2 pt-2">
-            <Button variant="outline" size="sm" disabled={assessment.status !== "PUBLISHED"}>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={assessment.status !== "PUBLISHED"}
+              onClick={() => setQrFullscreen(true)}
+            >
               <Eye className="mr-1.5 h-4 w-4" /> Display QR fullscreen
-            </Button>
-            <Button variant="outline" size="sm" disabled={assessment.status !== "PUBLISHED"}>
-              <Play className="mr-1.5 h-4 w-4" /> Open / close
             </Button>
             <Button asChild size="sm">
               <Link to="/app/assessments/$id/results" params={{ id: String(assessment.id) }}>
@@ -1020,6 +1020,15 @@ function AccessDrawer({
           </div>
         </div>
       </SheetContent>
+
+      <Dialog open={qrFullscreen} onOpenChange={setQrFullscreen}>
+        <DialogContent className="flex max-w-fit flex-col items-center gap-6 p-10">
+          <DialogHeader>
+            <DialogTitle className="text-center">{assessment.title}</DialogTitle>
+          </DialogHeader>
+          <QRCode value={link} size={400} />
+        </DialogContent>
+      </Dialog>
     </Sheet>
   );
 }
@@ -1029,46 +1038,6 @@ function LiveStat({ label, value }: { label: string; value: React.ReactNode }) {
     <div className="rounded-md border bg-surface p-2.5 text-center">
       <div className="text-[10px] uppercase tracking-wide text-muted-foreground">{label}</div>
       <div className="mt-0.5 text-base font-semibold tabular-nums">{value}</div>
-    </div>
-  );
-}
-
-function QrPlaceholder({ value }: { value: string }) {
-  const cells = 21;
-  let hash = 0;
-  for (let index = 0; index < value.length; index += 1) {
-    hash = (hash * 31 + value.charCodeAt(index)) >>> 0;
-  }
-  const pixels: boolean[] = [];
-  let seed = hash || 1;
-  for (let index = 0; index < cells * cells; index += 1) {
-    seed = (seed * 1103515245 + 12345) & 0x7fffffff;
-    pixels.push((seed >> 16) % 4 !== 0);
-  }
-  const setBlock = (row: number, column: number) => {
-    for (let r = 0; r < 7; r += 1) {
-      for (let c = 0; c < 7; c += 1) {
-        const isFilled =
-          r === 0 ||
-          r === 6 ||
-          c === 0 ||
-          c === 6 ||
-          (r >= 2 && r <= 4 && c >= 2 && c <= 4);
-        pixels[(row + r) * cells + (column + c)] = isFilled;
-      }
-    }
-  };
-  setBlock(0, 0);
-  setBlock(0, cells - 7);
-  setBlock(cells - 7, 0);
-
-  return (
-    <div className="rounded-md border bg-white p-3">
-      <div className="grid h-44 w-44 grid-cols-[repeat(21,minmax(0,1fr))] gap-[1px]">
-        {pixels.map((pixel, index) => (
-          <div key={index} className={pixel ? "bg-foreground" : "bg-white"} />
-        ))}
-      </div>
     </div>
   );
 }
