@@ -422,7 +422,10 @@ const computePrePostComparison = async (filters = {}) => {
 
 const getPrePostComparison = async (req, res) => {
   try {
-    const source = await withScopedAnalyticsFilters(req, { ...req.query });
+    const source = await withScopedAnalyticsFilters(req, {
+      ...req.query,
+      trainingId: req.query.trainingId ? Number(req.query.trainingId) : undefined,
+    });
     const result = await computePrePostComparison({
       trainingId: parsePositiveInt(source.trainingId),
       trainingIds: source.trainingIds,

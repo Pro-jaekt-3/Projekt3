@@ -20,6 +20,7 @@ const assessmentDetailInclude = {
               orderIndex: "asc",
             },
           },
+          topic: true,
         },
       },
     },
