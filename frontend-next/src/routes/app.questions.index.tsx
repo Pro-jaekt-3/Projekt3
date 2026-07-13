@@ -53,7 +53,6 @@ const STATUS_META: Record<QuestionStatus, { label: string; tone: Tone }> = {
 const TABS: { value: "All" | QuestionStatus; label: string }[] = [
   { value: "All", label: "All" },
   { value: "DRAFT", label: "Draft" },
-  { value: "NEEDS_REVIEW", label: "Needs Review" },
   { value: "REVIEW", label: "In Review" },
   { value: "REJECTED", label: "Rejected" },
   { value: "APPROVED", label: "Approved" },
