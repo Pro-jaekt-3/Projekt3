@@ -437,6 +437,14 @@ const generateQuestionDraft = async (req, res) => {
     try {
       rawText = await generateText({ provider, baseUrl, apiKey, modelName, prompt });
     } catch (error) {
+      console.error("[AI ERROR]", {
+        provider,
+        baseUrl,
+        model: modelName,
+        message: error?.message,
+        status: error?.response?.status,
+        body: error?.response?.data ?? error?.cause?.message,
+      });
       return res.status(502).json({
         error: "AI provider request failed.",
         details: error.message,
@@ -573,6 +581,14 @@ const suggestQuestionEquivalence = async (req, res) => {
     try {
       suggestion = await generateText({ provider, baseUrl, apiKey, modelName, prompt });
     } catch (error) {
+      console.error("[AI ERROR]", {
+        provider,
+        baseUrl,
+        model: modelName,
+        message: error?.message,
+        status: error?.response?.status,
+        body: error?.response?.data ?? error?.cause?.message,
+      });
       return res.status(502).json({
         error: "AI provider request failed.",
         details: error.message,
@@ -663,6 +679,14 @@ const generateEquivalentQuestion = async (req, res) => {
     try {
       rawText = await generateText({ provider, baseUrl, apiKey, modelName, prompt });
     } catch (error) {
+      console.error("[AI ERROR]", {
+        provider,
+        baseUrl,
+        model: modelName,
+        message: error?.message,
+        status: error?.response?.status,
+        body: error?.response?.data ?? error?.cause?.message,
+      });
       return res.status(502).json({
         error: "AI provider request failed.",
         details: error.message,
