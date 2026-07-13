@@ -2,6 +2,27 @@ const prisma = require("../prisma/client");
 const { AI_PROVIDERS, getDefaultAiModelConfig, getProviderConfig } = require("../config/ai");
 const { computePrePostComparison } = require("./analyticsController");
 const { generateWithOllama } = require("../lib/ollama");
+const { generateWithOpenAiCompatible } = require("../lib/openaiCompatible");
+
+// Fallback base URLs for OpenAI-compatible providers when neither the AiModel
+// row nor the provider env var (OPENAI_BASE_URL/DEEPSEEK_BASE_URL) sets one.
+const PROVIDER_BASE_URL_FALLBACKS = {
+  [AI_PROVIDERS.OPENAI]: "https://api.openai.com/v1",
+  [AI_PROVIDERS.DEEPSEEK]: "https://api.deepseek.com/v1",
+};
+
+function resolveProviderBaseUrl(provider, aiModelBaseUrl, providerConfig) {
+  return aiModelBaseUrl || providerConfig.baseUrl || PROVIDER_BASE_URL_FALLBACKS[provider];
+}
+
+// Single entry point for text generation: Ollama keeps its existing path,
+// every other provider goes through the generic OpenAI-compatible client.
+async function generateText({ provider, baseUrl, apiKey, modelName, prompt, timeoutMs }) {
+  if (provider === AI_PROVIDERS.OLLAMA) {
+    return generateWithOllama({ baseUrl, modelName, prompt, timeoutMs });
+  }
+  return generateWithOpenAiCompatible({ baseUrl, apiKey, modelName, prompt, timeoutMs });
+}
 
 const AI_ACTIONS = [
   "GENERATE_QUESTION",
@@ -275,32 +296,27 @@ async function resolveGenerationModel(aiModelIdRaw) {
     if (!aiModel) {
       return { error: { status: 400, message: `AI model ${aiModelId} was not found.` } };
     }
-    if (!aiModel.isActive || !aiModel.isLocal) {
+    if (!aiModel.isActive) {
       return {
         error: {
           status: 400,
-          message: `AI model ${aiModelId} must be an active local model to be used for generation.`,
-        },
-      };
-    }
-    if (aiModel.provider !== AI_PROVIDERS.OLLAMA) {
-      return {
-        error: {
-          status: 400,
-          message: `AI provider ${aiModel.provider} is not supported for generation. Choose a local Ollama model.`,
+          message: `AI model ${aiModelId} must be active to be used for generation.`,
         },
       };
     }
 
+    const providerConfig = getProviderConfig(aiModel.provider);
     return {
       aiModel,
-      baseUrl: aiModel.baseUrl || getProviderConfig(AI_PROVIDERS.OLLAMA).baseUrl,
+      baseUrl: resolveProviderBaseUrl(aiModel.provider, aiModel.baseUrl, providerConfig),
+      apiKey: providerConfig.apiKey,
       modelName: aiModel.modelName,
       provider: aiModel.provider,
     };
   }
 
-  // Default: env-configured model (unchanged existing behavior).
+  // Default: env-configured model (unchanged existing behavior for Ollama;
+  // other providers are now resolved instead of rejected with 501).
   const { provider, modelName, providerConfig } = getDefaultAiModelConfig();
   const aiModel = await prisma.aiModel.findUnique({
     where: { provider_modelName: { provider, modelName } },
@@ -314,18 +330,11 @@ async function resolveGenerationModel(aiModelIdRaw) {
       },
     };
   }
-  if (provider !== AI_PROVIDERS.OLLAMA) {
-    return {
-      error: {
-        status: 501,
-        message: `AI provider ${provider} is not implemented for generation yet.`,
-      },
-    };
-  }
 
   return {
     aiModel,
-    baseUrl: aiModel.baseUrl || providerConfig.baseUrl,
+    baseUrl: resolveProviderBaseUrl(provider, aiModel.baseUrl, providerConfig),
+    apiKey: providerConfig.apiKey,
     modelName,
     provider,
   };
@@ -420,13 +429,13 @@ const generateQuestionDraft = async (req, res) => {
     if (resolved.error) {
       return res.status(resolved.error.status).json({ error: resolved.error.message });
     }
-    const { aiModel, baseUrl, modelName, provider } = resolved;
+    const { aiModel, baseUrl, apiKey, modelName, provider } = resolved;
 
     const prompt = buildQuestionDraftPrompt(req.body);
     let rawText;
 
     try {
-      rawText = await generateWithOllama({ baseUrl, modelName, prompt });
+      rawText = await generateText({ provider, baseUrl, apiKey, modelName, prompt });
     } catch (error) {
       return res.status(502).json({
         error: "AI provider request failed.",
@@ -552,7 +561,7 @@ const suggestQuestionEquivalence = async (req, res) => {
     if (resolved.error) {
       return res.status(resolved.error.status).json({ error: resolved.error.message });
     }
-    const { aiModel, baseUrl, modelName, provider } = resolved;
+    const { aiModel, baseUrl, apiKey, modelName, provider } = resolved;
 
     const prompt = buildEquivalenceSuggestionPrompt({
       questionA,
@@ -562,7 +571,7 @@ const suggestQuestionEquivalence = async (req, res) => {
     let suggestion;
 
     try {
-      suggestion = await generateWithOllama({ baseUrl, modelName, prompt });
+      suggestion = await generateText({ provider, baseUrl, apiKey, modelName, prompt });
     } catch (error) {
       return res.status(502).json({
         error: "AI provider request failed.",
@@ -643,7 +652,7 @@ const generateEquivalentQuestion = async (req, res) => {
     if (resolved.error) {
       return res.status(resolved.error.status).json({ error: resolved.error.message });
     }
-    const { aiModel, baseUrl, modelName, provider } = resolved;
+    const { aiModel, baseUrl, apiKey, modelName, provider } = resolved;
 
     const prompt = buildEquivalentQuestionPrompt({
       sourceQuestion,
@@ -652,7 +661,7 @@ const generateEquivalentQuestion = async (req, res) => {
     let rawText;
 
     try {
-      rawText = await generateWithOllama({ baseUrl, modelName, prompt });
+      rawText = await generateText({ provider, baseUrl, apiKey, modelName, prompt });
     } catch (error) {
       return res.status(502).json({
         error: "AI provider request failed.",
@@ -1039,7 +1048,8 @@ const getPrePostInsights = async (req, res) => {
     let narrativeUnavailableReason = null;
 
     try {
-      narrative = await generateWithOllama({
+      narrative = await generateText({
+        provider: aiModel.provider,
         baseUrl,
         modelName: aiModel.modelName,
         prompt,
