@@ -29,6 +29,11 @@ function ProfilePage() {
   const { user, role } = useRole();
   const [isSendingReset, setIsSendingReset] = useState(false);
 
+  // This route is gated by ensureRole (only reachable once isAuthenticated is
+  // true), which guarantees a resolved user — but guard the render anyway
+  // since `user` is nullable while auth is settling.
+  if (!user) return null;
+
   const initials = getInitials(user.name);
 
   const handleChangePassword = async () => {

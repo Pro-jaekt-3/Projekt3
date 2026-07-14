@@ -9,6 +9,13 @@ const questionInclude = {
   },
 };
 
+function missingRequiredFields(body) {
+  return ["title", "description", "difficulty", "topicId"].filter((field) => {
+    const value = body[field];
+    return value === undefined || value === null || String(value).trim() === "";
+  });
+}
+
 const getQuestions = async (req, res) => {
   try {
     const where = scopedListWhere(req.user, "question");
@@ -57,6 +64,13 @@ const createQuestion = async (req, res) => {
       options,
       equivalenceGroupId,
     } = req.body;
+
+    const missing = missingRequiredFields(req.body);
+    if (missing.length > 0) {
+      return res.status(400).json({
+        error: `Missing required fields: ${missing.join(", ")}`,
+      });
+    }
 
     const questionType = type || "OPEN";
 
@@ -223,11 +237,7 @@ const deleteQuestion = async (req, res) => {
       message: "Question deleted",
     });
   } catch (error) {
-    console.log(error);
-
-    res.status(500).json({
-      error: "Something went wrong",
-    });
+    res.status(500).json({ error: error.message });
   }
 };
 

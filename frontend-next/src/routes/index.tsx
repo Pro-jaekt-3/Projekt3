@@ -63,9 +63,6 @@ function PublicHome() {
                 <Link to="/login">View demo</Link>
               </Button>
             </div>
-            <p className="mt-3 text-xs text-muted-foreground">
-              Prototype with static data. No real authentication or AI calls.
-            </p>
           </div>
 
           <div className="rounded-xl border bg-card p-2 shadow-sm">

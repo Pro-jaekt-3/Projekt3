@@ -4,6 +4,7 @@ import { RouterProvider } from "@tanstack/react-router";
 
 import { getRouter } from "./router";
 import { RoleContext, useAuthController } from "./lib/role-context";
+import { Button } from "./components/ui/button";
 import "./styles.css";
 
 const router = getRouter();
@@ -28,6 +29,21 @@ function App() {
           className="h-6 w-6 animate-spin rounded-full border-2 border-muted border-t-primary"
           aria-label="Loading"
         />
+      </div>
+    );
+  }
+
+  // Signed in with Firebase but the backend profile (/auth/me) failed to
+  // load: show an explicit error instead of any placeholder identity.
+  if (auth.authError && !auth.isAuthenticated) {
+    return (
+      <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-background px-4 text-center">
+        <p className="max-w-sm text-sm text-muted-foreground">
+          We couldn't load your account. Please try again or sign out and back in.
+        </p>
+        <Button variant="outline" size="sm" onClick={() => auth.logout()}>
+          Sign out
+        </Button>
       </div>
     );
   }

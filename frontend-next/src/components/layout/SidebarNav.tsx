@@ -31,10 +31,7 @@ const NAV: Record<Role, NavItem[]> = {
     { to: "/app/trainings", label: "All Trainings", icon: GraduationCap },
     { to: "/app/assessments", label: "All Assessments", icon: ClipboardList },
     { to: "/app/ai-models", label: "AI Models", icon: Brain },
-    { to: "/app/ai-review", label: "AI Review", icon: Inbox },
-    { to: "/app/ai-insights", label: "AI Insights", icon: Sparkles },
     { to: "/app/analytics", label: "Analytics", icon: LineChart },
-    { to: "/app/system-analytics", label: "System Analytics", icon: BarChart3 },
   ],
   instructor: [
     { to: "/app/dashboard", label: "Dashboard", icon: LayoutDashboard },

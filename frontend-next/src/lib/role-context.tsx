@@ -22,9 +22,14 @@ export interface DemoUser {
 
 export interface AuthState {
   role: Role;
-  user: DemoUser;
+  // null until a real user is resolved: during initial load, or permanently if
+  // /auth/me failed (see authError). Never a placeholder/demo identity.
+  user: DemoUser | null;
   isAuthenticated: boolean;
   isLoading: boolean;
+  // True when a signed-in Firebase user's backend profile (/auth/me) failed to
+  // load. UI can show an error state instead of silently showing nothing.
+  authError: boolean;
   setRole: (role: Role) => void;
   login: (role: Role) => void;
   logout: () => void;
@@ -61,8 +66,13 @@ export const isDevRoleOverrideEnabled = import.meta.env.DEV && Boolean(RAW_DEV_O
 
 const STORAGE_KEY = "projekt3.role";
 
-const FALLBACK_ROLE: Role = "instructor";
+// Fail closed: the least-privileged role, used only while there is no real
+// backend role to report (e.g. /auth/me failed). Never "instructor"/"admin".
+const FALLBACK_ROLE: Role = "participant";
 
+// DEV-ONLY preview identities. Used exclusively when isDevRoleOverrideEnabled
+// is true (dead-code-eliminated in production) — never as a fallback for a
+// real signed-in user. See useAuthController below.
 const DEMO_USERS: Record<Role, DemoUser> = {
   admin: { name: "Ana Kovač", email: "ana.admin@projekt3.app", role: "admin" },
   instructor: { name: "Marko Novak", email: "marko.instructor@projekt3.app", role: "instructor" },
@@ -95,6 +105,7 @@ export function useAuthController(): AuthState {
   const [firebaseUser, setFirebaseUser] = useState<FirebaseUser | null>(null);
   const [appUser, setAppUser] = useState<AuthMeResponse | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [authError, setAuthError] = useState(false);
   // Dev-only previewed role; takes precedence when enabled. Never used in prod.
   const [devRole, setDevRole] = useState<Role | null>(() => {
     if (!isDevRoleOverrideEnabled) return null;
@@ -109,6 +120,7 @@ export function useAuthController(): AuthState {
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       setFirebaseUser(user);
+      setAuthError(false);
 
       if (!user) {
         setAppUser(null);
@@ -120,9 +132,11 @@ export function useAuthController(): AuthState {
       try {
         const me = await apiJsonFetch<AuthMeResponse>("/auth/me");
         setAppUser(me ?? null);
+        if (!me) setAuthError(true);
       } catch (error) {
         console.error("Failed to load authenticated user from /auth/me:", error);
         setAppUser(null);
+        setAuthError(true);
       } finally {
         setIsLoading(false);
       }
@@ -169,16 +183,23 @@ export function useAuthController(): AuthState {
 
     const role: Role = overrideActive ? devRole! : (backendRole ?? FALLBACK_ROLE);
 
-    const user: DemoUser = overrideActive
+    // DEMO_USERS is a dev-only preview identity — never a stand-in for a real
+    // signed-in user. If appUser hasn't loaded yet (or failed to), user is
+    // null; callers must handle loading/error explicitly instead of rendering
+    // a placeholder name.
+    const user: DemoUser | null = overrideActive
       ? DEMO_USERS[devRole!]
       : appUser
         ? { name: displayNameFromEmail(appUser.email), email: appUser.email, role }
-        : DEMO_USERS[role];
+        : null;
 
-    const isAuthenticated = Boolean(firebaseUser) || overrideActive;
+    // Authenticated only once BOTH the Firebase session and the backend
+    // profile are present (or the dev override is active) — a Firebase
+    // session with no resolved backend profile is not a signed-in state.
+    const isAuthenticated = overrideActive || Boolean(firebaseUser && appUser);
 
-    return { role, user, isAuthenticated, isLoading, setRole, login, logout };
-  }, [appUser, firebaseUser, devRole, isLoading, setRole, login, logout]);
+    return { role, user, isAuthenticated, isLoading, authError, setRole, login, logout };
+  }, [appUser, firebaseUser, devRole, isLoading, authError, setRole, login, logout]);
 }
 
 export function useRole() {

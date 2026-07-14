@@ -11,6 +11,7 @@ function makeAuth(overrides: Partial<AuthState> = {}): AuthState {
     user: { name: "Test", email: "test@example.com", role: "instructor" },
     isAuthenticated: true,
     isLoading: false,
+    authError: false,
     setRole: noop,
     login: noop,
     logout: noop,

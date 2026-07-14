@@ -26,7 +26,7 @@ interface Props {
 
 
 export function TopBar({ onOpenSidebar, pageTitle }: Props) {
-  const { role, user, logout } = useRole();
+  const { user, logout, isLoading } = useRole();
   const navigate = useNavigate();
 
   const onLogout = () => {
@@ -34,7 +34,7 @@ export function TopBar({ onOpenSidebar, pageTitle }: Props) {
     navigate({ to: "/login" });
   };
 
-  const initials = getInitials(user.name);
+  const initials = user ? getInitials(user.name) : "";
 
   return (
     <header className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b bg-background/95 px-3 backdrop-blur sm:px-4 lg:px-6">
@@ -75,9 +75,16 @@ export function TopBar({ onOpenSidebar, pageTitle }: Props) {
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-60">
             <DropdownMenuLabel>
-              <div className="font-medium">{user.name}</div>
-              <div className="text-xs font-normal text-muted-foreground">{user.email}</div>
-
+              {isLoading ? (
+                <div className="text-sm text-muted-foreground">Loading…</div>
+              ) : user ? (
+                <>
+                  <div className="font-medium">{user.name}</div>
+                  <div className="text-xs font-normal text-muted-foreground">{user.email}</div>
+                </>
+              ) : (
+                <div className="text-sm text-muted-foreground">Account unavailable</div>
+              )}
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
             <DropdownMenuItem asChild>

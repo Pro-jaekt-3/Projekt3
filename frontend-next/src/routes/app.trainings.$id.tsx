@@ -65,7 +65,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { RECENT_ACTIVITY } from "@/lib/mock-data";
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid } from "recharts";
 import { useRole } from "@/lib/role-context";
 import { qk } from "@/lib/query-keys";
@@ -491,25 +490,6 @@ function TrainingDetail() {
                     detail="Awaiting assessment data"
                   />
                 </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">Recent activity</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <ul className="divide-y">
-                  {RECENT_ACTIVITY.map((a, i) => (
-                    <li key={i} className="flex items-center justify-between py-2.5 text-sm">
-                      <div>
-                        <span className="font-medium">{a.who}</span>{" "}
-                        <span className="text-muted-foreground">{a.what}</span>
-                      </div>
-                      <span className="text-xs text-muted-foreground">{a.when}</span>
-                    </li>
-                  ))}
-                </ul>
               </CardContent>
             </Card>
           </TabsContent>

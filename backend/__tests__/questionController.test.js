@@ -156,17 +156,34 @@ describe("createQuestion — MCQ validation (business rule)", () => {
   });
 
   it("defaults type to OPEN when not provided", async () => {
+    prisma.topic.findUnique.mockResolvedValue({ trainingId: 7 });
+    ownTraining();
     prisma.question.create.mockResolvedValue({ id: 11 });
 
     const req = mockReq({
       user: instructor,
-      body: { title: "Q", description: "d", difficulty: 2 },
+      body: { title: "Q", description: "d", difficulty: 2, topicId: 2 },
     });
     const res = mockRes();
 
     await createQuestion(req, res);
 
     expect(prisma.question.create.mock.calls[0][0].data.type).toBe("OPEN");
+  });
+
+  it.each([
+    ["title", { description: "d", difficulty: 1, topicId: 2 }],
+    ["description", { title: "Q", difficulty: 1, topicId: 2 }],
+    ["difficulty", { title: "Q", description: "d", topicId: 2 }],
+    ["topicId", { title: "Q", description: "d", difficulty: 1 }],
+  ])("rejects a missing required field (%s) with 400", async (_field, body) => {
+    const req = mockReq({ user: instructor, body });
+    const res = mockRes();
+
+    await createQuestion(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(prisma.question.create).not.toHaveBeenCalled();
   });
 });
 
@@ -310,8 +327,7 @@ describe("deleteQuestion", () => {
     expect(res.status).not.toHaveBeenCalledWith(204);
   });
 
-  it("returns a generic 500 when the delete fails (e.g. FK in use)", async () => {
-    jest.spyOn(console, "log").mockImplementation(() => {});
+  it("returns the error message with 500 when the delete fails (e.g. FK in use)", async () => {
     prisma.question.delete.mockRejectedValue(new Error("FK constraint"));
     const req = mockReq({ user: instructor, params: { id: "5" } });
     const res = mockRes();
@@ -319,6 +335,6 @@ describe("deleteQuestion", () => {
     await deleteQuestion(req, res);
 
     expect(res.status).toHaveBeenCalledWith(500);
-    expect(res.json).toHaveBeenCalledWith({ error: "Something went wrong" });
+    expect(res.json).toHaveBeenCalledWith({ error: "FK constraint" });
   });
 });

@@ -139,7 +139,7 @@ function UsersPage() {
                       <UserRow
                         key={u.id}
                         user={u}
-                        isSelf={u.email === currentUser.email}
+                        isSelf={u.email === currentUser?.email}
                         pending={roleMutation.isPending && roleMutation.variables?.id === u.id}
                         onChange={(role) => roleMutation.mutate({ id: u.id, role })}
                       />
