@@ -26,13 +26,13 @@ import type { QuestionType } from "@/types";
 //     questionBId). It does NOT generate a new question; `suggestion` is an advisory
 //     equivalence assessment (unchanged, still free text).
 //   - question-draft / equivalent-question / equivalence-suggestion all accept an
-//     OPTIONAL `aiModelId`; when provided it must be an active local Ollama model
-//     (else 400), and that model actually runs the generation. Omitted -> configured
-//     default local model (existing behavior).
+//     OPTIONAL `aiModelId`; when provided it must be an ACTIVE model of any provider
+//     (Ollama or a cloud OpenAI-compatible provider such as Groq/DeepSeek) (else 400),
+//     and that model actually runs the generation. Omitted -> configured default model.
 //   - Specific errors bubble as Error(message): 400 (bad input/model), 404 (question
 //     not found), 422 (model returned invalid/unparseable JSON — `resultText` still
-//     included on the raw response for debugging), 500 (model missing/inactive), 501
-//     (non-Ollama provider), 502 (Ollama unreachable/request failed).
+//     included on the raw response for debugging), 500 (model missing/inactive), 502
+//     (provider unreachable/request failed).
 //
 // `qk` (src/lib/query-keys.ts) is frozen and has no `ai-authoring` entry, so we build
 // our own key set from the exported `entityKeys` factory instead of editing it.

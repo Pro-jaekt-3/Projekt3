@@ -598,25 +598,40 @@ function QuestionEditor() {
 
 const DIFFICULTY_TEXT: Record<number, string> = { 1: "easy", 2: "medium", 3: "hard" };
 
-// CLIENT-SIDE ONLY hint: pre-selects which installed local model an instructor is
-// likely to want per question type. The dropdown's current selection IS sent as
-// `aiModelId` on generate, so this affinity now determines what the backend actually
-// runs (unless the instructor picks a different model explicitly).
+// CLIENT-SIDE ONLY hint: pre-selects which installed local Ollama model an instructor
+// is likely to want per question type, used only as a fallback when no cloud model is
+// active. The dropdown's current selection IS sent as `aiModelId` on generate.
 const QUESTION_TYPE_MODEL_AFFINITY: Record<QuestionType, string[]> = {
   OPEN: ["qwen3:8b", "llama3.1:8b"],
   MULTIPLE_CHOICE: ["qwen3:8b", "mistral"],
   CODE: ["qwen2.5-coder", "codellama", "qwen3:8b"],
 };
 
+// Prefers an active cloud (non-Ollama) model when one exists, so generation doesn't
+// default to requiring a local Ollama install just because it's first in the list.
 function pickPreferredModel(
   models: AiModelSummary[],
   type: QuestionType,
 ): AiModelSummary | undefined {
+  const cloudModels = models.filter((m) => !m.isLocal);
+  if (cloudModels.length > 0) return cloudModels[0];
+
   for (const name of QUESTION_TYPE_MODEL_AFFINITY[type] ?? []) {
     const match = models.find((m) => m.modelName === name);
     if (match) return match;
   }
   return models[0];
+}
+
+// "Groq · llama-3.3-70b-versatile" vs "Local · gpt-oss:120b" — lets the instructor
+// tell cloud models apart from local Ollama ones even though both may show provider
+// "OPENAI" (Groq is served through an OpenAI-compatible endpoint).
+function modelProviderLabel(m: AiModelSummary): string {
+  if (m.isLocal) return "Local";
+  if (m.baseUrl?.toLowerCase().includes("groq")) return "Groq";
+  if (m.provider === "OPENAI") return "OpenAI";
+  if (m.provider === "DEEPSEEK") return "DeepSeek";
+  return m.provider;
 }
 
 const aiErrText = (e: unknown) => (e instanceof Error ? e.message : "AI request failed");
@@ -649,12 +664,16 @@ function AIAssistantPanel({
     queryFn: aiAuthoringService.ollamaStatus,
   });
 
-  // Generation runs only against an active, installed LOCAL Ollama model (CLAUDE.md).
-  const localModels = (modelsQuery.data ?? []).filter((m) => m.isActive && m.isLocal);
-  const preferred = pickPreferredModel(localModels, questionType);
+  // Any active model (local Ollama or cloud/OpenAI-compatible, e.g. Groq) can run
+  // generation — the backend resolves whichever aiModelId is sent.
+  const activeModels = (modelsQuery.data ?? []).filter((m) => m.isActive);
+  const localModels = activeModels.filter((m) => m.isLocal);
+  const preferred = pickPreferredModel(activeModels, questionType);
   const [selectedModelName, setSelectedModelName] = useState("");
   const effectiveModelName = selectedModelName || preferred?.modelName || "";
-  const effectiveModelId = localModels.find((m) => m.modelName === effectiveModelName)?.id;
+  const selectedModel = activeModels.find((m) => m.modelName === effectiveModelName);
+  const effectiveModelId = selectedModel?.id;
+  const selectedIsLocal = selectedModel?.isLocal ?? false;
 
   const [instructions, setInstructions] = useState("");
   const [draft, setDraft] = useState<{
@@ -674,7 +693,10 @@ function AIAssistantPanel({
 
   const ollamaReachable = statusQuery.data?.reachable ?? false;
   const hasLocalModel = localModels.length > 0;
-  const canGenerate = ollamaReachable && hasLocalModel && !!topicName;
+  const hasAnyModel = activeModels.length > 0;
+  // Ollama reachability only gates generation when the SELECTED model is local —
+  // a cloud model (e.g. Groq) works regardless of local Ollama status.
+  const canGenerate = hasAnyModel && !!topicName && (!selectedIsLocal || ollamaReachable);
 
   // ---- Draft generation (POST /ai/question-draft) ----
   // Structured drafts on local models can take 30-60s+; apiFetch has no client-side
@@ -801,47 +823,50 @@ function AIAssistantPanel({
           </div>
         </CardHeader>
         <CardContent className="space-y-3">
-          {/* Local model availability / Ollama reachability */}
+          {/* Model availability / Ollama reachability (only relevant for a local model) */}
           {statusQuery.isLoading ? (
-            <p className="text-xs text-muted-foreground">Checking local AI status…</p>
-          ) : !ollamaReachable ? (
+            <p className="text-xs text-muted-foreground">Checking AI model status…</p>
+          ) : !hasAnyModel ? (
+            <div className="flex items-start gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 p-2.5 text-xs">
+              <AlertTriangle className="mt-0.5 h-3.5 w-3.5 text-amber-600" />
+              <span>No active AI model. Activate one under AI Models to enable generation.</span>
+            </div>
+          ) : selectedIsLocal && !ollamaReachable ? (
             <div className="flex items-start gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 p-2.5 text-xs">
               <AlertTriangle className="mt-0.5 h-3.5 w-3.5 text-amber-600" />
               <span>
                 Ollama is not reachable
                 {statusQuery.data?.baseUrl ? ` at ${statusQuery.data.baseUrl}` : ""}. AI generation
-                is disabled until the local model is running.
-              </span>
-            </div>
-          ) : !hasLocalModel ? (
-            <div className="flex items-start gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 p-2.5 text-xs">
-              <AlertTriangle className="mt-0.5 h-3.5 w-3.5 text-amber-600" />
-              <span>
-                No active local AI model. Activate one under AI Models to enable generation.
+                is disabled until the local model is running, or pick a cloud model above.
               </span>
             </div>
           ) : null}
 
           <div className="space-y-1.5">
-            <Label className="text-xs">Local model</Label>
+            <Label className="text-xs">AI model</Label>
             <Select
               value={effectiveModelName}
               onValueChange={setSelectedModelName}
-              disabled={!hasLocalModel}
+              disabled={!hasAnyModel}
             >
               <SelectTrigger>
-                <SelectValue placeholder="No local model" />
+                <SelectValue placeholder="No active model" />
               </SelectTrigger>
               <SelectContent>
-                {localModels.map((m) => (
+                {activeModels.map((m) => (
                   <SelectItem key={m.id} value={m.modelName}>
-                    {m.displayName ?? m.modelName}
+                    {modelProviderLabel(m)} · {m.displayName ?? m.modelName}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
             <div className="flex flex-wrap gap-1 pt-1">
-              <StatusBadge status="Local" tone="success" />
+              {selectedModel && (
+                <StatusBadge
+                  status={modelProviderLabel(selectedModel)}
+                  tone={selectedModel.isLocal ? "success" : "warning"}
+                />
+              )}
               {preferred && (
                 <StatusBadge status={`Suggested for ${TYPE_LABEL[questionType]}`} tone="muted" />
               )}
@@ -878,8 +903,8 @@ function AIAssistantPanel({
                 Structured generation can take up to a minute on local models — please wait.
               </p>
             ) : (
-              ollamaReachable &&
-              hasLocalModel &&
+              hasAnyModel &&
+              (!selectedIsLocal || ollamaReachable) &&
               !topicName && (
                 <p className="text-[11px] text-muted-foreground">
                   Select a topic first.
